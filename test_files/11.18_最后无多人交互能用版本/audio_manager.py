@@ -1,0 +1,847 @@
+import asyncio
+import audioop  # 标准库：重采样
+import json
+import os
+import queue
+import random
+import re
+import signal
+import socket
+import threading
+import time
+import uuid
+import wave
+from dataclasses import dataclass
+
+# from pathlib import Path  # 已移除：不再读取 a.txt
+from typing import Any, Dict, Optional
+
+import pyaudio
+
+import config
+from realtime_dialog_client import RealtimeDialogClient
+
+# --- 兼容 Python 3.8：为 asyncio.to_thread 提供后备实现（保留，无实际使用） ---
+try:
+    _to_thread = asyncio.to_thread  # Python 3.9+
+except AttributeError:
+    import functools
+
+    async def _to_thread(func, /, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None, functools.partial(func, *args, **kwargs)
+        )
+
+
+try:
+    import rospy
+    from std_msgs.msg import Bool, ByteMultiArray
+
+    try:
+        from audio_common_msgs.msg import AudioData as RosAudioData
+
+        _HAS_AUDIO_DATA_MSG = True
+    except Exception:
+        _HAS_AUDIO_DATA_MSG = False
+    _HAS_ROS1 = True
+except Exception:
+    _HAS_ROS1 = False
+    _HAS_AUDIO_DATA_MSG = False
+
+TARGET_SAMPLE_RATE = 16000
+TARGET_SAMPLE_WIDTH = 2
+TARGET_CHANNELS = 1
+TARGET_CHUNK_SAMPLES = 320
+
+
+@dataclass
+class AudioConfig:
+    format: str
+    bit_size: int
+    channels: int
+    sample_rate: int
+    chunk: int
+    device_index: Optional[int] = None
+    mode: str = "pyaudio"
+    ros1_topic: str = "/robot/speaker/audio"
+    ros1_node_name: str = "speaker_publisher"
+    ros1_queue_size: int = 10
+    ros1_latch: bool = False
+
+
+class Ros1SpeakerStream:
+    def __init__(
+        self,
+        topic="/robot/speaker/audio",
+        node_name="speaker_publisher",
+        queue_size=10,
+        latched=False,
+    ):
+        if not _HAS_ROS1:
+            raise RuntimeError("未检测到 ROS1 (rospy)。请在 ROS1 环境运行。")
+        if not rospy.core.is_initialized():
+            rospy.init_node(node_name, anonymous=True, disable_signals=True)
+        self.topic = topic
+        self._use_audio_msg = _HAS_AUDIO_DATA_MSG
+        if self._use_audio_msg:
+            self._pub = rospy.Publisher(
+                topic, RosAudioData, queue_size=queue_size, latch=latched
+            )
+        else:
+            self._pub = rospy.Publisher(
+                topic, ByteMultiArray, queue_size=queue_size, latch=latched
+            )
+        self._closed = False
+
+    def write(self, audio_bytes: bytes):
+        if self._closed:
+            return
+        if self._use_audio_msg:
+            msg = RosAudioData()
+            msg.data = list(audio_bytes)
+        else:
+            msg = ByteMultiArray()
+            msg.data = list(audio_bytes)
+        self._pub.publish(msg)
+
+    def stop_stream(self):
+        pass
+
+    def close(self):
+        self._closed = True
+
+
+class AudioDeviceManager:
+    def __init__(self, input_config: AudioConfig, output_config: AudioConfig):
+        self.input_config = input_config
+        self.output_config = output_config
+        self.pyaudio = pyaudio.PyAudio()
+        self.input_stream: Optional[pyaudio.Stream] = None
+        self.output_stream: Optional[Any] = None
+
+    def open_input_stream(self) -> pyaudio.Stream:
+        open_kwargs = dict(
+            format=self.input_config.bit_size,
+            channels=self.input_config.channels,
+            rate=self.input_config.sample_rate,
+            input=True,
+            frames_per_buffer=self.input_config.chunk,
+        )
+        if self.input_config.device_index is not None:
+            open_kwargs["input_device_index"] = self.input_config.device_index
+        self.input_stream = self.pyaudio.open(**open_kwargs)
+        return self.input_stream
+
+    def open_output_stream(self) -> Any:
+        mode = (self.output_config.mode or "pyaudio").lower()
+        if mode == "pyaudio":
+            open_kwargs = dict(
+                format=self.output_config.bit_size,
+                channels=self.output_config.channels,
+                rate=self.output_config.sample_rate,
+                output=True,
+                frames_per_buffer=self.output_config.chunk,
+            )
+            if self.output_config.device_index is not None:
+                open_kwargs["output_device_index"] = self.output_config.device_index
+            self.output_stream = self.pyaudio.open(**open_kwargs)
+            return self.output_stream
+        elif mode == "ros1":
+            self.output_stream = Ros1SpeakerStream(
+                topic=self.output_config.ros1_topic,
+                node_name=self.output_config.ros1_node_name,
+                queue_size=self.output_config.ros1_queue_size,
+                latched=self.output_config.ros1_latch,
+            )
+            return self.output_stream
+        else:
+            raise ValueError(f"未知输出模式：{mode!r}")
+
+    def cleanup(self) -> None:
+        if isinstance(self.input_stream, pyaudio.Stream):
+            try:
+                self.input_stream.stop_stream()
+                self.input_stream.close()
+            except Exception:
+                pass
+        self.input_stream = None
+        if self.output_stream is not None:
+            try:
+                if hasattr(self.output_stream, "stop_stream"):
+                    self.output_stream.stop_stream()
+                if hasattr(self.output_stream, "close"):
+                    self.output_stream.close()
+            except Exception:
+                pass
+        self.output_stream = None
+        try:
+            self.pyaudio.terminate()
+        except Exception:
+            pass
+
+
+class DialogSession:
+    is_audio_file_input: bool
+
+    def __init__(
+        self,
+        ws_config: Dict[str, Any],
+        start_prompt: str,
+        output_audio_format: str = "pcm",
+        audio_file_path: str = "",
+    ):
+        self.start_prompt = start_prompt
+        self.audio_file_path = audio_file_path
+        self.is_audio_file_input = self.audio_file_path != ""
+        if self.is_audio_file_input:
+            self.quit_event = asyncio.Event()
+        else:
+            self.say_hello_over_event = asyncio.Event()
+
+        self.session_id = str(uuid.uuid4())
+        self.client = RealtimeDialogClient(
+            config=ws_config,
+            session_id=self.session_id,
+            output_audio_format=output_audio_format,
+        )
+        if output_audio_format == "pcm_s16le":
+            config.output_audio_config["format"] = "pcm_s16le"
+            config.output_audio_config["bit_size"] = pyaudio.paInt16
+
+        self._last_promote_ts = 0
+        self.promote_task = asyncio.create_task(self._promote_task())
+        self._promote_playing = False
+
+        self.is_running = True
+        self.is_session_finished = False
+        self.is_user_querying = False
+        self.is_sending_chat_tts_text = False
+        self.audio_buffer = b""
+        self._ratecv_state = None
+
+        self._last_play_ts = 0.0
+        self.block_mic_while_playing = True
+
+        self._last_silence_ts = 0.0
+        self._silence_interval_sec = 0.20
+
+        self.external_stop_event: Optional[asyncio.Event] = None
+
+        self.remote_playing = False
+        self.remote_status_topic = "/audio_playing_status"
+        self.remote_status_sub = None
+
+        # === 语音关键词 / MIC 指令通道 ===
+        self.voice_udp_host = "127.0.0.1"
+        self.voice_udp_port = 5557
+        self.voice_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        self.mic_udp_host = "127.0.0.1"
+        self.mic_udp_port = 5558
+        self.mic_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        # 关键词“挥手” 及去抖
+        self._wave_re = re.compile(r"(挥手|揮手|招手|挥个手|挥下手)")
+        self._kws_wave_cooldown = 1.5
+        self._kws_wave_last_ts = 0.0
+
+        # 话筒指令冷却
+        self._last_mic_send_time = 0.0
+
+        if not self.is_audio_file_input and _HAS_ROS1:
+            if not rospy.core.is_initialized():
+                rospy.init_node(
+                    "audio_manager_client", anonymous=True, disable_signals=True
+                )
+            self.remote_status_sub = rospy.Subscriber(
+                self.remote_status_topic,
+                Bool,
+                self._remote_audio_status_callback,
+                queue_size=10,
+            )
+            print(f"已订阅下位机播放状态话题: {self.remote_status_topic}")
+
+        signal.signal(signal.SIGINT, self._keyboard_signal)
+        self.audio_queue = queue.Queue()
+        if not self.is_audio_file_input:
+            self.audio_device = AudioDeviceManager(
+                AudioConfig(**config.input_audio_config),
+                AudioConfig(**config.output_audio_config),
+            )
+            self.output_stream = self.audio_device.open_output_stream()
+            self.is_recording = True
+            self.is_playing = True
+            self.player_thread = threading.Thread(
+                target=self._audio_player_thread, daemon=True
+            )
+            self.player_thread.start()
+
+    # ---------- MIC 指令发送 ----------
+    def send_mic_command(self, command: str, cooldown_sec: float = 0.2):
+        now = time.time()
+        if now - self._last_mic_send_time < cooldown_sec:
+            return
+        try:
+            msg = json.dumps(
+                {"type": "mic_command", "command": command, "timestamp": now}
+            )
+            self.mic_udp_socket.sendto(
+                msg.encode("utf-8"), (self.mic_udp_host, self.mic_udp_port)
+            )
+            print(f"[MIC-UDP:{self.mic_udp_port}] 发送指令：{command}")
+            self._last_mic_send_time = now
+        except Exception as e:
+            print(f"[MIC-UDP] 发送失败: {e}")
+
+    async def _promote_task(self):
+        while self.is_running:
+            await asyncio.sleep(2000000)
+            if not self._is_tts_playing() and not self._promote_playing:
+                await self._play_promote_message()
+            else:
+                while self._is_tts_playing():
+                    await asyncio.sleep(1)
+                await self._play_promote_message()
+
+    async def _play_promote_message(self):
+        if self._promote_playing:
+            return
+        self._promote_playing = True
+        promote_message1 = "哦对了，欢迎了解华科智能机器人。"
+        promote_message2 = "请扫旁边的二维码加入群聊。"
+        print(f"开始播放推销内容: {promote_message1}")
+        await self.client.chat_tts_text(False, True, False, promote_message1)
+        await self.client.chat_tts_text(False, False, True, promote_message2)
+        self._last_promote_ts = time.time()
+        print("推销内容播放完毕")
+        self._promote_playing = False
+
+    def _remote_audio_status_callback(self, msg):
+        self.remote_playing = msg.data
+
+    def attach_stop_event(self, evt: asyncio.Event) -> None:
+        self.external_stop_event = evt
+
+    def stop(self) -> None:
+        self.is_recording = False
+        self.is_playing = False
+        self.is_running = False
+        try:
+            if hasattr(self, "voice_udp_socket"):
+                self.voice_udp_socket.close()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "mic_udp_socket"):
+                self.mic_udp_socket.close()
+        except Exception:
+            pass
+
+        if self.is_audio_file_input:
+            try:
+                self.quit_event.set()
+            except Exception:
+                pass
+
+        # 不再存在：控制通道任务取消
+        # 不再存在：推广播报任务取消由上层 finally 统一清理
+        try:
+            if hasattr(self, "promote_task") and self.promote_task:
+                self.promote_task.cancel()
+        except Exception:
+            pass
+
+    def _audio_player_thread(self):
+        while self.is_playing:
+            try:
+                audio_data = self.audio_queue.get(timeout=1.0)
+                if audio_data is not None:
+                    self.output_stream.write(audio_data)
+                    self._last_play_ts = time.time()
+                    # 播放完成后 → 递话筒（独立 MIC 通道）
+                    self.send_mic_command("send_microphone")
+            except queue.Empty:
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"音频播放错误: {e}")
+                time.sleep(0.1)
+
+    def _is_tts_playing(self, grace_ms: float = 150.0) -> bool:
+        local_playing = (
+            time.time() - self._last_play_ts
+        ) * 1000.0 < grace_ms or not self.audio_queue.empty()
+        return local_playing or self.remote_playing
+
+    def _emit_voice_keyword(self, keyword: str):
+        try:
+            now = time.time()
+            msg = json.dumps(
+                {"type": "voice_keyword", "keyword": keyword, "timestamp": now}
+            )
+            self.voice_udp_socket.sendto(
+                msg.encode("utf-8"), (self.voice_udp_host, self.voice_udp_port)
+            )
+            print(f"[KWS] 发送语音关键词：{keyword}")
+        except Exception as e:
+            print(f"[KWS] 发送UDP失败: {e}")
+
+    def _maybe_emit_wave_from_asr(self, payload_msg: Dict[str, Any]):
+        cand_texts = []
+        for r in payload_msg.get("results", []):
+            if r.get("text"):
+                cand_texts.append(r["text"])
+            for alt in r.get("alternatives", []):
+                if alt.get("text"):
+                    cand_texts.append(alt["text"])
+        extra = payload_msg.get("extra", {})
+        if extra.get("origin_text"):
+            cand_texts.append(extra["origin_text"])
+        joined = " ".join(cand_texts)
+        if not joined:
+            return
+        if (
+            "挥手" in joined
+            or "挥一挥" in joined
+            or "挥一下" in joined
+            or "wave" in joined
+        ):
+            self._emit_voice_keyword("wave")
+        elif "点头" in joined or "点一下" in joined or "nod" in joined:
+            self._emit_voice_keyword("nod")
+        elif "击掌" in joined or "击一下" in joined:
+            self._emit_voice_keyword("shake")
+        elif (
+            "握手" in joined
+            or "握一下" in joined
+            or "握个手" in joined
+            or "shake" in joined
+        ):
+            self._emit_voice_keyword("woshou")
+        elif "再见" in joined or "拜拜" in joined or "bye" in joined:
+            self._emit_voice_keyword("end")
+
+    def handle_server_response(self, response: Dict[str, Any]) -> None:
+        # 已移除：静默控制窗口（丢弃确认回包/文本回包）
+        if response == {}:
+            return
+        if response["message_type"] == "SERVER_ACK" and isinstance(
+            response.get("payload_msg"), bytes
+        ):
+            if self.is_sending_chat_tts_text:
+                return
+            audio_data = response["payload_msg"]
+            if not self.is_audio_file_input:
+                self.audio_queue.put(audio_data)
+            self.audio_buffer += audio_data
+
+        elif response["message_type"] == "SERVER_FULL_RESPONSE":
+            print(f"服务器响应: {response}")
+            event = response.get("event")
+            payload_msg = response.get("payload_msg", {})
+
+            # 在 LLM 文本里找“左/右” → 走关键词通道(5557)
+            if "content" in payload_msg:
+                content = payload_msg["content"]
+                if "左" in content:
+                    try:
+                        message = json.dumps(
+                            {
+                                "type": "voice_keyword",
+                                "keyword": "left",
+                                "timestamp": time.time(),
+                            }
+                        )
+                        self.voice_udp_socket.sendto(
+                            message.encode("utf-8"),
+                            (self.voice_udp_host, self.voice_udp_port),
+                        )
+                        print("检测到'左'关键词，发送UDP消息")
+                    except Exception as e:
+                        print(f"发送UDP消息失败: {e}")
+                if "右" in content:
+                    try:
+                        message = json.dumps(
+                            {
+                                "type": "voice_keyword",
+                                "keyword": "right",
+                                "timestamp": time.time(),
+                            }
+                        )
+                        self.voice_udp_socket.sendto(
+                            message.encode("utf-8"),
+                            (self.voice_udp_host, self.voice_udp_port),
+                        )
+                        print("检测到'右'关键词，发送UDP消息")
+                    except Exception as e:
+                        print(f"发送UDP消息失败: {e}")
+                if "感谢" in content or "感谢您" in content:
+                    try:
+                        message = json.dumps(
+                            {
+                                "type": "voice_keyword",
+                                "keyword": "end",
+                                "timestamp": time.time(),
+                            }
+                        )
+                        self.voice_udp_socket.sendto(
+                            message.encode("utf-8"),
+                            (self.voice_udp_host, self.voice_udp_port),
+                        )
+                        print("检测到'右'关键词，发送UDP消息")
+                    except Exception as e:
+                        print(f"发送UDP消息失败: {e}")
+                # if "您好" in content or "你好" in content:
+                #     try:
+                #         message = json.dumps(
+                #             {
+                #                 "type": "voice_keyword",
+                #                 "keyword": "start",
+                #                 "timestamp": time.time(),
+                #             }
+                #         )
+                #         self.voice_udp_socket.sendto(
+                #             message.encode("utf-8"),
+                #             (self.voice_udp_host, self.voice_udp_port),
+                #         )
+                #         print("检测到'开始'关键词，发送UDP消息")
+                #     except Exception as e:
+                #         print(f"发送UDP消息失败: {e}")
+
+            if event == 451:
+                try:
+                    self._maybe_emit_wave_from_asr(payload_msg)
+                except Exception as e:
+                    print(f"[KWS] 解析ASR(451)失败: {e}")
+
+            if event == 450:
+                print(f"清空缓存音频: {response['session_id']}")
+                while not self.audio_queue.empty():
+                    try:
+                        self.audio_queue.get_nowait()
+                    except queue.Empty:
+                        continue
+                self.is_user_querying = True
+
+            if (
+                event == 350
+                and self.is_sending_chat_tts_text
+                and payload_msg.get("tts_type") == "chat_tts_text"
+            ):
+                while not self.audio_queue.empty():
+                    try:
+                        self.audio_queue.get_nowait()
+                    except queue.Empty:
+                        continue
+                self.is_sending_chat_tts_text = False
+
+            if event == 459:
+                self.is_user_querying = False
+                if random.randint(0, 10000) == 0:
+                    self.is_sending_chat_tts_text = True
+                    asyncio.create_task(self.trigger_chat_tts_text())
+
+        elif response["message_type"] == "SERVER_ERROR":
+            print(f"服务器错误: {response['payload_msg']}")
+            raise Exception("服务器错误")
+
+    async def _send_silence_if_due(self):
+        now = time.time()
+        if (now - self._last_silence_ts) >= self._silence_interval_sec:
+            await self.process_silence_audio()
+            self._last_silence_ts = now
+
+    async def trigger_chat_tts_text(self):
+        print("hit ChatTTSText event, start sending...")
+        await self.client.chat_tts_text(
+            self.is_user_querying,
+            True,
+            False,
+            "这是第一轮TTS的开始和中间包事件，这两个合而为一了。",
+        )
+        await self.client.chat_tts_text(
+            self.is_user_querying, False, True, "这是第一轮TTS的结束事件。"
+        )
+        await asyncio.sleep(10)
+        await self.client.chat_tts_text(
+            self.is_user_querying,
+            True,
+            False,
+            "这是第二轮TTS的开始和中间包事件，这两个合而为一了。",
+        )
+        await self.client.chat_tts_text(
+            self.is_user_querying, False, True, "这是第二轮TTS的结束事件。"
+        )
+
+    # —— 已彻底移除：读取/监听 a.txt 并静默下发控制指令的全部方法 ——
+
+    def _keyboard_signal(self, sig, frame):
+        print(f"receive keyboard Ctrl+C")
+        self.stop()
+
+    async def receive_loop(self):
+        try:
+            while True:
+                response = await self.client.receive_server_response()
+                self.handle_server_response(response)
+                if "event" in response and (
+                    response["event"] == 152 or response["event"] == 153
+                ):
+                    print(f"receive session finished event: {response['event']}")
+                    self.is_session_finished = True
+                    break
+                if (
+                    self.is_audio_file_input
+                    and "event" in response
+                    and response["event"] == 359
+                ):
+                    print(f"receive tts ended event")
+                    self.is_session_finished = True
+                    break
+                if (
+                    not self.is_audio_file_input
+                    and "event" in response
+                    and response["event"] == 359
+                    and not self.say_hello_over_event.is_set()
+                ):
+                    print(f"receive tts sayhello ended event")
+                    self.say_hello_over_event.set()
+        except asyncio.CancelledError:
+            print("接收任务已取消")
+        except Exception as e:
+            print(f"接收消息错误: {e}")
+
+    async def process_audio_file(self) -> None:
+        await self.process_audio_file_input(self.audio_file_path)
+        while not self.quit_event.is_set():
+            try:
+                await asyncio.sleep(0.01)
+                if self.quit_event.is_set():
+                    break
+                await self.process_silence_audio()
+            except Exception as e:
+                print(f"发送音频失败: {e}")
+                raise
+
+    async def process_audio_file_input(self, audio_file_path: str) -> None:
+        with wave.open(audio_file_path, "rb") as wf:
+            chunk_size = config.input_audio_config["chunk"]
+            print(f"开始处理音频文件: {audio_file_path}")
+            while True:
+                audio_data = wf.readframes(chunk_size)
+                if not audio_data:
+                    break
+                await self.client.task_request(audio_data)
+            print(f"音频文件处理完成，等待服务器响应...")
+
+    async def process_silence_audio(self) -> None:
+        silence_data = b"\x00" * (TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES)
+        await self.client.task_request(silence_data)
+
+    def _resample_to_16k(self, pcm16_le_mono: bytes, in_rate: int) -> bytes:
+        if in_rate == TARGET_SAMPLE_RATE:
+            return pcm16_le_mono
+        converted, self._ratecv_state = audioop.ratecv(
+            pcm16_le_mono,
+            TARGET_SAMPLE_WIDTH,
+            TARGET_CHANNELS,
+            in_rate,
+            TARGET_SAMPLE_RATE,
+            self._ratecv_state,
+        )
+        return converted
+
+    async def process_microphone_input(self) -> None:
+        await self.client.say_hello()
+        await self.say_hello_over_event.wait()
+        await self.client.chat_text_query(self.start_prompt)
+
+        stream = self.audio_device.open_input_stream()
+        print(
+            f"已打开麦克风（device_index={config.input_audio_config.get('device_index')}），"
+            f"采样率={config.input_audio_config['sample_rate']}，chunk={config.input_audio_config['chunk']}，开始讲话..."
+        )
+
+        in_rate = config.input_audio_config["sample_rate"]
+        in_channels = config.input_audio_config["channels"]
+        in_width = 2
+
+        def to_mono(pcm_bytes: bytes) -> bytes:
+            if in_channels == 1:
+                return pcm_bytes
+            return audioop.tomono(pcm_bytes, in_width, 0.5, 0.5)
+
+        while self.is_recording:
+            try:
+                if self.external_stop_event and self.external_stop_event.is_set():
+                    self.stop()
+                    break
+
+                if self.block_mic_while_playing and self._is_tts_playing():
+                    await self._send_silence_if_due()
+                    await asyncio.sleep(0.01)
+                    continue
+
+                audio_data = stream.read(
+                    config.input_audio_config["chunk"], exception_on_overflow=False
+                )
+                mono = to_mono(audio_data)
+                pcm16_16k = self._resample_to_16k(mono, in_rate)
+
+                frame_bytes = TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES
+                total_len = len(pcm16_16k)
+                offset = 0
+                while total_len - offset >= frame_bytes:
+                    chunk16k = pcm16_16k[offset : offset + frame_bytes]
+                    await self.client.task_request(chunk16k)
+                    offset += frame_bytes
+
+                # 采集一轮后 → 收话筒（独立 MIC 通道）
+                self.send_mic_command("release_microphone")
+
+                await asyncio.sleep(0.005)
+            except Exception as e:
+                print(f"读取麦克风数据出错: {e}")
+                await asyncio.sleep(0.1)
+
+    async def start(self) -> None:
+        try:
+            await self.client.connect()
+            if self.is_audio_file_input:
+                asyncio.create_task(self.process_audio_file())
+                await self.receive_loop()
+                self.quit_event.set()
+                await asyncio.sleep(0.1)
+            else:
+                asyncio.create_task(self.process_microphone_input())
+                asyncio.create_task(self.receive_loop())
+                while self.is_running:
+                    if self.external_stop_event and self.external_stop_event.is_set():
+                        self.stop()
+                        break
+                    await asyncio.sleep(0.1)
+
+            await self.client.finish_session()
+            while not self.is_session_finished:
+                await asyncio.sleep(0.1)
+            await self.client.finish_connection()
+            await asyncio.sleep(0.1)
+            await self.client.close()
+            print(f"dialog request logid: {self.client.logid}")
+            save_output_to_file(self.audio_buffer, "output.pcm")
+        except Exception as e:
+            print(f"会话错误: {e}")
+        finally:
+            if not self.is_audio_file_input:
+                self.audio_device.cleanup()
+
+
+def save_input_pcm_to_wav(pcm_data: bytes, filename: str) -> None:
+    with wave.open(filename, "wb") as wf:
+        wf.setnchannels(config.input_audio_config["channels"])
+        wf.setsampwidth(2)
+        wf.setframerate(config.input_audio_config["sample_rate"])
+        wf.writeframes(pcm_data)
+
+
+def save_output_to_file(audio_data: bytes, filename: str) -> None:
+    if not audio_data:
+        print("No audio data to save.")
+        return
+    try:
+        with open(filename, "wb") as f:
+            f.write(audio_data)
+    except IOError as e:
+        print(f"Failed to save pcm file: {e}")
+
+
+class VoiceDialogHandle:
+    def __init__(
+        self,
+        thread: threading.Thread,
+        loop: asyncio.AbstractEventLoop,
+        stop_event: asyncio.Event,
+    ):
+        self._thread = thread
+        self._loop = loop
+        self._stop_event = stop_event
+
+    def stop(self):
+        if self._loop.is_closed():
+            return
+
+        def _set():
+            if not self._stop_event.is_set():
+                self._stop_event.set()
+
+        self._loop.call_soon_threadsafe(_set)
+
+    def join(self, timeout: Optional[float] = None):
+        self._thread.join(timeout)
+
+
+def _run_session_thread(
+    start_prompt: str, audio_file_path: str, stop_event: asyncio.Event
+):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    session = DialogSession(
+        ws_config=config.ws_connect_config,
+        start_prompt=start_prompt,
+        output_audio_format="pcm",
+        audio_file_path=audio_file_path,
+    )
+    session.attach_stop_event(stop_event)
+    try:
+        loop.run_until_complete(session.start())
+    finally:
+        pending = asyncio.all_tasks(loop)
+        for t in pending:
+            t.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception:
+            pass
+        loop.close()
+
+
+def start_voice_dialog(
+    start_prompt: str, audio_file_path: str = ""
+) -> VoiceDialogHandle:
+    stop_event = asyncio.Event()
+    loop = asyncio.new_event_loop()
+    loop.close()
+    thread = threading.Thread(
+        target=_thread_entry,
+        args=(start_prompt, audio_file_path, stop_event),
+        daemon=True,
+    )
+    thread.start()
+    placeholder_loop = asyncio.new_event_loop()
+    handle = VoiceDialogHandle(
+        thread=thread, loop=placeholder_loop, stop_event=stop_event
+    )
+    return handle
+
+
+def _thread_entry(start_prompt: str, audio_file_path: str, stop_event: asyncio.Event):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    session = DialogSession(
+        ws_config=config.ws_connect_config,
+        start_prompt=start_prompt,
+        output_audio_format="pcm",
+        audio_file_path=audio_file_path,
+    )
+    session.attach_stop_event(stop_event)
+    try:
+        loop.run_until_complete(session.start())
+    finally:
+        pending = asyncio.all_tasks(loop)
+        for t in pending:
+            t.cancel()
+        try:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        except Exception:
+            pass
+        loop.close()
