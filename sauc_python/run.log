@@ -1,0 +1,139 @@
+2025-11-18 19:56:35,991 - INFO - Connected to wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream
+2025-11-18 19:56:35,992 - INFO - Sent full client request with seq: 1
+2025-11-18 19:56:36,084 - INFO - Received response: {'code': 0, 'event': 0, 'is_last_package': False, 'payload_sequence': 1, 'payload_size': 110, 'payload_msg': {'audio_info': {'duration': 0}, 'result': {'additions': {'log_id': '2025111819563553902923E3D8242EDEFB'}, 'text': ''}}}
+2025-11-18 19:56:36,085 - INFO - Segment seq=2 max_amp=7 threshold=500
+2025-11-18 19:56:36,086 - INFO - Sent mic audio segment seq: 2 (wav_header: True)
+2025-11-18 19:56:36,165 - INFO - Received response: {
+  "code": 0,
+  "event": 0,
+  "is_last_package": false,
+  "payload_sequence": 2,
+  "payload_size": 112,
+  "payload_msg": {
+    "audio_info": {
+      "duration": 200
+    },
+    "result": {
+      "additions": {
+        "log_id": "2025111819563553902923E3D8242EDEFB"
+      },
+      "text": ""
+    }
+  }
+}
+2025-11-18 19:56:36,294 - INFO - Sent mic audio segment seq: 3 (wav_header: False)
+2025-11-18 19:56:36,349 - INFO - Received response: {
+  "code": 0,
+  "event": 0,
+  "is_last_package": false,
+  "payload_sequence": 3,
+  "payload_size": 112,
+  "payload_msg": {
+    "audio_info": {
+      "duration": 400
+    },
+    "result": {
+      "additions": {
+        "log_id": "2025111819563553902923E3D8242EDEFB"
+      },
+      "text": ""
+    }
+  }
+}
+2025-11-18 19:56:36,510 - INFO - Segment seq=4 max_amp=859 threshold=500
+2025-11-18 19:56:36,511 - INFO - Sent mic audio segment seq: 4 (wav_header: False)
+2025-11-18 19:56:36,576 - INFO - Received response: {
+  "code": 0,
+  "event": 0,
+  "is_last_package": false,
+  "payload_sequence": 4,
+  "payload_size": 112,
+  "payload_msg": {
+    "audio_info": {
+      "duration": 600
+    },
+    "result": {
+      "additions": {
+        "log_id": "2025111819563553902923E3D8242EDEFB"
+      },
+      "text": ""
+    }
+  }
+}
+2025-11-18 19:56:36,715 - INFO - Sent mic audio segment seq: 5 (wav_header: False)
+2025-11-18 19:56:36,766 - INFO - Received response: {
+  "code": 0,
+  "event": 0,
+  "is_last_package": false,
+  "payload_sequence": 5,
+  "payload_size": 112,
+  "payload_msg": {
+    "audio_info": {
+      "duration": 800
+    },
+    "result": {
+      "additions": {
+        "log_id": "2025111819563553902923E3D8242EDEFB"
+      },
+      "text": ""
+    }
+  }
+}
+2025-11-18 19:56:36,933 - INFO - Sent mic audio segment seq: 6 (wav_header: False)
+2025-11-18 19:56:36,986 - INFO - Received response: {
+  "code": 0,
+  "event": 0,
+  "is_last_package": false,
+  "payload_sequence": 6,
+  "payload_size": 113,
+  "payload_msg": {
+    "audio_info": {
+      "duration": 1000
+    },
+    "result": {
+      "additions": {
+        "log_id": "2025111819563553902923E3D8242EDEFB"
+      },
+      "text": ""
+    }
+  }
+}
+2025-11-18 19:56:37,153 - INFO - Sent mic audio segment seq: 7 (wav_header: False)
+2025-11-18 19:56:37,199 - INFO - Received response: {
+  "code": 0,
+  "event": 0,
+  "is_last_package": false,
+  "payload_sequence": 7,
+  "payload_size": 113,
+  "payload_msg": {
+    "audio_info": {
+      "duration": 1200
+    },
+    "result": {
+      "additions": {
+        "log_id": "2025111819563553902923E3D8242EDEFB"
+      },
+      "text": ""
+    }
+  }
+}
+2025-11-18 19:56:37,355 - INFO - Sent mic audio segment seq: 8 (wav_header: False)
+2025-11-18 19:56:37,399 - INFO - Received response: {
+  "code": 0,
+  "event": 0,
+  "is_last_package": false,
+  "payload_sequence": 8,
+  "payload_size": 113,
+  "payload_msg": {
+    "audio_info": {
+      "duration": 1400
+    },
+    "result": {
+      "additions": {
+        "log_id": "2025111819563553902923E3D8242EDEFB"
+      },
+      "text": ""
+    }
+  }
+}
+2025-11-18 19:56:37,559 - INFO - Sent mic audio segment seq: 9 (wav_header: False)
