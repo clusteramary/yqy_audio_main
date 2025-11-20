@@ -598,3 +598,26 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+async def asr_pcm_to_text(pcm_data: bytes, url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream", seg_duration_ms: int = 200) -> str:
+    """将一整段 PCM 语音发送到 SAUC ASR，返回最终文本，并写入 output.txt。
+
+    注意：该函数会一直等待直到收到最后一包结果（is_last_package=True），
+    适合在对话中“阻塞式”获取下一句语音的文本结果。
+    """
+    if not pcm_data:
+        return ""
+
+    text_result: str = ""
+    async with AsrWsClient(url, seg_duration_ms) as client:
+        async for resp in client.execute_with_pcm(pcm_data):
+            if resp.code != 0:
+                logger.error("ASR 服务端错误 code=%s", resp.code)
+                break
+            if resp.is_last_package:
+                text_result = extract_text_from_response(resp)
+                write_text_to_file(text_result)
+                break
+
+    return clean_text(text_result)
