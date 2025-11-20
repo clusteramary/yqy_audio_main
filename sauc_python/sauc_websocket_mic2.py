@@ -474,7 +474,7 @@ def record_until_silence(
     sample_rate: int = DEFAULT_SAMPLE_RATE,
     chunk_ms: int = 100,
     silence_threshold: int = 500,
-    max_silence_ms: int = 1500,  # 默认 0.5s
+    max_silence_ms: int = 3500,  # 默认 0.5s
     max_record_ms: int = 15000,
     device_index: Optional[int] = None,
 ) -> bytes:
@@ -581,7 +581,7 @@ def write_text_to_file(text: str, path: str = OUTPUT_FILE) -> None:
 async def recognize_once_from_mic(
     url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
     seg_duration: int = 200,
-    vad_silence_ms: int = 500,
+    vad_silence_ms: int = 3500,
     vad_threshold: int = 500,
     output_file: str = OUTPUT_FILE,
     device_index: Optional[int] = None,
