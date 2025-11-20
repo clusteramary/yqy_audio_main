@@ -22,8 +22,8 @@ import pyaudio
 import config
 from realtime_dialog_client import RealtimeDialogClient
 
-# === 引入 SAUC 一次性麦克风识别（用于“下一轮说话 + ctrl” 合并成一条文本输入） ===
-from sauc_python.sauc_websocket_mic2 import recognize_once_from_mic
+# === 改：使用“共享队列版” SAUC 识别，而不是再开一条麦克风 ===
+from sauc_python.sauc_websocket_mic2 import recognize_once_from_queue
 
 try:
     _to_thread = asyncio.to_thread  # Python 3.9+
@@ -55,7 +55,7 @@ except Exception:
 TARGET_SAMPLE_RATE = 16000
 TARGET_SAMPLE_WIDTH = 2
 TARGET_CHANNELS = 1
-TARGET_CHUNK_SAMPLES = 320
+TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
 
 
 @dataclass
@@ -134,10 +134,6 @@ class AudioDeviceManager:
         if self.input_config.device_index is not None:
             open_kwargs["input_device_index"] = self.input_config.device_index
         self.input_stream = self.pyaudio.open(**open_kwargs)
-        print(
-            f"[MIC] 打开输入流 device_index={self.input_config.device_index}, "
-            f"rate={self.input_config.sample_rate}, chunk={self.input_config.chunk}"
-        )
         return self.input_stream
 
     def open_output_stream(self) -> Any:
@@ -260,6 +256,10 @@ class DialogSession:
         # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
         self._pause_mic_for_ctrl = False
 
+        # 共享 16k PCM 帧队列：主采集线程写，ctrl + SAUC 从这里读
+        # 帧格式：s16le 单声道，采样率 16000，每帧 TARGET_CHUNK_SAMPLES 样本 ≈ 20ms
+        self.ctrl_frame_queue: asyncio.Queue = asyncio.Queue()
+
         # sauc_python 目录 & 文件路径（相对于当前文件）
         self.sauc_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "sauc_python"
@@ -267,7 +267,10 @@ class DialogSession:
         self.ctrl_file_path = os.path.join(self.sauc_dir, "ctrl.txt")
         self.output_file_path = os.path.join(self.sauc_dir, "output.txt")
 
-        # ctrl 相关状态
+        # ctrl 相关状态：
+        #   - _last_ctrl_text：用于检测 ctrl.txt 是否有变化
+        #   - _ctrl_pending_text：最新的控制信号内容，等待“下一轮用户说话”
+        #   - _ctrl_worker_task：负责“等模型空闲 → 捕获下一轮说话 → 发送 ctrl+语音文本” 的协程任务
         self._last_ctrl_text: Optional[str] = None
         self._ctrl_pending_text: Optional[str] = None
         self._ctrl_worker_task: Optional[asyncio.Task] = None
@@ -297,8 +300,6 @@ class DialogSession:
                 AudioConfig(**config.input_audio_config),
                 AudioConfig(**config.output_audio_config),
             )
-            # 先打开主麦克风输入
-            self.audio_device.open_input_stream()
             self.output_stream = self.audio_device.open_output_stream()
             self.is_recording = True
             self.is_playing = True
@@ -323,43 +324,6 @@ class DialogSession:
             self._last_mic_send_time = now
         except Exception as e:
             print(f"[MIC-UDP] 发送失败: {e}")
-
-    # ---------- MIC 资源管理：让位 / 恢复 ----------
-    def _release_main_mic(self):
-        """
-        临时释放主对话的麦克风输入流，让 SAUC 独占设备。
-        """
-        try:
-            stream = getattr(self.audio_device, "input_stream", None)
-        except Exception:
-            stream = None
-        if stream is not None:
-            print("[MIC] 释放主麦克风输入流，准备给 SAUC 使用设备。")
-            try:
-                stream.stop_stream()
-            except Exception:
-                pass
-            try:
-                stream.close()
-            except Exception:
-                pass
-            self.audio_device.input_stream = None
-
-    def _ensure_main_mic_open(self):
-        """
-        在 ctrl 流程结束后，若还在会话中、且未打开输入流，则重新打开主麦克风。
-        """
-        if not hasattr(self, "audio_device"):
-            return
-        if not self.is_recording:
-            return
-        if self.audio_device.input_stream is not None:
-            return
-        try:
-            self.audio_device.open_input_stream()
-            print("[MIC] ctrl 流程结束，重新打开主麦克风输入流。")
-        except Exception as e:
-            print(f"[MIC] 重新打开主麦克风失败: {e}")
 
     async def _promote_task(self):
         while self.is_running:
@@ -390,7 +354,10 @@ class DialogSession:
         监控 sauc_python/ctrl.txt 内容变化：
         一旦 ctrl 内容变化，不立刻打断当前对话，而是：
           1）只记录“待发送的 ctrl 文本”到 _ctrl_pending_text；
-          2）启动一个后台协程 _ctrl_utterance_worker。
+          2）启动一个后台协程 _ctrl_utterance_worker：
+             - 等这一轮 TTS 播放完、大模型空闲；
+             - 使用 SAUC 队列版 ASR 捕获「用户下一句说话」；
+             - 将 ctrl 文本 + 该句文本合并，作为“下一轮自然对话”的输入发给大模型。
         """
         if not os.path.isdir(self.sauc_dir):
             print(f"[CTRL-MONITOR] 未找到目录: {self.sauc_dir}，跳过 ctrl 监控。")
@@ -453,15 +420,16 @@ class DialogSession:
         """
         背景任务：
         1）等待当前一轮 TTS 播放结束，大模型空闲（不在回复中）；
-        2）暂停主对话麦克风向大模型上传真实音频，只发静音保持会话；
-        3）释放主麦克风输入流，让 SAUC 独占设备，调用 SAUC 一次性 ASR；
+        2）启用“ctrl 捕获模式”：主采集线程仍然读麦克风，但：
+           - 实际音频帧推到 ctrl_frame_queue；
+           - 向大模型端只发静音帧保持会话；
+        3）使用 SAUC 队列版一次性 ASR，从 ctrl_frame_queue 捕获“用户下一句说话”；
         4）若成功识别到文本 asr_text，则将 (ctrl_pending_text + asr_text) 合并成一条文本，
-           用 chat_text_query 发给大模型，作为“下一轮自然对话”的输入。
-        5）无有效语音则不发送（控制信号不单独发）；
-        6）最后恢复主麦克风输入。
+           用 chat_text_query 发给大模型，作为“下一轮自然对话”的输入；
+        5）如果用户一直不说话，或未识别到有效文本，则不发送（保证“控制信号不单独发”）。
         """
         try:
-            # 本次要处理的 ctrl 文本快照
+            # 本次要处理的 ctrl 文本快照（期间 ctrl.txt 再变更，会走下一轮 worker）
             ctrl_text = self._ctrl_pending_text
             if not ctrl_text:
                 print("[CTRL-WORKER] 启动时 ctrl_pending_text 为空，直接退出。")
@@ -481,44 +449,45 @@ class DialogSession:
                 print("[CTRL-WORKER] 会话已结束，提前退出。")
                 return
 
-            # 2）暂停主链路麦克风向大模型上传真实音频，只发静音保持会话
+            # 清空上一轮可能残留的 ctrl 帧
+            try:
+                while not self.ctrl_frame_queue.empty():
+                    self.ctrl_frame_queue.get_nowait()
+            except Exception:
+                pass
+
+            # 2）开启 ctrl 捕获模式：主采集线程会把 16k 帧扔进 ctrl_frame_queue，并对大模型只发静音
             self._pause_mic_for_ctrl = True
 
-            # 3）释放主对话输入流，让 SAUC 能抢占设备
-            self._release_main_mic()
-            await asyncio.sleep(0.2)  # 稍等 ALSA 释放设备
-
-            # 取主对话麦克风的 device_index，保持硬件一致
-            try:
-                device_index = config.input_audio_config.get("device_index")
-            except Exception:
-                device_index = None
-
             print(
-                f"[CTRL-WORKER] 模型已空闲，主麦克风已释放，"
-                f"启动 SAUC 一次性语音识别 (device_index={device_index})，等待用户自然说下一句..."
+                "[CTRL-WORKER] 模型已空闲，启用 ctrl 捕获模式，从共享队列采集下一句语音..."
             )
 
-            # 4）调用 SAUC 一次性 ASR（内部包含 VAD：检测到一段语音 -> 静音 -> 结束）
+            # 3）调用 SAUC 队列版一次性 ASR（内部带 VAD，检测到一段语音 -> 静音 -> 结束）
             try:
-                asr_text = await recognize_once_from_mic(
+                asr_text = await recognize_once_from_queue(
+                    self.ctrl_frame_queue,
                     output_file=self.output_file_path,
-                    device_index=device_index,
+                    frame_ms=int(1000 * TARGET_CHUNK_SAMPLES / TARGET_SAMPLE_RATE),
+                    vad_silence_ms=500,
+                    vad_threshold=500,
+                    max_record_ms=15000,
                 )
             except Exception as e:
-                print(f"[CTRL-WORKER] 调用 SAUC 失败: {e}")
+                print(f"[CTRL-WORKER] 调用 SAUC 队列版失败: {e}")
                 asr_text = ""
 
-            print(f"[CTRL-WORKER] SAUC 识别结果：{asr_text!r}")
+            print(f"[CTRL-WORKER] SAUC 队列识别结果：{asr_text!r}")
 
+            # 4）根据“控制信号 + 语音文本”是否齐全，决定是否发给大模型
             if not asr_text:
-                # 用户不说话时，控制信号不单独发送
+                # 严格遵守：用户不说话时，控制信号不单独发
                 print(
                     "[CTRL-WORKER] 未检测到有效语音，控制信号不单独发送，worker 结束。"
                 )
                 return
 
-            # 仍以最新 pending ctrl 文本为准
+            # 仍以最新 pending ctrl 文本为准（中途可能被覆盖）
             ctrl_text_final = self._ctrl_pending_text or ctrl_text
             pieces = []
             if ctrl_text_final:
@@ -538,12 +507,18 @@ class DialogSession:
 
         except asyncio.CancelledError:
             print("[CTRL-WORKER] 被取消，结束。")
+            raise
         except Exception as e:
             print(f"[CTRL-WORKER] 运行异常: {e}")
         finally:
-            # 5）恢复主麦克风输入 & 主链路数据上传
-            self._ensure_main_mic_open()
+            # 关闭 ctrl 捕获模式：主采集线程恢复正常，把音频直接发给大模型
             self._pause_mic_for_ctrl = False
+            # 清空队列残帧，避免下次启动时受影响
+            try:
+                while not self.ctrl_frame_queue.empty():
+                    self.ctrl_frame_queue.get_nowait()
+            except Exception:
+                pass
 
     def _remote_audio_status_callback(self, msg):
         self.remote_playing = msg.data
@@ -875,10 +850,19 @@ class DialogSession:
         return converted
 
     async def process_microphone_input(self) -> None:
+        """
+        统一采集线程：
+          - 只这一处打开 PyAudio 输入流；
+          - 把数据转换成 16k/s16le 单声道 20ms 帧；
+          - 正常情况下：把这些帧发给大模型；
+          - 若 _pause_mic_for_ctrl=True：这些帧推给 ctrl_frame_queue，
+            同时对大模型只发静音帧（保持会话但不让这句话走“正常语音通路”）。
+        """
         await self.client.say_hello()
         await self.say_hello_over_event.wait()
         await self.client.chat_text_query(self.start_prompt)
 
+        stream = self.audio_device.open_input_stream()
         print(
             f"已打开麦克风（device_index={config.input_audio_config.get('device_index')}），"
             f"采样率={config.input_audio_config['sample_rate']}，chunk={config.input_audio_config['chunk']}，开始讲话..."
@@ -899,24 +883,7 @@ class DialogSession:
                     self.stop()
                     break
 
-                # 如果正在播放 TTS，或处于“ctrl 特殊流程”中，就暂停真实麦克风数据，只发静音帧保持会话
-                if (
-                    self.block_mic_while_playing and self._is_tts_playing()
-                ) or self._pause_mic_for_ctrl:
-                    await self._send_silence_if_due()
-                    await asyncio.sleep(0.01)
-                    continue
-
-                # 获取当前输入流（ctrl 阶段可能被释放）
-                stream = self.audio_device.input_stream
-                if stream is None:
-                    # 尝试恢复输入流
-                    self._ensure_main_mic_open()
-                    stream = self.audio_device.input_stream
-                    if stream is None:
-                        await asyncio.sleep(0.1)
-                        continue
-
+                # 统一从 PyAudio 读一块数据
                 audio_data = stream.read(
                     config.input_audio_config["chunk"], exception_on_overflow=False
                 )
@@ -926,10 +893,29 @@ class DialogSession:
                 frame_bytes = TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES
                 total_len = len(pcm16_16k)
                 offset = 0
+
                 while total_len - offset >= frame_bytes:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
-                    await self.client.task_request(chunk16k)
                     offset += frame_bytes
+
+                    # 如果 ctrl 捕获模式开启：这帧给 ctrl_frame_queue 做 VAD + 识别
+                    if self._pause_mic_for_ctrl:
+                        try:
+                            self.ctrl_frame_queue.put_nowait(chunk16k)
+                        except Exception:
+                            # 队列如果出意外（理论上不太会），就丢帧，但不影响主对话
+                            pass
+
+                    # 决定是否把这帧发给大模型：
+                    # 1）如果正在播放 TTS 且需要屏蔽麦克风；
+                    # 2）或者处于 ctrl 捕获模式；
+                    # -> 对大模型只发静音帧（间隔 self._silence_interval_sec）
+                    if (
+                        self.block_mic_while_playing and self._is_tts_playing()
+                    ) or self._pause_mic_for_ctrl:
+                        await self._send_silence_if_due()
+                    else:
+                        await self.client.task_request(chunk16k)
 
                 # 采集一轮后 → 收话筒（独立 MIC 通道）
                 self.send_mic_command("release_microphone")
