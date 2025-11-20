@@ -694,6 +694,7 @@ class DialogSession:
                 mono = to_mono(audio_data)
                 pcm16_16k = self._resample_to_16k(mono, in_rate)
 
+                # 先按原逻辑把音频切成 10ms 帧发送给对话服务器
                 frame_bytes = TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES
                 total_len = len(pcm16_16k)
                 offset = 0
@@ -705,9 +706,61 @@ class DialogSession:
                 # 采集一轮后 → 收话筒（独立 MIC 通道）
                 self.send_mic_command("release_microphone")
 
-                await asyncio.sleep(0.005)
+                # 检查 ctrl.txt 是否有变化，决定是否捕获下一句走 ASR
+                try:
+                    with open(self.ctrl_path, "r", encoding="utf-8") as f:
+                        ctrl_content = f.read().strip()
+                except Exception:
+                    ctrl_content = ""
 
+                if ctrl_content and ctrl_content != self._ctrl_last_content and not self._capture_next_sentence_for_asr:
+                    self._ctrl_last_content = ctrl_content
+                    self._capture_next_sentence_for_asr = True
+                    self._special_sentence_buffer = b""
                     silence_count = 0
+                    print(f"检测到 ctrl.txt 变更，将下一句语音转成文本后与其合并发送。当前 ctrl 内容: {ctrl_content!r}")
+
+                # 如果当前在捕获下一句模式，则把本轮音频加入缓冲，做简单静音检测
+                if self._capture_next_sentence_for_asr:
+                    self._special_sentence_buffer += pcm16_16k
+                    rms = audioop.rms(pcm16_16k, TARGET_SAMPLE_WIDTH)
+                    if rms < silence_threshold:
+                        silence_count += 1
+                    else:
+                        silence_count = 0
+
+                    if silence_count >= max_silence_chunks:
+                        print("检测到一句话结束，开始调用 ASR 将其转为文本并与 ctrl 合并发送。")
+                        sentence_pcm = self._special_sentence_buffer
+                        self._special_sentence_buffer = b""
+                        self._capture_next_sentence_for_asr = False
+                        silence_count = 0
+
+                        # 调用 SAUC ASR，把一句话转成文本并写入 output.txt
+                        try:
+                            asr_text = await asr_pcm_to_text(sentence_pcm)
+                        except Exception as e:
+                            print(f"调用 ASR 失败: {e}")
+                            asr_text = ""
+
+                        # 重新读取 ctrl.txt 和 output.txt，合并后作为文本发送给服务器
+                        try:
+                            with open(self.ctrl_path, "r", encoding="utf-8") as f:
+                                ctrl_text = f.read().strip()
+                        except Exception:
+                            ctrl_text = ""
+
+                        try:
+                            with open("output.txt", "r", encoding="utf-8") as f:
+                                output_text = f.read().strip()
+                        except Exception:
+                            output_text = asr_text.strip()
+
+                        combined = (ctrl_text or "") + "\n" + (output_text or asr_text or "")
+                        print(f"发送合并文本到服务器:\n{combined}")
+                        await self.client.chat_text_query(combined)
+
+                await asyncio.sleep(0.005)
 
             except Exception as e:
                 print(f"读取麦克风数据出错: {e}")
@@ -737,60 +790,6 @@ class DialogSession:
             await asyncio.sleep(0.1)
             await self.client.close()
             print(f"dialog request logid: {self.client.logid}")
-                            # 检查 ctrl.txt 是否有变化，决定是否捕获下一句走 ASR
-                            try:
-                                with open(self.ctrl_path, "r", encoding="utf-8") as f:
-                                    ctrl_content = f.read().strip()
-                            except Exception:
-                                ctrl_content = ""
-
-                            if ctrl_content and ctrl_content != self._ctrl_last_content and not self._capture_next_sentence_for_asr:
-                                self._ctrl_last_content = ctrl_content
-                                self._capture_next_sentence_for_asr = True
-                                self._special_sentence_buffer = b""
-                                silence_count = 0
-                                print(f"检测到 ctrl.txt 变更，将下一句语音转成文本后与其合并发送。当前 ctrl 内容: {ctrl_content!r}")
-
-                            if self._capture_next_sentence_for_asr:
-                                self._special_sentence_buffer += pcm16_mono
-                                rms = audioop.rms(pcm16_mono, TARGET_SAMPLE_WIDTH)
-                                if rms < silence_threshold:
-                                    silence_count += 1
-                                else:
-                                    silence_count = 0
-
-                                if silence_count >= max_silence_chunks:
-                                    print("检测到一句话结束，开始调用 ASR 将其转为文本并与 ctrl 合并发送。")
-                                    sentence_pcm = self._special_sentence_buffer
-                                    self._special_sentence_buffer = b""
-                                    self._capture_next_sentence_for_asr = False
-                                    silence_count = 0
-
-                                    # 调用 SAUC ASR，把一句话转成文本并写入 output.txt
-                                    try:
-                                        asr_text = await asr_pcm_to_text(sentence_pcm)
-                                    except Exception as e:
-                                        print(f"调用 ASR 失败: {e}")
-                                        asr_text = ""
-
-                                    # 重新读取 ctrl.txt 和 output.txt，合并后作为文本发送给服务器
-                                    try:
-                                        with open(self.ctrl_path, "r", encoding="utf-8") as f:
-                                            ctrl_text = f.read().strip()
-                                    except Exception:
-                                        ctrl_text = ""
-
-                                    try:
-                                        with open("output.txt", "r", encoding="utf-8") as f:
-                                            output_text = f.read().strip()
-                                    except Exception:
-                                        output_text = asr_text.strip()
-
-                                    combined = (ctrl_text or "") + "\n" + (output_text or asr_text or "")
-                                    print(f"发送合并文本到服务器:\n{combined}")
-                                    await self.client.chat_text_query(combined)
-                                # 本轮循环不向对话服务器发送原始音频
-                                continue
             save_output_to_file(self.audio_buffer, "output.pcm")
         except Exception as e:
             print(f"会话错误: {e}")
