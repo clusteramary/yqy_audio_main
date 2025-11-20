@@ -7,7 +7,6 @@ import random
 import re
 import signal
 import socket
-import sys
 import threading
 import time
 import uuid
@@ -22,14 +21,7 @@ import pyaudio
 import config
 from realtime_dialog_client import RealtimeDialogClient
 
-# === 新增：引入 SAUC 一次性麦克风识别 ===
-from sauc_python.sauc_websocket_mic2 import recognize_once_from_mic
-
-# # 让 Python 能找到 sauc_python 目录
-# sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sauc_python"))
-# from sauc_websocket_mic2 import recognize_once_from_mic
-
-
+# --- 兼容 Python 3.8：为 asyncio.to_thread 提供后备实现（保留，无实际使用） ---
 try:
     _to_thread = asyncio.to_thread  # Python 3.9+
 except AttributeError:
@@ -257,22 +249,6 @@ class DialogSession:
         # 话筒指令冷却
         self._last_mic_send_time = 0.0
 
-        # === 控制 ctrl.txt/output.txt 的文本触发 + SAUC 识别 ===
-        # 是否处于“因为 ctrl.txt 文本触发而暂时停麦克风上传”的状态
-        self._pause_mic_for_ctrl = False
-
-        # sauc_python 目录 & 文件路径（相对于当前文件）
-        self.sauc_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "sauc_python"
-        )
-        self.ctrl_file_path = os.path.join(self.sauc_dir, "ctrl.txt")
-        self.output_file_path = os.path.join(self.sauc_dir, "output.txt")
-        self._last_ctrl_text: Optional[str] = None
-        self.ctrl_monitor_task: Optional[asyncio.Task] = None
-        if not self.is_audio_file_input:
-            # 只在麦克风模式下监控 ctrl
-            self.ctrl_monitor_task = asyncio.create_task(self._monitor_ctrl_file())
-
         if not self.is_audio_file_input and _HAS_ROS1:
             if not rospy.core.is_initialized():
                 rospy.init_node(
@@ -341,146 +317,6 @@ class DialogSession:
         print("推销内容播放完毕")
         self._promote_playing = False
 
-    # ---------- 监控 ctrl.txt ----------
-    async def _monitor_ctrl_file(self):
-        """
-        监控 sauc_python/ctrl.txt 内容变化：
-        一旦变化：
-          1）暂停对话侧麦克风采集；
-          2）调用 SAUC 一次性 ASR 录音+识别（写入 output.txt）；
-          3）将 ctrl 文本 + 识别文本 拼接后，通过 chat_text_query 发送给大模型。
-        """
-        if not os.path.isdir(self.sauc_dir):
-            print(f"[CTRL-MONITOR] 未找到目录: {self.sauc_dir}，跳过 ctrl 监控。")
-            return
-
-        print(f"[CTRL-MONITOR] 启动，监控 ctrl: {self.ctrl_file_path}")
-
-        while self.is_running:
-            try:
-                try:
-                    with open(self.ctrl_file_path, "r", encoding="utf-8") as f:
-                        current_ctrl = f.read().strip()
-                except FileNotFoundError:
-                    # ctrl.txt 还没建好，稍后再试
-                    await asyncio.sleep(0.5)
-                    continue
-
-                if self._last_ctrl_text is None:
-                    # 第一次读取，只当基线，不触发发送
-                    self._last_ctrl_text = current_ctrl
-                elif current_ctrl != self._last_ctrl_text:
-                    self._last_ctrl_text = current_ctrl
-                    await self._handle_ctrl_file_change(current_ctrl)
-
-                await asyncio.sleep(0.3)
-            except asyncio.CancelledError:
-                print("[CTRL-MONITOR] 监控任务被取消")
-                break
-            except Exception as e:
-                print(f"[CTRL-MONITOR] 监控异常: {e}")
-                await asyncio.sleep(0.5)
-
-    # async def _handle_ctrl_file_change(self, ctrl_text: str) -> None:
-    #     """
-    #     ctrl.txt 内容改变时调用：
-    #       - 暂停对话侧麦克风采集；
-    #       - 调用 SAUC ASR 录一轮话；
-    #       - 将 ctrl 文本 + 识别文本 拼接后通过 chat_text_query 发送。
-    #     """
-    #     print(f"[CTRL-MONITOR] 检测到 ctrl.txt 内容变化: {ctrl_text!r}")
-
-    #     # 暂停麦克风采集，避免和文本请求 / SAUC 冲突
-    #     self._pause_mic_for_ctrl = True
-    #     try:
-    #         # 调用 SAUC 一次性识别（内部会自己录音 + VAD 结束，并写入 output.txt）
-    #         asr_text = ""
-    #         try:
-    #             asr_text = await recognize_once_from_mic(
-    #                 output_file=self.output_file_path
-    #             )
-    #         except Exception as e:
-    #             print(f"[CTRL-MONITOR] 调用 SAUC 失败: {e}")
-    #             asr_text = ""
-
-    #         pieces = []
-    #         if ctrl_text:
-    #             pieces.append(ctrl_text)
-    #         if asr_text:
-    #             pieces.append(asr_text)
-
-    #         if not pieces:
-    #             print("[CTRL-MONITOR] ctrl 文本和 ASR 文本都为空，跳过发送。")
-    #             return
-
-    #         combined_text = "\n".join(pieces)
-    #         print(f"[CTRL-MONITOR] 发送组合文本到大模型：{combined_text!r}")
-
-    #         await self.client.chat_text_query(combined_text)
-
-    #     except Exception as e:
-    #         print(f"[CTRL-MONITOR] 处理 ctrl 变化失败: {e}")
-    #     finally:
-    #         # 恢复麦克风采集
-    #         self._pause_mic_for_ctrl = False
-    async def _handle_ctrl_file_change(self, ctrl_text: str) -> None:
-        """
-        ctrl.txt 内容改变时调用：
-        - 暂停对话侧麦克风采集；
-        - 调用 SAUC ASR 录一轮话（使用 config 里同一个麦克风 index）；
-        - 将 ctrl 文本 + 识别文本 拼接后通过 chat_text_query 发送。
-        """
-        try:
-            print(f"[CTRL-MONITOR] 检测到 ctrl.txt 内容变化，内容: {ctrl_text!r}")
-
-            # 使用和主对话一样的麦克风索引
-            device_index = None
-            try:
-                device_index = config.input_audio_config.get("device_index")
-            except Exception:
-                pass
-
-            # 暂停主链路的麦克风采集，避免冲突
-            self._pause_mic_for_ctrl = True
-
-            print(
-                f"[CTRL-MONITOR] 准备启动 SAUC 一次性语音识别（device_index={device_index}），"
-                f"请对着麦克风说一句话..."
-            )
-
-            # 调 SAUC 一次性识别（内部录音 + VAD 结束，并写入 output.txt）
-            try:
-                asr_text = await recognize_once_from_mic(
-                    output_file=self.output_file_path,
-                    device_index=device_index,
-                )
-            except Exception as e:
-                print(f"[CTRL-MONITOR] 调用 SAUC 失败: {e}")
-                asr_text = ""
-
-            print(f"[CTRL-MONITOR] SAUC 识别结果：{asr_text!r}")
-
-            pieces = []
-            if ctrl_text:
-                pieces.append(ctrl_text)
-            if asr_text:
-                pieces.append(asr_text)
-
-            if not pieces:
-                print("[CTRL-MONITOR] ctrl 文本和 ASR 文本都为空，跳过发送。")
-                return
-
-            combined_text = "\n".join(pieces)
-            print(f"[CTRL-MONITOR] 发送组合文本到大模型：{combined_text!r}")
-
-            await self.client.chat_text_query(combined_text)
-
-        except Exception as e:
-            print(f"[CTRL-MONITOR] 处理 ctrl 变化失败: {e}")
-        finally:
-            # 不管成功失败，都要恢复主麦克风
-            self._pause_mic_for_ctrl = False
-
     def _remote_audio_status_callback(self, msg):
         self.remote_playing = msg.data
 
@@ -513,13 +349,6 @@ class DialogSession:
         try:
             if hasattr(self, "promote_task") and self.promote_task:
                 self.promote_task.cancel()
-        except Exception:
-            pass
-
-        # 取消 ctrl 监控任务
-        try:
-            if hasattr(self, "ctrl_monitor_task") and self.ctrl_monitor_task:
-                self.ctrl_monitor_task.cancel()
         except Exception:
             pass
 
@@ -611,7 +440,7 @@ class DialogSession:
             event = response.get("event")
             payload_msg = response.get("payload_msg", {})
 
-            # 在 LLM 文本里找“左/右/感谢” → 走关键词通道(5557)
+            # 在 LLM 文本里找“左/右” → 走关键词通道(5557)
             if "content" in payload_msg:
                 content = payload_msg["content"]
                 if "左" in content:
@@ -662,6 +491,22 @@ class DialogSession:
                         print("检测到'右'关键词，发送UDP消息")
                     except Exception as e:
                         print(f"发送UDP消息失败: {e}")
+                # if "您好" in content or "你好" in content:
+                #     try:
+                #         message = json.dumps(
+                #             {
+                #                 "type": "voice_keyword",
+                #                 "keyword": "start",
+                #                 "timestamp": time.time(),
+                #             }
+                #         )
+                #         self.voice_udp_socket.sendto(
+                #             message.encode("utf-8"),
+                #             (self.voice_udp_host, self.voice_udp_port),
+                #         )
+                #         print("检测到'开始'关键词，发送UDP消息")
+                #     except Exception as e:
+                #         print(f"发送UDP消息失败: {e}")
 
             if event == 451:
                 try:
@@ -727,6 +572,8 @@ class DialogSession:
         await self.client.chat_tts_text(
             self.is_user_querying, False, True, "这是第二轮TTS的结束事件。"
         )
+
+    # —— 已彻底移除：读取/监听 a.txt 并静默下发控制指令的全部方法 ——
 
     def _keyboard_signal(self, sig, frame):
         print(f"receive keyboard Ctrl+C")
@@ -830,10 +677,7 @@ class DialogSession:
                     self.stop()
                     break
 
-                # 如果正在播放 TTS，或正处于 ctrl 文本触发阶段，就暂停真实麦克风数据，只发静音
-                if (
-                    self.block_mic_while_playing and self._is_tts_playing()
-                ) or self._pause_mic_for_ctrl:
+                if self.block_mic_while_playing and self._is_tts_playing():
                     await self._send_silence_if_due()
                     await asyncio.sleep(0.01)
                     continue
