@@ -7,6 +7,8 @@ import random
 import re
 import signal
 import socket
+import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -184,7 +186,7 @@ class AudioDeviceManager:
 class DialogSession:
     is_audio_file_input: bool
 
-    def __init__(
+    def __init(
         self,
         ws_config: Dict[str, Any],
         start_prompt: str,
@@ -240,6 +242,15 @@ class DialogSession:
         self.mic_udp_host = "127.0.0.1"
         self.mic_udp_port = 5558
         self.mic_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        # === 监控 ctrl.txt 相关 ===
+        self.ctrl_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "sauc_python", "ctrl.txt"))
+        self.output_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "sauc_python", "output.txt"))
+        self.mic_script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "sauc_python", "sauc_websocket_mic2.py"))
+        try:
+            self.last_ctrl_mtime = os.path.getmtime(self.ctrl_file_path)
+        except OSError:
+            self.last_ctrl_mtime = 0
 
         # 关键词“挥手” 及去抖
         self._wave_re = re.compile(r"(挥手|揮手|招手|挥个手|挥下手)")
@@ -676,6 +687,60 @@ class DialogSession:
                 if self.external_stop_event and self.external_stop_event.is_set():
                     self.stop()
                     break
+
+                # === 检查 ctrl.txt 是否变化 ===
+                try:
+                    current_mtime = 0
+                    if os.path.exists(self.ctrl_file_path):
+                        current_mtime = os.path.getmtime(self.ctrl_file_path)
+                    
+                    if current_mtime > self.last_ctrl_mtime:
+                        # 如果之前不存在(0)现在存在了，或者时间变大了，都算变化
+                        # 但如果是初始化时就存在，last_ctrl_mtime已经是当前时间，不会触发
+                        self.last_ctrl_mtime = current_mtime
+                        print("Detected change in ctrl.txt, switching to specialized mic input...")
+                        
+                        # 1. 暂时关闭当前流，释放麦克风
+                        if stream:
+                            stream.stop_stream()
+                            stream.close()
+                        
+                        # 2. 调用外部脚本录音并转写
+                        # 注意：sauc_websocket_mic2.py 需要 --mic 参数
+                        cmd = [sys.executable, self.mic_script_path, "--mic"]
+                        cwd = os.path.dirname(self.mic_script_path)
+                        print(f"Running external mic script: {cmd}")
+                        # 阻塞运行
+                        subprocess.run(cmd, cwd=cwd, check=False)
+                        
+                        # 3. 读取 ctrl.txt 和 output.txt
+                        ctrl_content = ""
+                        if os.path.exists(self.ctrl_file_path):
+                            with open(self.ctrl_file_path, "r", encoding="utf-8") as f:
+                                ctrl_content = f.read().strip()
+                        
+                        output_content = ""
+                        if os.path.exists(self.output_file_path):
+                            with open(self.output_file_path, "r", encoding="utf-8") as f:
+                                output_content = f.read().strip()
+                        
+                        combined_text = f"{ctrl_content}{output_content}"
+                        print(f"Combined text to send: {combined_text}")
+                        
+                        # 4. 发送文本给服务器
+                        await self.client.chat_text_query(combined_text)
+                        
+                        # 5. 恢复麦克风流
+                        stream = self.audio_device.open_input_stream()
+                        print("Resumed normal microphone input.")
+                        
+                        # 跳过本次循环的后续音频读取
+                        continue
+                except Exception as e:
+                    print(f"Error in ctrl.txt monitoring: {e}")
+                    # 确保流是打开的
+                    # 这里比较难判断 stream 状态，简单起见，如果出错且流被关了，可能需要重启程序或更复杂的恢复
+                    # 但通常 subprocess 不会抛出异常到这里(除非找不到文件等)，主要逻辑在 try 块内
 
                 if self.block_mic_while_playing and self._is_tts_playing():
                     await self._send_silence_if_due()
