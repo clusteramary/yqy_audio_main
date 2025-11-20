@@ -153,7 +153,9 @@ async def run_once():
         # 2. 成为"细节控"：疯狂热爱具体的故事、时间、人物和感受。
         # 3. 避免重复追问：如果用户已经详细回答了某个方面，就不要重复追问相同维度的问题，而是从其他角度深入。
         # 4. 灵活衔接：追问后，可以说"听您讲完这个精彩的故事，我还想了解..."来回到主流程。"""
-        prompt = "You are a warm and friendly English journalist, and I am a high school student from Thailand. Please interview me based on my information. Before we begin our conversation, please greet me first. Remember to conduct our dialogue in English."
+        # prompt = "You are a warm and friendly English journalist, and I am a high school student from Thailand. Please interview me based on my information. Before we begin our conversation, please greet me first. Remember to conduct our dialogue in English."
+
+        prompt = "你好"
     else:
         print("[RESULT] 未得到 prompt（可能超时或未检测到稳定人脸）")
         prompt = "现在你是一个活泼热情的记者。在之后跟我的对话中向我提问四个问题，分开提问。第一次向我提问：“在‘十四五’规划收官和‘十五五’规划开局的历史交汇点，您如何评估四中全会在确定国家中长期发展方略中的关键作用？”第二次向我提问：基于‘十四五’期间在高质量发展，比如新质生产力领域取得的成就，您认为‘十五五’规划将如何在继承与创新之间寻找平衡？”第三次和第四次提问按照之前的提问和回答智能提问。"
