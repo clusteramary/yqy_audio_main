@@ -13,9 +13,7 @@ import time
 import uuid
 import wave
 from dataclasses import dataclass
-
-# from pathlib import Path  # 已移除：不再读取 a.txt
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 import pyaudio
 
@@ -57,13 +55,23 @@ TARGET_SAMPLE_WIDTH = 2
 TARGET_CHANNELS = 1
 TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
 
-# ASR 关键词配置：标签 -> 若干“包含匹配”的短语
+# ASR 关键词配置：标签 -> 若干“包含匹配”的短语（用于语音识别结果）
 ASR_KWS_PATTERNS: Dict[str, list] = {
-    "wave": ["挥手", "挥一挥", "挥一下", "wave"],
+    "wave": ["挥手", "挥一挥", "挥一下", "握一下手", "wave"],
     "nod": ["点头", "点一下", "nod"],
     "shake": ["击掌", "击一下"],
-    "woshou": ["握手", "握一下", "握个手", "shake", "你是好人"],
+    "woshou": ["握手", "握一下", "握个手", "shake"],
     "end": ["再见", "拜拜", "bye"],
+}
+
+# LLM 文本关键词配置：标签 -> 若干“包含匹配”的短语（用于大模型文本 content）
+LLM_KWS_PATTERNS: Dict[str, list] = {
+    "left": ["向左", "往左"],
+    "right": ["向右", "往右", "测试成功啦"],
+    # 结束访谈/结束控制，由 LLM 说出
+    "end": ["感谢你", "感谢您", "感谢"],
+    # 后面可以继续加，比如:
+    # "stop": ["停一下", "停止", "先到这里"],
 }
 
 
@@ -253,7 +261,7 @@ class DialogSession:
         self.mic_udp_port = 5558
         self.mic_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # 关键词“挥手” 及去抖
+        # 关键词“挥手” 及去抖（KWS 通道，当前未直接使用 _wave_re，但保留字段不影响）
         self._wave_re = re.compile(r"(挥手|揮手|招手|挥个手|挥下手)")
         self._kws_wave_cooldown = 1.5
         self._kws_wave_last_ts = 0.0
@@ -261,9 +269,11 @@ class DialogSession:
         # 话筒指令冷却
         self._last_mic_send_time = 0.0
 
-        # === LLM 输出关键短语检测缓冲（用于跨 token 检测“感谢你”等） ===
+        # === LLM 输出关键短语检测缓冲（用于跨 token 检测“感谢你”“左”“右”等） ===
         self._llm_keyword_buffer: str = ""
         self._llm_buffer_max_len: int = 50  # 只保留最近若干字符即可
+        # 当前这一轮 LLM 回复中已经触发过的关键词，避免同一轮触发多次
+        self._llm_kws_fired: Set[str] = set()
 
         # === 控制 ctrl.txt 的文本触发 + SAUC 识别 ===
         # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
@@ -510,10 +520,7 @@ class DialogSession:
 
                 # 4）根据“控制信号 + 语音文本”是否齐全，决定是否发给大模型
                 if not asr_text:
-                    # 这里与之前逻辑的区别：
-                    #   - 不再认为“控制信号本次作废”；
-                    #   - 只打印日志，保留 _ctrl_pending_text，
-                    #     下次用户再说话时，继续以同一个 ctrl 再尝试识别。
+                    # 不再认为“控制信号本次作废”，只打印日志，保留 _ctrl_pending_text
                     print(
                         "[CTRL-WORKER] 本轮未检测到有效语音，控制信号继续挂起，等待下一轮语音。"
                     )
@@ -641,6 +648,9 @@ class DialogSession:
             print(f"[KWS] 发送UDP失败: {e}")
 
     def _maybe_emit_wave_from_asr(self, payload_msg: Dict[str, Any]):
+        """
+        从 ASR 的 payload 里抽取文本，使用 ASR_KWS_PATTERNS 做关键词匹配。
+        """
         cand_texts = []
         for r in payload_msg.get("results", []):
             if r.get("text"):
@@ -659,6 +669,7 @@ class DialogSession:
         for keyword, patterns in ASR_KWS_PATTERNS.items():
             if any(p in joined for p in patterns):
                 self._emit_voice_keyword(keyword)
+                print(f"[ASR-KWS] 检测到关键词 '{keyword}', 已发送 UDP 消息")
                 break
 
     def handle_server_response(self, response: Dict[str, Any]) -> None:
@@ -680,76 +691,40 @@ class DialogSession:
             event = response.get("event")
             payload_msg = response.get("payload_msg", {})
 
-            # 每一轮文本回答开始时（例如 event=553），重置 LLM 关键词缓冲区
+            # 每一轮文本回答开始（例如 event=553），重置 LLM 关键词缓冲区 & 已触发集合
             if event == 553:
                 self._llm_keyword_buffer = ""
+                self._llm_kws_fired.clear()
 
-            # 在 LLM 文本里找“左/右/感谢” → 走关键词通道(5557)
+            # 在 LLM 文本里做统一关键词检测（使用缓冲区 + 字典配置）
             if "content" in payload_msg:
                 content = payload_msg["content"]
 
-                # 将当前 content 追加到小缓冲区，保留最近若干字符
+                # 1. 把当前 content 追加到缓冲区，保留最近若干字符（支持跨 token）
                 self._llm_keyword_buffer += content
                 if len(self._llm_keyword_buffer) > self._llm_buffer_max_len:
                     self._llm_keyword_buffer = self._llm_keyword_buffer[
                         -self._llm_buffer_max_len :
                     ]
 
-                # “左 / 右” 仍然按单次 content 检测，行为与原来一致
-                if "左" in content:
-                    try:
-                        message = json.dumps(
-                            {
-                                "type": "voice_keyword",
-                                "keyword": "left",
-                                "timestamp": time.time(),
-                            }
-                        )
-                        self.voice_udp_socket.sendto(
-                            message.encode("utf-8"),
-                            (self.voice_udp_host, self.voice_udp_port),
-                        )
-                        print("检测到'左'关键词，发送UDP消息")
-                    except Exception as e:
-                        print(f"发送UDP消息失败: {e}")
-
-                if "右" in content:
-                    try:
-                        message = json.dumps(
-                            {
-                                "type": "voice_keyword",
-                                "keyword": "right",
-                                "timestamp": time.time(),
-                            }
-                        )
-                        self.voice_udp_socket.sendto(
-                            message.encode("utf-8"),
-                            (self.voice_udp_host, self.voice_udp_port),
-                        )
-                        print("检测到'右'关键词，发送UDP消息")
-                    except Exception as e:
-                        print(f"发送UDP消息失败: {e}")
-
-                # “感谢你 / 感谢您 / 感谢 ...” 用缓冲区做跨 token 检测
                 buf = self._llm_keyword_buffer
-                if ("感谢你哦" in buf) or ("感谢您呢" in buf) or ("感谢你呀" in buf):
-                    try:
-                        message = json.dumps(
-                            {
-                                "type": "voice_keyword",
-                                "keyword": "end",
-                                "timestamp": time.time(),
-                            }
-                        )
-                        self.voice_udp_socket.sendto(
-                            message.encode("utf-8"),
-                            (self.voice_udp_host, self.voice_udp_port),
-                        )
-                        print("检测到'感谢'相关关键词，发送UDP消息(end)")
-                        # 触发一次后清空缓冲，避免同一句话反复触发
-                        self._llm_keyword_buffer = ""
-                    except Exception as e:
-                        print(f"发送UDP消息失败: {e}")
+
+                # 2. 遍历 LLM_KWS_PATTERNS，检测关键短语
+                for keyword, patterns in LLM_KWS_PATTERNS.items():
+                    # 本轮已经触发过的 keyword 不再重复触发
+                    if keyword in self._llm_kws_fired:
+                        continue
+
+                    if any(p in buf for p in patterns):
+                        self._emit_voice_keyword(keyword)
+                        print(f"[LLM-KWS] 检测到关键词 '{keyword}', 已发送 UDP 消息")
+                        self._llm_kws_fired.add(keyword)
+
+                        # 如果是 end，可以选择清空缓冲，防止后续 content 再次触发
+                        if keyword == "end":
+                            self._llm_keyword_buffer = ""
+                        # 如果希望“一次 content 只触发一个关键词”，可以在这里 break
+                        # break
 
             if event == 451:
                 try:
@@ -836,7 +811,7 @@ class DialogSession:
                     and "event" in response
                     and response["event"] == 359
                 ):
-                    print(f"receive tts ended event")
+                    print("receive tts ended event")
                     self.is_session_finished = True
                     break
                 if (
@@ -845,7 +820,7 @@ class DialogSession:
                     and response["event"] == 359
                     and not self.say_hello_over_event.is_set()
                 ):
-                    print(f"receive tts sayhello ended event")
+                    print("receive tts sayhello ended event")
                     self.say_hello_over_event.set()
         except asyncio.CancelledError:
             print("接收任务已取消")
@@ -873,7 +848,7 @@ class DialogSession:
                 if not audio_data:
                     break
                 await self.client.task_request(audio_data)
-            print(f"音频文件处理完成，等待服务器响应...")
+            print("音频文件处理完成，等待服务器响应...")
 
     async def process_silence_audio(self) -> None:
         silence_data = b"\x00" * (TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES)
