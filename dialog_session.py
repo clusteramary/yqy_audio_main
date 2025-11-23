@@ -1,5 +1,5 @@
 import asyncio
-import audioop  # 标准库：重采样
+import audioop
 import json
 import os
 import queue
@@ -7,22 +7,30 @@ import random
 import re
 import signal
 import socket
-import sys
 import threading
 import time
 import uuid
-import wave
-from dataclasses import dataclass
 from typing import Any, Dict, Optional, Set
 
 import pyaudio
 
 import config
+from audio_constants import (
+    ASR_KWS_PATTERNS,
+    LLM_KWS_PATTERNS,
+    TARGET_CHANNELS,
+    TARGET_CHUNK_SAMPLES,
+    TARGET_SAMPLE_RATE,
+    TARGET_SAMPLE_WIDTH,
+    AudioConfig,
+)
+from audio_device_manager import AudioDeviceManager
+from audio_utils import save_output_to_file
 from realtime_dialog_client import RealtimeDialogClient
-
-# === 改：使用“共享队列版” SAUC 识别，而不是再开一条麦克风 ===
+from ros_audio import _HAS_ROS1, Bool, rospy
 from sauc_python.sauc_websocket_mic2 import recognize_once_from_queue
 
+# 保留原来的 _to_thread 工具函数（目前未使用，但不影响原有功能）
 try:
     _to_thread = asyncio.to_thread  # Python 3.9+
 except AttributeError:
@@ -33,172 +41,6 @@ except AttributeError:
         return await loop.run_in_executor(
             None, functools.partial(func, *args, **kwargs)
         )
-
-
-try:
-    import rospy
-    from std_msgs.msg import Bool, ByteMultiArray
-
-    try:
-        from audio_common_msgs.msg import AudioData as RosAudioData
-
-        _HAS_AUDIO_DATA_MSG = True
-    except Exception:
-        _HAS_AUDIO_DATA_MSG = False
-    _HAS_ROS1 = True
-except Exception:
-    _HAS_ROS1 = False
-    _HAS_AUDIO_DATA_MSG = False
-
-TARGET_SAMPLE_RATE = 16000
-TARGET_SAMPLE_WIDTH = 2
-TARGET_CHANNELS = 1
-TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
-
-# ASR 关键词配置：标签 -> 若干“包含匹配”的短语（用于语音识别结果）
-ASR_KWS_PATTERNS: Dict[str, list] = {
-    "wave": ["挥手", "挥一挥", "挥一下", "握一下手", "wave"],
-    "nod": ["点头", "点一下", "nod"],
-    "shake": ["击掌", "击一下"],
-    "woshou": ["握手", "握一下", "握个手", "shake"],
-    "end": ["再见", "拜拜", "bye"],
-}
-
-# LLM 文本关键词配置：标签 -> 若干“包含匹配”的短语（用于大模型文本 content）
-LLM_KWS_PATTERNS: Dict[str, list] = {
-    "left": ["向左", "往左"],
-    "right": ["向右", "往右", "测试成功啦"],
-    # 结束访谈/结束控制，由 LLM 说出
-    "end": ["感谢你", "感谢您", "感谢"],
-    # 后面可以继续加，比如:
-    # "stop": ["停一下", "停止", "先到这里"],
-}
-
-
-@dataclass
-class AudioConfig:
-    format: str
-    bit_size: int
-    channels: int
-    sample_rate: int
-    chunk: int
-    device_index: Optional[int] = None
-    mode: str = "pyaudio"
-    ros1_topic: str = "/robot/speaker/audio"
-    ros1_node_name: str = "speaker_publisher"
-    ros1_queue_size: int = 10
-    ros1_latch: bool = False
-
-
-class Ros1SpeakerStream:
-    def __init__(
-        self,
-        topic="/robot/speaker/audio",
-        node_name="speaker_publisher",
-        queue_size=10,
-        latched=False,
-    ):
-        if not _HAS_ROS1:
-            raise RuntimeError("未检测到 ROS1 (rospy)。请在 ROS1 环境运行。")
-        if not rospy.core.is_initialized():
-            rospy.init_node(node_name, anonymous=True, disable_signals=True)
-        self.topic = topic
-        self._use_audio_msg = _HAS_AUDIO_DATA_MSG
-        if self._use_audio_msg:
-            self._pub = rospy.Publisher(
-                topic, RosAudioData, queue_size=queue_size, latch=latched
-            )
-        else:
-            self._pub = rospy.Publisher(
-                topic, ByteMultiArray, queue_size=queue_size, latch=latched
-            )
-        self._closed = False
-
-    def write(self, audio_bytes: bytes):
-        if self._closed:
-            return
-        if self._use_audio_msg:
-            msg = RosAudioData()
-            msg.data = list(audio_bytes)
-        else:
-            msg = ByteMultiArray()
-            msg.data = list(audio_bytes)
-        self._pub.publish(msg)
-
-    def stop_stream(self):
-        pass
-
-    def close(self):
-        self._closed = True
-
-
-class AudioDeviceManager:
-    def __init__(self, input_config: AudioConfig, output_config: AudioConfig):
-        self.input_config = input_config
-        self.output_config = output_config
-        self.pyaudio = pyaudio.PyAudio()
-        self.input_stream: Optional[pyaudio.Stream] = None
-        self.output_stream: Optional[Any] = None
-
-    def open_input_stream(self) -> pyaudio.Stream:
-        open_kwargs = dict(
-            format=self.input_config.bit_size,
-            channels=self.input_config.channels,
-            rate=self.input_config.sample_rate,
-            input=True,
-            frames_per_buffer=self.input_config.chunk,
-        )
-        if self.input_config.device_index is not None:
-            open_kwargs["input_device_index"] = self.input_config.device_index
-        self.input_stream = self.pyaudio.open(**open_kwargs)
-        return self.input_stream
-
-    def open_output_stream(self) -> Any:
-        mode = (self.output_config.mode or "pyaudio").lower()
-        if mode == "pyaudio":
-            open_kwargs = dict(
-                format=self.output_config.bit_size,
-                channels=self.output_config.channels,
-                rate=self.output_config.sample_rate,
-                output=True,
-                frames_per_buffer=self.output_config.chunk,
-            )
-            if self.output_config.device_index is not None:
-                open_kwargs["output_device_index"] = self.output_config.device_index
-            self.output_stream = self.pyaudio.open(**open_kwargs)
-            return self.output_stream
-        elif mode == "ros1":
-            self.output_stream = Ros1SpeakerStream(
-                topic=self.output_config.ros1_topic,
-                node_name=self.output_config.ros1_node_name,
-                queue_size=self.output_config.ros1_queue_size,
-                latched=self.output_config.ros1_latch,
-            )
-            return self.output_stream
-        else:
-            raise ValueError(f"未知输出模式：{mode!r}")
-
-    def cleanup(self) -> None:
-        if isinstance(self.input_stream, pyaudio.Stream):
-            try:
-                self.input_stream.stop_stream()
-                self.input_stream.close()
-            except Exception:
-                pass
-        self.input_stream = None
-        if self.output_stream is not None:
-            try:
-                if hasattr(self.output_stream, "stop_stream"):
-                    self.output_stream.stop_stream()
-                if hasattr(self.output_stream, "close"):
-                    self.output_stream.close()
-            except Exception:
-                pass
-        self.output_stream = None
-        try:
-            self.pyaudio.terminate()
-        except Exception:
-            pass
 
 
 class DialogSession:
@@ -304,13 +146,13 @@ class DialogSession:
             self.ctrl_monitor_task = asyncio.create_task(self._monitor_ctrl_file())
 
         if not self.is_audio_file_input and _HAS_ROS1:
-            if not rospy.core.is_initialized():
-                rospy.init_node(
+            if not rospy.core.is_initialized():  # type: ignore[union-attr]
+                rospy.init_node(  # type: ignore[union-attr]
                     "audio_manager_client", anonymous=True, disable_signals=True
                 )
-            self.remote_status_sub = rospy.Subscriber(
+            self.remote_status_sub = rospy.Subscriber(  # type: ignore[union-attr]
                 self.remote_status_topic,
-                Bool,
+                Bool,  # type: ignore[arg-type]
                 self._remote_audio_status_callback,
                 queue_size=10,
             )
@@ -792,7 +634,7 @@ class DialogSession:
         )
 
     def _keyboard_signal(self, sig, frame):
-        print(f"receive keyboard Ctrl+C")
+        print("receive keyboard Ctrl+C")
         self.stop()
 
     async def receive_loop(self):
@@ -829,6 +671,8 @@ class DialogSession:
 
     async def process_audio_file(self) -> None:
         await self.process_audio_file_input(self.audio_file_path)
+        if not hasattr(self, "quit_event"):
+            return
         while not self.quit_event.is_set():
             try:
                 await asyncio.sleep(0.01)
@@ -840,6 +684,8 @@ class DialogSession:
                 raise
 
     async def process_audio_file_input(self, audio_file_path: str) -> None:
+        import wave
+
         with wave.open(audio_file_path, "rb") as wf:
             chunk_size = config.input_audio_config["chunk"]
             print(f"开始处理音频文件: {audio_file_path}")
@@ -949,7 +795,8 @@ class DialogSession:
             if self.is_audio_file_input:
                 asyncio.create_task(self.process_audio_file())
                 await self.receive_loop()
-                self.quit_event.set()
+                if hasattr(self, "quit_event"):
+                    self.quit_event.set()
                 await asyncio.sleep(0.1)
             else:
                 asyncio.create_task(self.process_microphone_input())
@@ -971,116 +818,5 @@ class DialogSession:
         except Exception as e:
             print(f"会话错误: {e}")
         finally:
-            if not self.is_audio_file_input:
+            if not self.is_audio_file_input and hasattr(self, "audio_device"):
                 self.audio_device.cleanup()
-
-
-def save_input_pcm_to_wav(pcm_data: bytes, filename: str) -> None:
-    with wave.open(filename, "wb") as wf:
-        wf.setnchannels(config.input_audio_config["channels"])
-        wf.setsampwidth(2)
-        wf.setframerate(config.input_audio_config["sample_rate"])
-        wf.writeframes(pcm_data)
-
-
-def save_output_to_file(audio_data: bytes, filename: str) -> None:
-    if not audio_data:
-        print("No audio data to save.")
-        return
-    try:
-        with open(filename, "wb") as f:
-            f.write(audio_data)
-    except IOError as e:
-        print(f"Failed to save pcm file: {e}")
-
-
-class VoiceDialogHandle:
-    def __init__(
-        self,
-        thread: threading.Thread,
-        loop: asyncio.AbstractEventLoop,
-        stop_event: asyncio.Event,
-    ):
-        self._thread = thread
-        self._loop = loop
-        self._stop_event = stop_event
-
-    def stop(self):
-        if self._loop.is_closed():
-            return
-
-        def _set():
-            if not self._stop_event.is_set():
-                self._stop_event.set()
-
-        self._loop.call_soon_threadsafe(_set)
-
-    def join(self, timeout: Optional[float] = None):
-        self._thread.join(timeout)
-
-
-def _run_session_thread(
-    start_prompt: str, audio_file_path: str, stop_event: asyncio.Event
-):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    session = DialogSession(
-        ws_config=config.ws_connect_config,
-        start_prompt=start_prompt,
-        output_audio_format="pcm",
-        audio_file_path=audio_file_path,
-    )
-    session.attach_stop_event(stop_event)
-    try:
-        loop.run_until_complete(session.start())
-    finally:
-        pending = asyncio.all_tasks(loop)
-        for t in pending:
-            t.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except Exception:
-            pass
-        loop.close()
-
-
-def start_voice_dialog(
-    start_prompt: str, audio_file_path: str = ""
-) -> VoiceDialogHandle:
-    stop_event = asyncio.Event()
-    loop = asyncio.new_event_loop()
-    loop.close()
-    thread = threading.Thread(
-        target=_thread_entry,
-        args=(start_prompt, audio_file_path, stop_event),
-        daemon=True,
-    )
-    thread.start()
-    placeholder_loop = asyncio.new_event_loop()
-    handle = VoiceDialogHandle(
-        thread=thread, loop=placeholder_loop, stop_event=stop_event
-    )
-    return handle
-
-
-def _thread_entry(start_prompt: str, audio_file_path: str, stop_event: asyncio.Event):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    session = DialogSession(
-        ws_config=config.ws_connect_config,
-        start_prompt=start_prompt,
-        output_audio_format="pcm",
-        audio_file_path=audio_file_path,
-    )
-    session.attach_stop_event(stop_event)
-    try:
-        loop.run_until_complete(session.start())
-    finally:
-        pending = asyncio.all_tasks(loop)
-        for t in pending:
-            t.cancel()
-        try:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-        except Exception:
-            pass
-        loop.close()
