@@ -57,6 +57,15 @@ TARGET_SAMPLE_WIDTH = 2
 TARGET_CHANNELS = 1
 TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
 
+# ASR 关键词配置：标签 -> 若干“包含匹配”的短语
+ASR_KWS_PATTERNS: Dict[str, list] = {
+    "wave": ["挥手", "挥一挥", "挥一下", "wave"],
+    "nod": ["点头", "点一下", "nod"],
+    "shake": ["击掌", "击一下"],
+    "woshou": ["握手", "握一下", "握个手", "shake", "你是好人"],
+    "end": ["再见", "拜拜", "bye"],
+}
+
 
 @dataclass
 class AudioConfig:
@@ -251,6 +260,10 @@ class DialogSession:
 
         # 话筒指令冷却
         self._last_mic_send_time = 0.0
+
+        # === LLM 输出关键短语检测缓冲（用于跨 token 检测“感谢你”等） ===
+        self._llm_keyword_buffer: str = ""
+        self._llm_buffer_max_len: int = 50  # 只保留最近若干字符即可
 
         # === 控制 ctrl.txt 的文本触发 + SAUC 识别 ===
         # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
@@ -641,26 +654,12 @@ class DialogSession:
         joined = " ".join(cand_texts)
         if not joined:
             return
-        if (
-            "挥手" in joined
-            or "挥一挥" in joined
-            or "挥一下" in joined
-            or "wave" in joined
-        ):
-            self._emit_voice_keyword("wave")
-        elif "点头" in joined or "点一下" in joined or "nod" in joined:
-            self._emit_voice_keyword("nod")
-        elif "击掌" in joined or "击一下" in joined:
-            self._emit_voice_keyword("shake")
-        elif (
-            "握手" in joined
-            or "握一下" in joined
-            or "握个手" in joined
-            or "shake" in joined
-        ):
-            self._emit_voice_keyword("woshou")
-        elif "再见" in joined or "拜拜" in joined or "bye" in joined:
-            self._emit_voice_keyword("end")
+
+        # 统一用配置表做“包含匹配”，方便后续扩展
+        for keyword, patterns in ASR_KWS_PATTERNS.items():
+            if any(p in joined for p in patterns):
+                self._emit_voice_keyword(keyword)
+                break
 
     def handle_server_response(self, response: Dict[str, Any]) -> None:
         # 已移除：静默控制窗口（丢弃确认回包/文本回包）
@@ -681,9 +680,22 @@ class DialogSession:
             event = response.get("event")
             payload_msg = response.get("payload_msg", {})
 
+            # 每一轮文本回答开始时（例如 event=553），重置 LLM 关键词缓冲区
+            if event == 553:
+                self._llm_keyword_buffer = ""
+
             # 在 LLM 文本里找“左/右/感谢” → 走关键词通道(5557)
             if "content" in payload_msg:
                 content = payload_msg["content"]
+
+                # 将当前 content 追加到小缓冲区，保留最近若干字符
+                self._llm_keyword_buffer += content
+                if len(self._llm_keyword_buffer) > self._llm_buffer_max_len:
+                    self._llm_keyword_buffer = self._llm_keyword_buffer[
+                        -self._llm_buffer_max_len :
+                    ]
+
+                # “左 / 右” 仍然按单次 content 检测，行为与原来一致
                 if "左" in content:
                     try:
                         message = json.dumps(
@@ -700,6 +712,7 @@ class DialogSession:
                         print("检测到'左'关键词，发送UDP消息")
                     except Exception as e:
                         print(f"发送UDP消息失败: {e}")
+
                 if "右" in content:
                     try:
                         message = json.dumps(
@@ -716,7 +729,10 @@ class DialogSession:
                         print("检测到'右'关键词，发送UDP消息")
                     except Exception as e:
                         print(f"发送UDP消息失败: {e}")
-                if "感谢" in content or "感谢您" in content:
+
+                # “感谢你 / 感谢您 / 感谢 ...” 用缓冲区做跨 token 检测
+                buf = self._llm_keyword_buffer
+                if ("感谢你哦" in buf) or ("感谢您呢" in buf) or ("感谢你呀" in buf):
                     try:
                         message = json.dumps(
                             {
@@ -729,7 +745,9 @@ class DialogSession:
                             message.encode("utf-8"),
                             (self.voice_udp_host, self.voice_udp_port),
                         )
-                        print("检测到'右'关键词，发送UDP消息")
+                        print("检测到'感谢'相关关键词，发送UDP消息(end)")
+                        # 触发一次后清空缓冲，避免同一句话反复触发
+                        self._llm_keyword_buffer = ""
                     except Exception as e:
                         print(f"发送UDP消息失败: {e}")
 

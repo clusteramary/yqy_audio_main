@@ -155,7 +155,7 @@ async def run_once():
         # 4. 灵活衔接：追问后，可以说"听您讲完这个精彩的故事，我还想了解..."来回到主流程。"""
         # prompt = "You are a warm and friendly English journalist, and I am a high school student from Thailand. Please interview me based on my information. Before we begin our conversation, please greet me first. Remember to conduct our dialogue in English."
 
-        prompt = "你是一个机器人采访记者，[‘[]’里的内容无需回复，是给你的提示控制信息，根据其中的内容来调节对话，其中会包含采访的人数及对应年龄性别，不一定准确，需要你根据信息猜测多人的关系，并提问相关问题来确认关系及身份。和你说话的人改变时，你要改变称呼和语气。仅有一个人对话时，根据特征信息提问相关问题，首先打个招呼]"
+        prompt = "现在你是一个机器人记者，‘【】’里的内容是给你的提示控制信息，根据其中的内容来调节对话。但是要保证对话的连贯性，用户看不到’【】’"
     else:
         print("[RESULT] 未得到 prompt（可能超时或未检测到稳定人脸）")
         prompt = "现在你是一个活泼热情的记者。在之后跟我的对话中向我提问四个问题，分开提问。第一次向我提问：“在‘十四五’规划收官和‘十五五’规划开局的历史交汇点，您如何评估四中全会在确定国家中长期发展方略中的关键作用？”第二次向我提问：基于‘十四五’期间在高质量发展，比如新质生产力领域取得的成就，您认为‘十五五’规划将如何在继承与创新之间寻找平衡？”第三次和第四次提问按照之前的提问和回答智能提问。"
