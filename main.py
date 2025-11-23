@@ -1,6 +1,7 @@
 # async_app.py
 import asyncio
 import time
+from pathlib import Path
 
 import config
 from audio_manager import DialogSession
@@ -11,6 +12,33 @@ from FacePromptDetector import FacePromptDetector
 ABSENT_SECONDS = 300.0  # ✅ 对话进行时，连续多久没看到人脸就重启
 EMOTION_INTERVAL = 1.5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
 INITIAL_DETECT_TIMEOUT = 35.0  # 首次做人脸特征引导的超时时间
+
+# ctrl.txt 写入配置：延迟 2 分钟后提示尽快结束采访，如需调整只改这个常量
+CTRL_INJECT_DELAY = 120.0
+CTRL_INJECT_MESSAGE = "尽快结束这次采访"
+CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
+
+
+async def inject_ctrl_instruction(
+    ctrl_path: Path,
+    message: str,
+    delay_sec: float,
+    stop_event: asyncio.Event,
+):
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout=delay_sec)
+        return  # 会话提前结束，跳过写入
+    except asyncio.TimeoutError:
+        pass
+
+    try:
+        ctrl_path.parent.mkdir(parents=True, exist_ok=True)
+        ctrl_path.write_text(message, encoding="utf-8")
+        print(
+            f"[CTRL-INJECT] 会话进行 {delay_sec:.0f}s 后写入 ctrl.txt: {message}"
+        )
+    except Exception as e:
+        print(f"[CTRL-INJECT] 写入 ctrl.txt 失败: {e}")
 
 
 async def monitor_face_absence(
@@ -172,6 +200,14 @@ async def run_once():
 
     dialog_task = asyncio.create_task(session.start())
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
+    ctrl_inject_task = asyncio.create_task(
+        inject_ctrl_instruction(
+            CTRL_FILE_PATH,
+            CTRL_INJECT_MESSAGE,
+            CTRL_INJECT_DELAY,
+            stop_event,
+        )
+    )
 
     # 等待停止信号（来自看门狗或会话自然结束）
     try:
@@ -190,7 +226,7 @@ async def run_once():
             pass
 
         # 取消并等待任务退出
-        for t in (watchdog_task, dialog_task):
+        for t in (watchdog_task, dialog_task, ctrl_inject_task):
             if not t.done():
                 t.cancel()
                 try:
