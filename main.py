@@ -14,8 +14,8 @@ EMOTION_INTERVAL = 1.5  # 情绪线程检测频率（越小越灵敏，代价是
 INITIAL_DETECT_TIMEOUT = 35.0  # 首次做人脸特征引导的超时时间
 
 # ctrl.txt 写入配置：延迟 2 分钟后提示尽快结束采访，如需调整只改这个常量
-CTRL_INJECT_DELAY = 120.0
-CTRL_INJECT_MESSAGE = "尽快结束这次采访"
+CTRL_INJECT_DELAY = 30.0
+CTRL_INJECT_MESSAGE = "[委婉的告诉采访者，本次采访时间快到了，尽快结束这次采访]"
 CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
 
 
@@ -34,9 +34,7 @@ async def inject_ctrl_instruction(
     try:
         ctrl_path.parent.mkdir(parents=True, exist_ok=True)
         ctrl_path.write_text(message, encoding="utf-8")
-        print(
-            f"[CTRL-INJECT] 会话进行 {delay_sec:.0f}s 后写入 ctrl.txt: {message}"
-        )
+        print(f"[CTRL-INJECT] 会话进行 {delay_sec:.0f}s 后写入 ctrl.txt: {message}")
     except Exception as e:
         print(f"[CTRL-INJECT] 写入 ctrl.txt 失败: {e}")
 
