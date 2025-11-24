@@ -1,0 +1,14 @@
+conda activate yqy1
+
+接受动作索引
+python emotion.py
+
+接收麦克风索引收放
+python mic.py
+
+python ros_audio_sink.py
+roslaunch realsense2_camera rs_camera.launch
+
+python test_device.py
+
+python main.py

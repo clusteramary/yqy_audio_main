@@ -1,0 +1,6 @@
+
+aiohttp>=3.8.1
+sounddevice>=0.4.6
+numpy>=1.24.0
+# ffmpeg (system dependency, install separately for your OS)
+

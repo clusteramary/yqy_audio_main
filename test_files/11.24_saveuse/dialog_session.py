@@ -1,5 +1,5 @@
 import asyncio
-import audioop  # 重采样
+import audioop
 import json
 import os
 import queue
@@ -10,22 +10,27 @@ import socket
 import threading
 import time
 import uuid
-import wave
 from typing import Any, Dict, Optional, Set
 
 import pyaudio
 
 import config
-
-# AudioConfig 用于 AudioDeviceManager
-from audio_constants import AudioConfig
+from audio_constants import (
+    ASR_KWS_PATTERNS,
+    LLM_KWS_PATTERNS,
+    TARGET_CHANNELS,
+    TARGET_CHUNK_SAMPLES,
+    TARGET_SAMPLE_RATE,
+    TARGET_SAMPLE_WIDTH,
+    AudioConfig,
+)
 from audio_device_manager import AudioDeviceManager
+from audio_utils import save_output_to_file
 from realtime_dialog_client import RealtimeDialogClient
-
-# SAUC 队列版 VAD+一次性识别
+from ros_audio import _HAS_ROS1, Bool, rospy
 from sauc_python.sauc_websocket_mic2 import recognize_once_from_queue
 
-# ---------- async to_thread 兼容 ----------
+# 保留原来的 _to_thread 工具函数（目前未使用，但不影响原有功能）
 try:
     _to_thread = asyncio.to_thread  # Python 3.9+
 except AttributeError:
@@ -38,80 +43,7 @@ except AttributeError:
         )
 
 
-# ---------- ROS 相关 ----------
-try:
-    import rospy
-    from std_msgs.msg import Bool, ByteMultiArray
-
-    try:
-        from audio_common_msgs.msg import AudioData as RosAudioData
-
-        _HAS_AUDIO_DATA_MSG = True
-    except Exception:
-        RosAudioData = None
-        _HAS_AUDIO_DATA_MSG = False
-    _HAS_ROS1 = True
-except Exception:
-    rospy = None
-    Bool = None
-    ByteMultiArray = None
-    RosAudioData = None
-    _HAS_ROS1 = False
-    _HAS_AUDIO_DATA_MSG = False
-
-# ---------- 音频处理常量 ----------
-TARGET_SAMPLE_RATE = 16000
-TARGET_SAMPLE_WIDTH = 2
-TARGET_CHANNELS = 1
-TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
-
-# ---------- ASR / LLM 关键词配置 ----------
-# ASR 关键词配置：标签 -> 若干“包含匹配”的短语（用于语音识别结果）
-ASR_KWS_PATTERNS: Dict[str, list] = {
-    "wave": ["挥手", "挥一挥", "挥一下", "wave"],
-    "nod": ["点头", "点一下", "nod"],
-    "shake": ["击掌", "击一下"],
-    "woshou": ["握手", "握一下", "握个手", "shake"],
-    "end": ["再见", "拜拜", "bye"],
-}
-
-# LLM 文本关键词配置：标签 -> 若干“包含匹配”的短语（用于大模型文本 content）
-LLM_KWS_PATTERNS: Dict[str, list] = {
-    "left": ["向左转", "左"],
-    "right": ["右", "测试成功啦"],
-    # 结束访谈/结束控制，由 LLM 说出
-    "end": ["感谢你", "感谢您", "感谢"],
-}
-
-
-def save_input_pcm_to_wav(pcm_data: bytes, filename: str) -> None:
-    with wave.open(filename, "wb") as wf:
-        wf.setnchannels(config.input_audio_config["channels"])
-        wf.setsampwidth(2)
-        wf.setframerate(config.input_audio_config["sample_rate"])
-        wf.writeframes(pcm_data)
-
-
-def save_output_to_file(audio_data: bytes, filename: str) -> None:
-    if not audio_data:
-        print("No audio data to save.")
-        return
-    try:
-        with open(filename, "wb") as f:
-            f.write(audio_data)
-    except IOError as e:
-        print(f"Failed to save pcm file: {e}")
-
-
 class DialogSession:
-    """
-    负责：
-      - 管理和大模型的 WebSocket 会话
-      - 管理音频的输入（现在走 ROS /audio/audio）和输出（PyAudio / ROS1 speaker）
-      - 处理 ctrl.txt + SAUC 队列识别
-      - 处理 LLM / ASR 关键词，走 UDP 控制通道
-    """
-
     is_audio_file_input: bool
 
     def __init__(
@@ -158,12 +90,11 @@ class DialogSession:
 
         self.external_stop_event: Optional[asyncio.Event] = None
 
-        # ---------- 下位机播放状态 ----------
         self.remote_playing = False
         self.remote_status_topic = "/audio_playing_status"
         self.remote_status_sub = None
 
-        # ---------- UDP 通道：语音关键词 & MIC 指令 ----------
+        # === 语音关键词 / MIC 指令通道 ===
         self.voice_udp_host = "127.0.0.1"
         self.voice_udp_port = 5557
         self.voice_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -172,25 +103,25 @@ class DialogSession:
         self.mic_udp_port = 5558
         self.mic_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # 关键词“挥手” 及去抖（当前 _wave_re 未直接使用，只保留字段）
+        # 关键词“挥手” 及去抖（KWS 通道，当前未直接使用 _wave_re，但保留字段不影响）
         self._wave_re = re.compile(r"(挥手|揮手|招手|挥个手|挥下手)")
         self._kws_wave_cooldown = 1.5
         self._kws_wave_last_ts = 0.0
 
-        # MIC 指令冷却
+        # 话筒指令冷却
         self._last_mic_send_time = 0.0
 
-        # ---------- LLM 输出关键短语检测缓冲 ----------
+        # === LLM 输出关键短语检测缓冲（用于跨 token 检测“感谢你”“左”“右”等） ===
         self._llm_keyword_buffer: str = ""
         self._llm_buffer_max_len: int = 50  # 只保留最近若干字符即可
         # 当前这一轮 LLM 回复中已经触发过的关键词，避免同一轮触发多次
         self._llm_kws_fired: Set[str] = set()
 
-        # ---------- ctrl.txt + SAUC 队列识别 ----------
+        # === 控制 ctrl.txt 的文本触发 + SAUC 识别 ===
         # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
         self._pause_mic_for_ctrl = False
 
-        # 共享 16k PCM 帧队列：主采集协程写，ctrl + SAUC 从这里读
+        # 共享 16k PCM 帧队列：主采集线程写，ctrl + SAUC 从这里读
         # 帧格式：s16le 单声道，采样率 16000，每帧 TARGET_CHUNK_SAMPLES 样本 ≈ 20ms
         self.ctrl_frame_queue: asyncio.Queue = asyncio.Queue()
 
@@ -214,41 +145,19 @@ class DialogSession:
             # 只在麦克风模式下监控 ctrl
             self.ctrl_monitor_task = asyncio.create_task(self._monitor_ctrl_file())
 
-        # ---------- ROS 下位机播放状态 + ROS 麦克风输入 ----------
-        self.ros_audio_queue: Optional["queue.Queue[bytes]"] = None
-        self.ros_audio_sub = None
-
         if not self.is_audio_file_input and _HAS_ROS1:
-            if not rospy.core.is_initialized():
-                rospy.init_node(
+            if not rospy.core.is_initialized():  # type: ignore[union-attr]
+                rospy.init_node(  # type: ignore[union-attr]
                     "audio_manager_client", anonymous=True, disable_signals=True
                 )
-            # 播放状态订阅（和原来一样）
-            self.remote_status_sub = rospy.Subscriber(
+            self.remote_status_sub = rospy.Subscriber(  # type: ignore[union-attr]
                 self.remote_status_topic,
-                Bool,
+                Bool,  # type: ignore[arg-type]
                 self._remote_audio_status_callback,
                 queue_size=10,
             )
             print(f"已订阅下位机播放状态话题: {self.remote_status_topic}")
 
-            # === 新增：订阅麦克风音频（别人已经用 audio_capture 打开设备并发布到 /audio/audio） ===
-            if _HAS_AUDIO_DATA_MSG and RosAudioData is not None:
-                self.ros_audio_queue = queue.Queue(maxsize=50)
-                # 这里用你的 launch 中的命名空间和 topic：/audio/audio
-                self.ros_audio_sub = rospy.Subscriber(
-                    "/audio/audio",
-                    RosAudioData,
-                    self._ros_audio_callback,
-                    queue_size=10,
-                )
-                print("已订阅麦克风音频话题: /audio/audio")
-            else:
-                print(
-                    "[ROS-MIC] 未检测到 audio_common_msgs/AudioData，无法订阅麦克风话题"
-                )
-
-        # ---------- 播放线程 ----------
         signal.signal(signal.SIGINT, self._keyboard_signal)
         self.audio_queue = queue.Queue()
         if not self.is_audio_file_input:
@@ -256,7 +165,6 @@ class DialogSession:
                 AudioConfig(**config.input_audio_config),
                 AudioConfig(**config.output_audio_config),
             )
-            # 只打开输出，不再打开 PyAudio 输入
             self.output_stream = self.audio_device.open_output_stream()
             self.is_recording = True
             self.is_playing = True
@@ -264,31 +172,6 @@ class DialogSession:
                 target=self._audio_player_thread, daemon=True
             )
             self.player_thread.start()
-
-    # ---------- ROS 麦克风回调 ----------
-    def _ros_audio_callback(self, msg: RosAudioData):
-        """
-        ROS 回调：收到 audio_common_msgs/AudioData 后，把原始 bytes 放进队列。
-        每条消息是 wave 格式的原始 PCM（例如 0.1s @ 48k * 2ch）。
-        """
-        if self.ros_audio_queue is None:
-            return
-        try:
-            pcm_bytes = bytes(msg.data)  # msg.data 是 List[int]
-            try:
-                self.ros_audio_queue.put_nowait(pcm_bytes)
-            except queue.Full:
-                # 队列满了就丢掉最早的一条，再塞新数据，避免无限堆积
-                try:
-                    self.ros_audio_queue.get_nowait()
-                except queue.Empty:
-                    pass
-                try:
-                    self.ros_audio_queue.put_nowait(pcm_bytes)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"[ROS-MIC] 回调处理失败: {e}")
 
     # ---------- MIC 指令发送 ----------
     def send_mic_command(self, command: str, cooldown_sec: float = 0.2):
@@ -545,20 +428,13 @@ class DialogSession:
         except Exception:
             pass
 
-        # 取消 ROS 麦克风订阅
-        try:
-            if hasattr(self, "ros_audio_sub") and self.ros_audio_sub:
-                self.ros_audio_sub.unregister()
-        except Exception:
-            pass
-
         if self.is_audio_file_input:
             try:
                 self.quit_event.set()
             except Exception:
                 pass
 
-        # 推销 TTS 任务
+        # 推广播报任务
         try:
             if hasattr(self, "promote_task") and self.promote_task:
                 self.promote_task.cancel()
@@ -721,9 +597,6 @@ class DialogSession:
 
             if event == 459:
                 self.is_user_querying = False
-                # 一轮回答彻底结束，也可以顺便清空关键词状态（可选，如果你感觉“左”偶尔不触发，可以用这句）
-                # self._llm_keyword_buffer = ""
-                # self._llm_kws_fired.clear()
                 if random.randint(0, 10000) == 0:
                     self.is_sending_chat_tts_text = True
                     asyncio.create_task(self.trigger_chat_tts_text())
@@ -798,6 +671,8 @@ class DialogSession:
 
     async def process_audio_file(self) -> None:
         await self.process_audio_file_input(self.audio_file_path)
+        if not hasattr(self, "quit_event"):
+            return
         while not self.quit_event.is_set():
             try:
                 await asyncio.sleep(0.01)
@@ -809,6 +684,8 @@ class DialogSession:
                 raise
 
     async def process_audio_file_input(self, audio_file_path: str) -> None:
+        import wave
+
         with wave.open(audio_file_path, "rb") as wf:
             chunk_size = config.input_audio_config["chunk"]
             print(f"开始处理音频文件: {audio_file_path}")
@@ -838,33 +715,31 @@ class DialogSession:
 
     async def process_microphone_input(self) -> None:
         """
-        麦克风输入改为从 ROS 话题 /audio/audio 读取：
-          - audio_capture 节点独占硬件采集 + 编码为 S16LE @ 48k / N 通道；
-          - 这里通过 ROS subscriber 收到 AudioData，作为原始 PCM；
-          - 转成单声道，再重采样为 16k/s16le，切成 20ms 帧；
-          - 和原来一样：支持 ctrl 捕获模式、播放期间静音上行等逻辑。
+        统一采集线程：
+          - 只这一处打开 PyAudio 输入流；
+          - 把数据转换成 16k/s16le 单声道 20ms 帧；
+          - 正常情况下：把这些帧发给大模型；
+          - 若 _pause_mic_for_ctrl=True：这些帧推给 ctrl_frame_queue，
+            同时对大模型只发静音帧（保持会话但不让这句话走“正常语音通路”）。
         """
         await self.client.say_hello()
         await self.say_hello_over_event.wait()
         await self.client.chat_text_query(self.start_prompt)
 
+        stream = self.audio_device.open_input_stream()
+        print(
+            f"已打开麦克风（device_index={config.input_audio_config.get('device_index')}），"
+            f"采样率={config.input_audio_config['sample_rate']}，chunk={config.input_audio_config['chunk']}，开始讲话..."
+        )
+
         in_rate = config.input_audio_config["sample_rate"]
         in_channels = config.input_audio_config["channels"]
         in_width = 2
 
-        print(
-            f"使用 ROS /audio/audio 作为麦克风输入，采样率={in_rate}Hz, channels={in_channels}，开始讲话..."
-        )
-
         def to_mono(pcm_bytes: bytes) -> bytes:
             if in_channels == 1:
                 return pcm_bytes
-            # 下混为单声道
-            try:
-                return audioop.tomono(pcm_bytes, in_width, 0.5, 0.5)
-            except Exception as e:
-                print(f"[ROS-MIC] tomono 失败，直接使用原始音频: {e}")
-                return pcm_bytes
+            return audioop.tomono(pcm_bytes, in_width, 0.5, 0.5)
 
         while self.is_recording:
             try:
@@ -872,19 +747,10 @@ class DialogSession:
                     self.stop()
                     break
 
-                # 从 ROS 队列中取一条音频块（例如 0.1s 的数据）
-                if self.ros_audio_queue is None:
-                    # 还没准备好，稍等一下
-                    await asyncio.sleep(0.01)
-                    continue
-
-                try:
-                    audio_data = self.ros_audio_queue.get_nowait()
-                except queue.Empty:
-                    # 没有新数据，稍等
-                    await asyncio.sleep(0.01)
-                    continue
-
+                # 统一从 PyAudio 读一块数据
+                audio_data = stream.read(
+                    config.input_audio_config["chunk"], exception_on_overflow=False
+                )
                 mono = to_mono(audio_data)
                 pcm16_16k = self._resample_to_16k(mono, in_rate)
 
@@ -915,12 +781,12 @@ class DialogSession:
                     else:
                         await self.client.task_request(chunk16k)
 
-                # 处理完一批 ROS 音频块后 → 收话筒（独立 MIC 通道）
+                # 采集一轮后 → 收话筒（独立 MIC 通道）
                 self.send_mic_command("release_microphone")
 
                 await asyncio.sleep(0.005)
             except Exception as e:
-                print(f"从 ROS 队列读取麦克风数据出错: {e}")
+                print(f"读取麦克风数据出错: {e}")
                 await asyncio.sleep(0.1)
 
     async def start(self) -> None:
@@ -929,7 +795,8 @@ class DialogSession:
             if self.is_audio_file_input:
                 asyncio.create_task(self.process_audio_file())
                 await self.receive_loop()
-                self.quit_event.set()
+                if hasattr(self, "quit_event"):
+                    self.quit_event.set()
                 await asyncio.sleep(0.1)
             else:
                 asyncio.create_task(self.process_microphone_input())
@@ -951,5 +818,5 @@ class DialogSession:
         except Exception as e:
             print(f"会话错误: {e}")
         finally:
-            if not self.is_audio_file_input:
+            if not self.is_audio_file_input and hasattr(self, "audio_device"):
                 self.audio_device.cleanup()

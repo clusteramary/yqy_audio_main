@@ -15,7 +15,7 @@ import pyaudio
 # ================== 全局配置 ==================
 DEFAULT_SAMPLE_RATE = 16000
 SAMPLE_WIDTH_BYTES = 2  # 16bit = 2 bytes
-CHANNELS = 2  # 单声道
+CHANNELS = 1  # 单声道
 OUTPUT_FILE = "output.txt"  # 识别结果输出文件
 
 # 日志
@@ -469,12 +469,12 @@ class AsrWsClient:
             yield resp
 
 
-# ================== 麦克风 + VAD（原来的版本，保留） ==================
+# ================== 麦克风 + VAD ==================
 def record_until_silence(
     sample_rate: int = DEFAULT_SAMPLE_RATE,
     chunk_ms: int = 100,
     silence_threshold: int = 500,
-    max_silence_ms: int = 500,  # 默认 0.5s
+    max_silence_ms: int = 3500,  # 默认 0.5s
     max_record_ms: int = 15000,
     device_index: Optional[int] = None,
 ) -> bytes:
@@ -549,79 +549,6 @@ def record_until_silence(
     return pcm
 
 
-# ================== 队列版 VAD：从共享 16k PCM 帧队列中录一段话 ==================
-async def record_from_queue_until_silence(
-    frame_queue,
-    sample_rate: int = DEFAULT_SAMPLE_RATE,
-    frame_ms: int = 20,
-    silence_threshold: int = 500,
-    max_silence_ms: int = 500,
-    max_record_ms: int = 15000,
-) -> bytes:
-    """
-    从一个 asyncio.Queue 中消费 16k/16bit/单声道 PCM 帧（每帧 frame_ms 毫秒），
-    做简单 VAD：检测到语音后，当静音持续超过 max_silence_ms 即结束录音。
-
-    注意：这里完全不再使用 PyAudio，只依赖外部往 frame_queue 不断推帧。
-    """
-    frames: List[bytes] = []
-    speaking = False
-    silence_acc_ms = 0
-    total_ms = 0
-
-    logger.info(
-        "[SAUC-QUEUE] 开始从共享队列监听语音 (frame=%d ms, max_silence=%d ms, max_record=%d ms)...",
-        frame_ms,
-        max_silence_ms,
-        max_record_ms,
-    )
-
-    try:
-        while True:
-            # 阻塞等待下一帧（主采集线程会持续 push）
-            frame = await frame_queue.get()
-            if not frame:
-                continue
-
-            total_ms += frame_ms
-            rms = audioop.rms(frame, SAMPLE_WIDTH_BYTES)
-
-            if rms > silence_threshold:
-                frames.append(frame)
-                if not speaking:
-                    speaking = True
-                    logger.info("[SAUC-QUEUE] 检测到语音，开始记录...")
-                silence_acc_ms = 0
-            else:
-                if speaking:
-                    frames.append(frame)
-                    silence_acc_ms += frame_ms
-                    if silence_acc_ms >= max_silence_ms:
-                        logger.info(
-                            "[SAUC-QUEUE] 静音超时 %d ms，结束录音。", max_silence_ms
-                        )
-                        break
-
-            if total_ms >= max_record_ms:
-                logger.info(
-                    "[SAUC-QUEUE] 达到最大录音时长 %d ms，结束录音。", max_record_ms
-                )
-                break
-
-    except asyncio.CancelledError:
-        logger.info("[SAUC-QUEUE] 录音任务被取消。")
-        raise
-
-    if not frames:
-        logger.info("[SAUC-QUEUE] 未检测到有效语音。")
-        return b""
-
-    pcm = b"".join(frames)
-    length_sec = len(pcm) / (sample_rate * SAMPLE_WIDTH_BYTES * CHANNELS)
-    logger.info("[SAUC-QUEUE] 录音完成，长度约 %.2f 秒。", length_sec)
-    return pcm
-
-
 # ================== 文本清洗 & 写文件 ==================
 def extract_text_from_response(resp: AsrResponse) -> str:
     try:
@@ -650,11 +577,11 @@ def write_text_to_file(text: str, path: str = OUTPUT_FILE) -> None:
     logger.info("已写入 %s：%s", path, cleaned)
 
 
-# ================== 提供给 audio_manager 的一次性识别 API（原：麦克版） ==================
+# ================== 提供给 audio_manager 调用的一次性识别 API ==================
 async def recognize_once_from_mic(
     url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
     seg_duration: int = 200,
-    vad_silence_ms: int = 500,
+    vad_silence_ms: int = 3500,
     vad_threshold: int = 500,
     output_file: str = OUTPUT_FILE,
     device_index: Optional[int] = None,
@@ -713,67 +640,6 @@ async def recognize_once_from_mic(
                 write_text_to_file(final_text, output_file)
 
     logger.info("[SAUC] 本次识别结果：%r", final_text)
-    return final_text
-
-
-# ================== 新：从共享队列识别一次 ==================
-async def recognize_once_from_queue(
-    frame_queue,
-    url: str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
-    seg_duration: int = 200,
-    frame_ms: int = 20,
-    vad_silence_ms: int = 500,
-    vad_threshold: int = 500,
-    max_record_ms: int = 15000,
-    output_file: str = OUTPUT_FILE,
-) -> str:
-    """
-    一次性队列识别：
-      - 清空 output_file
-      - 从 frame_queue 中消费 16k PCM 帧（每帧 frame_ms ms），做 VAD
-      - 录到一整句语音后调用 SAUC 识别
-      - 把最终文本写入 output_file
-      - 返回识别文本
-
-    注意：frame_queue 由外部“统一采集线程”不断 push 帧。
-    """
-    # 先清空输出文件
-    try:
-        open(output_file, "w", encoding="utf-8").close()
-    except Exception:
-        pass
-
-    logger.info("[SAUC] 准备从共享队列捕获一轮语音并识别...")
-
-    pcm = await record_from_queue_until_silence(
-        frame_queue=frame_queue,
-        sample_rate=DEFAULT_SAMPLE_RATE,
-        frame_ms=frame_ms,
-        silence_threshold=vad_threshold,
-        max_silence_ms=vad_silence_ms,
-        max_record_ms=max_record_ms,
-    )
-
-    if not pcm:
-        logger.info("[SAUC] 队列未录到有效语音，本次识别结束。")
-        return ""
-
-    final_text = ""
-    async with AsrWsClient(url, seg_duration) as client:
-        async for resp in client.execute_with_pcm(pcm):
-            logger.info(
-                "收到响应: %s",
-                json.dumps(resp.to_dict(), ensure_ascii=False, indent=2),
-            )
-            if resp.code != 0:
-                logger.error("服务端错误 code=%s", resp.code)
-                break
-            if resp.is_last_package:
-                text = extract_text_from_response(resp)
-                final_text = text or ""
-                write_text_to_file(final_text, output_file)
-
-    logger.info("[SAUC] 本次队列识别结果：%r", final_text)
     return final_text
 
 
