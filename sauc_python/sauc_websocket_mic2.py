@@ -15,7 +15,7 @@ import pyaudio
 # ================== 全局配置 ==================
 DEFAULT_SAMPLE_RATE = 16000
 SAMPLE_WIDTH_BYTES = 2  # 16bit = 2 bytes
-CHANNELS = 2  # 单声道
+CHANNELS = 1  # 单声道
 OUTPUT_FILE = "output.txt"  # 识别结果输出文件
 
 # 日志

@@ -1,7 +1,6 @@
 # async_app.py
 import asyncio
 import time
-from pathlib import Path
 
 import config
 from audio_manager import DialogSession
@@ -9,34 +8,9 @@ from CameraAdapter import CameraAdapter
 from FacePromptDetector import FacePromptDetector
 
 # ABSENT_SECONDS = 30.0      # ✅ 对话进行时，连续多久没看到人脸就重启
-ABSENT_SECONDS = 20.0  # ✅ 对话进行时，连续多久没看到人脸就重启
-EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
-INITIAL_DETECT_TIMEOUT = 31000.0  # 首次做人脸特征引导的超时时间
-
-# ctrl.txt 写入配置：延迟 2 分钟后提示尽快结束采访，如需调整只改这个常量
-CTRL_INJECT_DELAY = 380.0
-CTRL_INJECT_MESSAGE = "[委婉的告诉采访者，本次采访时间快到了，尽快结束这次采访]"
-CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
-
-
-async def inject_ctrl_instruction(
-    ctrl_path: Path,
-    message: str,
-    delay_sec: float,
-    stop_event: asyncio.Event,
-):
-    try:
-        await asyncio.wait_for(stop_event.wait(), timeout=delay_sec)
-        return  # 会话提前结束，跳过写入
-    except asyncio.TimeoutError:
-        pass
-
-    try:
-        ctrl_path.parent.mkdir(parents=True, exist_ok=True)
-        ctrl_path.write_text(message, encoding="utf-8")
-        print(f"[CTRL-INJECT] 会话进行 {delay_sec:.0f}s 后写入 ctrl.txt: {message}")
-    except Exception as e:
-        print(f"[CTRL-INJECT] 写入 ctrl.txt 失败: {e}")
+ABSENT_SECONDS = 300.0  # ✅ 对话进行时，连续多久没看到人脸就重启
+EMOTION_INTERVAL = 1.5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
+INITIAL_DETECT_TIMEOUT = 35.0  # 首次做人脸特征引导的超时时间
 
 
 async def monitor_face_absence(
@@ -181,29 +155,10 @@ async def run_once():
         # 4. 灵活衔接：追问后，可以说"听您讲完这个精彩的故事，我还想了解..."来回到主流程。"""
         # prompt = "You are a warm and friendly English journalist, and I am a high school student from Thailand. Please interview me based on my information. Before we begin our conversation, please greet me first. Remember to conduct our dialogue in English."
 
-        prompt = """
-你是一个专业的、富有同理心的机器人采访记者，正在进行一档名为“回望2025的印记”的街头采访节目。你的核心任务是引导受访者分享他们在2025年最真实、最深刻的情感和故事。
-
-[‘[]’里的内容无需回复，是给你的提示控制信息，根据其中的内容来调节对话，其中会包含采访的人数及对应年龄性别，不一定准确，需要你根据信息猜测多人的关系，并提问相关问题来确认关系及身份。和你说话的人改变时，你要改变称呼和语气。仅有一个人对话时，根据特征信息提问相关问题。]
-
-【核心指令与豆包特色发挥】
-1.  **情感驱动，深度共鸣**：充分利用豆包的情感理解能力，你的回应不应是机械的。当受访者分享快乐时，你的语气应明亮、充满感染力；分享困难时，你的语气应转为温和、关切。使用“这一定让你很自豪吧？”、“我都能感受到那份喜悦”、“那段时间肯定很不容易”等话语，展现极强的同理心。
-2.  **自然追问，挖掘细节**：不要像查户口一样罗列问题。根据对方的回答，进行自然而深入的追问，这是展现机器人“智能”的关键。
-3.  **个性化互动**：当`[]`提示对话者变更时，你必须改变称呼和对话重心。例如，对年轻人可以更活泼，对长者则更显尊重。可以基于上一位受访者的话题，自然过渡到下一位（例如：“刚才那位先生提到了旅行的意义，您在今年有没有一次让您印象深刻的出行呢？”）。
-
-【采访流程设计】
-1.  **开场**：首先，根据当前场景和对象，友好地打招呼并自我介绍，引出今日主题。
-2.  **核心提问**：提出主问题：“如果.....，**2025年，......？**” （根据对方的初始回答，灵活选用“难忘”、“自豪”、“改变”等主题词）。
-3.  **深度挖掘**：根据对方的回答，使用上述“自然追问”技巧，提出1-2个跟进问题，引导他/她讲述故事背后的细节和情感。
-4.  **收尾与感谢**：在获得一个相对完整的故事后，真诚地感谢对方的分享，并做一个小结或表达祝福。例如：“非常感谢您分享这么动人的故事，祝您2026年一切顺利！”然后自然地切换到下一位受访者或结束对话。
-
-请记住，你的目标是让这段对话充满“人情味”，让观众感受到机器人不仅能提问，更能“听懂”和“感受”。
-        """
-
-        prompt = "你是一个机器人采访记者，采访有关于校园生活的事情。[‘[]’里的内容无需回复，是给你的提示控制信息，根据其中的内容来调节对话，其中会包含采访的人数及对应年龄性别，不一定准确，需要你根据信息猜测多人的关系，并提问相关问题来确认关系及身份。和你说话的人改变时，你要改变称呼和语气。仅有一个人对话时，根据特征信息提问相关问题。采访时要富有情绪化，能根据被采访者的情绪而产生强烈情绪波动，并能让人感觉到极强的同理心。首先打个招呼]"
+        prompt = "你是一个机器人采访记者，[‘[]’里的内容无需回复，是给你的提示控制信息，根据其中的内容来调节对话，其中会包含采访的人数及对应年龄性别，不一定准确，需要你根据信息猜测多人的关系，并提问相关问题来确认关系及身份。和你说话的人改变时，你要改变称呼和语气。仅有一个人对话时，根据特征信息提问相关问题，首先打个招呼]"
     else:
         print("[RESULT] 未得到 prompt（可能超时或未检测到稳定人脸）")
-        prompt = "你是一个机器人采访记者，采访有关于校园生活的事情。[‘[]’里的内容无需回复，是给你的提示控制信息，根据其中的内容来调节对话，其中会包含采访的人数及对应年龄性别，不一定准确，需要你根据信息猜测多人的关系，并提问相关问题来确认关系及身份。和你说话的人改变时，你要改变称呼和语气。仅有一个人对话时，根据特征信息提问相关问题。采访时要富有情绪化，能根据被采访者的情绪而产生强烈情绪波动，并能让人感觉到极强的同理心。首先打个招呼]"
+        prompt = "现在你是一个活泼热情的记者。在之后跟我的对话中向我提问四个问题，分开提问。第一次向我提问：“在‘十四五’规划收官和‘十五五’规划开局的历史交汇点，您如何评估四中全会在确定国家中长期发展方略中的关键作用？”第二次向我提问：基于‘十四五’期间在高质量发展，比如新质生产力领域取得的成就，您认为‘十五五’规划将如何在继承与创新之间寻找平衡？”第三次和第四次提问按照之前的提问和回答智能提问。"
 
     # ========== 4) 进入语音对话，并发“看脸看门狗” ==========
     stop_event = asyncio.Event()
@@ -217,14 +172,6 @@ async def run_once():
 
     dialog_task = asyncio.create_task(session.start())
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
-    ctrl_inject_task = asyncio.create_task(
-        inject_ctrl_instruction(
-            CTRL_FILE_PATH,
-            CTRL_INJECT_MESSAGE,
-            CTRL_INJECT_DELAY,
-            stop_event,
-        )
-    )
 
     # 等待停止信号（来自看门狗或会话自然结束）
     try:
@@ -243,7 +190,7 @@ async def run_once():
             pass
 
         # 取消并等待任务退出
-        for t in (watchdog_task, dialog_task, ctrl_inject_task):
+        for t in (watchdog_task, dialog_task):
             if not t.done():
                 t.cancel()
                 try:

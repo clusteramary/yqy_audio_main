@@ -70,8 +70,6 @@ class IntegratedReceiver:
             return 12
         if kw == "woshou":
             return 13
-        if kw == "good":
-            return 14
         return None
 
     def start(self):

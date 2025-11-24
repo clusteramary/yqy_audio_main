@@ -18,28 +18,17 @@ runtime_control_path = "./yuying/a.txt"
 #     },
 # }
 
-# ws_connect_config = {
-#     "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
-#     "headers": {
-#         "X-Api-App-ID": "3128603536",
-#         "X-Api-Access-Key": "ebd6girM6v2yRDfwAluCgHHtokpsfCqu",
-#         "X-Api-Resource-Id": "volc.speech.dialog",
-#         "X-Api-App-Key": "PlgvMymc7f3tQnJ6",
-#         "X-Api-Connect-Id": str(uuid.uuid4()),
-#     },
-# }
-
-
 ws_connect_config = {
     "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
     "headers": {
-        "X-Api-App-ID": "7381194560",
-        "X-Api-Access-Key": "PmMJqNvQDStP4xpTi4pnuO83F793BplS",
+        "X-Api-App-ID": "3128603536",
+        "X-Api-Access-Key": "ebd6girM6v2yRDfwAluCgHHtokpsfCqu",
         "X-Api-Resource-Id": "volc.speech.dialog",
         "X-Api-App-Key": "PlgvMymc7f3tQnJ6",
         "X-Api-Connect-Id": str(uuid.uuid4()),
     },
 }
+
 
 # ============ 会话启动参数（下行 TTS 配置） ============
 # 说明：这里声明了服务端 TTS 的输出格式，当前为 24k / pcm / 单声道
@@ -67,27 +56,15 @@ start_session_req = {
 }
 
 # ============ 输入音频（麦克风，直连） ============
-# # 你的设备只能 48k，这里按 48k 打开；上层会在发送前重采样到 16k
-# input_audio_config = {
-#     "chunk": 960,  # 20ms @ 48k（便于下游再切 10ms@16k 整帧）
-#     "format": "pcm",
-#     "channels": 1,
-#     "sample_rate": 48000,  # 你的麦克风固定 48k
-#     # "sample_rate": 44100,  # 你的麦克风固定 48k
-#     "bit_size": pyaudio.paInt16,
-#     "device_index": 3,  # 你的麦克风索引
-# }
-
-# 你的设备是 48k，这里按 48k 配置；真正发给大模型前会重采样到 16k 单声道
+# 你的设备只能 48k，这里按 48k 打开；上层会在发送前重采样到 16k
 input_audio_config = {
-    # 这个 chunk 现在对我们来说只是一条“配置参考”，真正读数据是从 /audio/audio
-    # 可以设成一帧 0.1s 的样本数：48000 * 0.1 = 4800
-    "chunk": 4800,
+    "chunk": 960,  # 20ms @ 48k（便于下游再切 10ms@16k 整帧）
     "format": "pcm",
-    "channels": 2,  # *** 注意：一定要和 audio_capture 的 channels 一致 ***
-    "sample_rate": 48000,  # *** 注意：和 audio_capture 的 sample_rate 一致 ***
+    "channels": 1,
+    "sample_rate": 48000,  # 你的麦克风固定 48k
+    # "sample_rate": 44100,  # 你的麦克风固定 48k
     "bit_size": pyaudio.paInt16,
-    "device_index": None,  # 现在不再用 PyAudio 采麦，可设 None
+    "device_index": 2,  # 你的麦克风索引
 }
 
 # ============ 输出音频（扬声器，经 ROS1 发送到下位机） ============
