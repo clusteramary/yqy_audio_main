@@ -1,21 +1,26 @@
 # async_app.py
 import asyncio
 import time
+import threading
 from pathlib import Path
 
 import config
 from audio_manager import DialogSession
 from CameraAdapter import CameraAdapter
 from FacePromptDetector import FacePromptDetector
+from str_receiver import UDPReceiver
 
 # ABSENT_SECONDS = 30.0      # ✅ 对话进行时，连续多久没看到人脸就重启
 ABSENT_SECONDS = 20.0  # ✅ 对话进行时，连续多久没看到人脸就重启
 EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
 INITIAL_DETECT_TIMEOUT = 31000.0  # 首次做人脸特征引导的超时时间
 
-# ctrl.txt 写入配置：延迟 2 分钟后提示尽快结束采访，如需调整只改这个常量
-CTRL_INJECT_DELAY = 280.0
-CTRL_INJECT_MESSAGE = "[委婉的告诉采访者，本次采访时间快到了，尽快结束这次采访]"
+# ctrl.txt 写入配置：按顺序在指定时间写入不同提示
+# 修改顺序、时间或内容，仅需调整下方元组列表
+CTRL_INJECT_EVENTS = [
+    (120.0, "提问2025年你最难忘的时刻是什么"),
+    (300.0, "[委婉的告诉采访者，本次采访时间快到了，尽快结束这次采访]"),
+]
 CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
 
 
@@ -215,14 +220,17 @@ async def run_once():
 
     dialog_task = asyncio.create_task(session.start())
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
-    ctrl_inject_task = asyncio.create_task(
-        inject_ctrl_instruction(
-            CTRL_FILE_PATH,
-            CTRL_INJECT_MESSAGE,
-            CTRL_INJECT_DELAY,
-            stop_event,
+    ctrl_inject_tasks = [
+        asyncio.create_task(
+            inject_ctrl_instruction(
+                CTRL_FILE_PATH,
+                message,
+                delay,
+                stop_event,
+            )
         )
-    )
+        for delay, message in CTRL_INJECT_EVENTS
+    ]
 
     # 等待停止信号（来自看门狗或会话自然结束）
     try:
@@ -241,7 +249,7 @@ async def run_once():
             pass
 
         # 取消并等待任务退出
-        for t in (watchdog_task, dialog_task, ctrl_inject_task):
+        for t in (watchdog_task, dialog_task, *ctrl_inject_tasks):
             if not t.done():
                 t.cancel()
                 try:
@@ -257,6 +265,18 @@ async def main():
     外层自恢复循环：每次 run_once 结束（含 5s 无人脸被看门狗杀掉），立即重新开始新一轮。
     如需“彻底退出”，直接 Ctrl+C 终止进程即可。
     """
+    udp_receiver = UDPReceiver(
+        listen_ip="0.0.0.0",
+        listen_port=8889,
+        file_path=str(CTRL_FILE_PATH),
+    )
+    udp_thread = threading.Thread(
+        target=udp_receiver.start_receiving,
+        name="ctrl-udp-listener",
+        daemon=True,
+    )
+    udp_thread.start()
+
     while True:
         try:
             await run_once()
@@ -267,6 +287,11 @@ async def main():
             # 防御：任何异常都不至于崩死主循环
             print(f"[main] 捕获异常：{e}；3s 后重启。")
             await asyncio.sleep(3.0)
+    # 主循环退出时，停止 UDP 监听
+    udp_receiver.stop_receiving()
+    udp_receiver.close()
+    if udp_thread.is_alive():
+        udp_thread.join(timeout=1.0)
 
 
 if __name__ == "__main__":
