@@ -21,8 +21,8 @@ runtime_control_path = "./yuying/a.txt"
 ws_connect_config = {
     "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
     "headers": {
-        "X-Api-App-ID": "3128603536",
-        "X-Api-Access-Key": "ebd6girM6v2yRDfwAluCgHHtokpsfCqu",
+        "X-Api-App-ID": "7381194560",
+        "X-Api-Access-Key": "PmMJqNvQDStP4xpTi4pnuO83F793BplS",
         "X-Api-Resource-Id": "volc.speech.dialog",
         "X-Api-App-Key": "PlgvMymc7f3tQnJ6",
         "X-Api-Connect-Id": str(uuid.uuid4()),
