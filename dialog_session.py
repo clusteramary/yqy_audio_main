@@ -11,8 +11,7 @@ import threading
 import time
 import uuid
 import wave
-from collections import deque
-from typing import Any, Deque, Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 import pyaudio
 
@@ -83,10 +82,6 @@ LLM_KWS_PATTERNS: Dict[str, list] = {
     # 结束访谈/结束控制，由 LLM 说出
     "end": ["感谢你", "感谢您", "感谢"],
 }
-
-# ctrl 捕获参数：ASR 超时时间 & 允许的空轮次数
-CTRL_ASR_TIMEOUT_SEC = 12.0
-CTRL_MAX_SILENT_ATTEMPTS = 2
 
 
 def save_input_pcm_to_wav(pcm_data: bytes, filename: str) -> None:
@@ -208,10 +203,10 @@ class DialogSession:
 
         # ctrl 相关状态：
         #   - _last_ctrl_text：用于检测 ctrl.txt 是否有变化
-        #   - _ctrl_pending_texts：队列，保存待发送的控制文本
+        #   - _ctrl_pending_text：最新的控制信号内容，等待“下一轮用户说话”
         #   - _ctrl_worker_task：负责“等模型空闲 → 捕获下一轮说话 → 发送 ctrl+语音文本” 的协程任务
         self._last_ctrl_text: Optional[str] = None
-        self._ctrl_pending_texts: Deque[str] = deque()
+        self._ctrl_pending_text: Optional[str] = None
         self._ctrl_worker_task: Optional[asyncio.Task] = None
 
         self.ctrl_monitor_task: Optional[asyncio.Task] = None
@@ -340,7 +335,7 @@ class DialogSession:
         """
         监控 sauc_python/ctrl.txt 内容变化：
         一旦 ctrl 内容变化，不立刻打断当前对话，而是：
-          1）只记录“待发送的 ctrl 文本”到 _ctrl_pending_texts 队列；
+          1）只记录“待发送的 ctrl 文本”到 _ctrl_pending_text；
           2）启动一个后台协程 _ctrl_utterance_worker：
              - 等这一轮 TTS 播放完、大模型空闲；
              - 使用 SAUC 队列版 ASR 捕获「用户下一句说话」；
@@ -379,20 +374,20 @@ class DialogSession:
 
     async def _handle_ctrl_file_change(self, ctrl_text: str) -> None:
         """
-                ctrl.txt 内容改变时调用：
-                不再立刻调用 SAUC / chat_text_query，而是：
-                    - 将控制文本排队到 _ctrl_pending_texts；
-                    - 如果没有正在运行的 ctrl worker，则启动一个。
+        ctrl.txt 内容改变时调用：
+        不再立刻调用 SAUC / chat_text_query，而是：
+          - 只更新 _ctrl_pending_text；
+          - 如果没有正在运行的 ctrl worker，则启动一个。
         """
         try:
             print(f"[CTRL-MONITOR] 检测到 ctrl.txt 内容变化，内容: {ctrl_text!r}")
-            # 将控制文本排入队列，保障顺序发送
-            self._ctrl_pending_texts.append(ctrl_text)
+            # 更新“待绑定到下一轮说话”的控制文本
+            self._ctrl_pending_text = ctrl_text
 
             # 若已有 worker 在跑，则只更新 pending 内容即可
             if self._ctrl_worker_task is not None and not self._ctrl_worker_task.done():
                 print(
-                    "[CTRL-MONITOR] 已有 ctrl worker 在运行，新控制文本已排队等待。"
+                    "[CTRL-MONITOR] 已有 ctrl worker 在运行，更新 pending 文本后等待其完成。"
                 )
                 return
 
@@ -405,114 +400,116 @@ class DialogSession:
 
     async def _ctrl_utterance_worker(self):
         """
-        背景任务：依次处理 ctrl 文本队列。
-        每个 ctrl 文本都会：
-          1）等待模型空闲；
-          2）尝试捕获下一句语音并与 ctrl 合并；
-          3）若多次未捕获到有效语音，则直接发送 ctrl 文本，避免长时间挂起。
+        背景任务：
+        1）等待当前一轮 TTS 播放结束，大模型空闲（不在回复中）；
+        2）启用“ctrl 捕获模式”：主采集线程仍然读麦克风，但：
+           - 实际音频帧推到 ctrl_frame_queue；
+           - 向大模型端只发静音帧保持会话；
+        3）使用 SAUC 队列版一次性 ASR，从 ctrl_frame_queue 捕获“用户下一句说话”；
+        4）若成功识别到文本 asr_text，则将 (ctrl_pending_text + asr_text) 合并成一条文本，
+           用 chat_text_query 发给大模型，作为“下一轮自然对话”的输入；
+        5）如果一直没识别出有效文本，本次控制信号不会被丢弃，
+           而是继续挂起等待下一轮语音，直到有文本才真正发送。
         """
         try:
-            print("[CTRL-WORKER] 启动，监听待处理的控制文本。")
-            while self.is_running and self._ctrl_pending_texts:
-                current_ctrl = self._ctrl_pending_texts[0]
-                print(f"[CTRL-WORKER] 处理控制文本：{current_ctrl!r}")
+            # 启动时的 ctrl 文本快照（期间 ctrl.txt 再变更，会走下一轮 worker）
+            initial_ctrl_text = self._ctrl_pending_text
+            if not initial_ctrl_text:
+                print("[CTRL-WORKER] 启动时 ctrl_pending_text 为空，直接退出。")
+                return
 
-                attempt = 0
-                silent_attempts = 0
+            print(
+                f"[CTRL-WORKER] 启动，等待模型空闲后捕获下一句说话，ctrl_text={initial_ctrl_text!r}"
+            )
 
-                while self.is_running and self._ctrl_pending_texts and self._ctrl_pending_texts[0] == current_ctrl:
-                    attempt += 1
-                    print(f"[CTRL-WORKER] 开始第 {attempt} 次 ctrl 语音捕获尝试...")
+            attempt = 0
+            # 只要会话还在、且还有挂起的 ctrl，就一直守着这次控制信号
+            while self.is_running and self._ctrl_pending_text:
+                attempt += 1
+                print(f"[CTRL-WORKER] 开始第 {attempt} 次 ctrl 语音捕获尝试...")
 
-                    # 1）等待：模型不在回复中 & 不在播放 TTS
-                    while self.is_running:
-                        if (not self.is_user_querying) and (not self._is_tts_playing()):
-                            break
-                        await asyncio.sleep(0.1)
+                # 1）等待：模型不在回复中 & 不在播放 TTS
+                while self.is_running:
+                    if (not self.is_user_querying) and (not self._is_tts_playing()):
+                        break
+                    await asyncio.sleep(0.1)
 
-                    if not self.is_running:
-                        print("[CTRL-WORKER] 会话已结束，提前退出。")
-                        return
+                if not self.is_running:
+                    print("[CTRL-WORKER] 会话已结束，提前退出。")
+                    return
 
-                    # 清空上一轮可能残留的 ctrl 帧
+                # 清空上一轮可能残留的 ctrl 帧
+                try:
+                    while not self.ctrl_frame_queue.empty():
+                        self.ctrl_frame_queue.get_nowait()
+                except Exception:
+                    pass
+
+                # 2）开启 ctrl 捕获模式：主采集线程会把 16k 帧扔进 ctrl_frame_queue，并对大模型只发静音
+                self._pause_mic_for_ctrl = True
+
+                print(
+                    "[CTRL-WORKER] 模型已空闲，启用 ctrl 捕获模式，从共享队列采集下一句语音..."
+                )
+
+                # 3）调用 SAUC 队列版一次性 ASR（内部带 VAD：检测到一段语音 -> 静音 -> 结束）
+                try:
+                    asr_text = await recognize_once_from_queue(
+                        self.ctrl_frame_queue,
+                        output_file=self.output_file_path,
+                        frame_ms=int(1000 * TARGET_CHUNK_SAMPLES / TARGET_SAMPLE_RATE),
+                        vad_silence_ms=500,
+                        vad_threshold=500,
+                        max_record_ms=15000,
+                    )
+                except Exception as e:
+                    print(f"[CTRL-WORKER] 调用 SAUC 队列版失败: {e}")
+                    asr_text = ""
+                finally:
+                    # 关闭 ctrl 捕获模式：主采集线程恢复正常，把音频直接发给大模型
+                    self._pause_mic_for_ctrl = False
+                    # 清空队列残帧，避免下次启动时受影响
                     try:
                         while not self.ctrl_frame_queue.empty():
                             self.ctrl_frame_queue.get_nowait()
                     except Exception:
                         pass
 
-                    # 2）开启 ctrl 捕获模式：主采集线程会把 16k 帧扔进 ctrl_frame_queue，并对大模型只发静音
-                    self._pause_mic_for_ctrl = True
+                print(f"[CTRL-WORKER] 第 {attempt} 次 SAUC 队列识别结果：{asr_text!r}")
 
+                # 4）根据“控制信号 + 语音文本”是否齐全，决定是否发给大模型
+                if not asr_text:
+                    # 不再认为“控制信号本次作废”，只打印日志，保留 _ctrl_pending_text
                     print(
-                        "[CTRL-WORKER] 模型已空闲，启用 ctrl 捕获模式，从共享队列采集下一句语音..."
+                        "[CTRL-WORKER] 本轮未检测到有效语音，控制信号继续挂起，等待下一轮语音。"
                     )
-
-                    # 3）调用 SAUC 队列版一次性 ASR（内部带 VAD），并设置超时
-                    try:
-                        asr_text = await asyncio.wait_for(
-                            recognize_once_from_queue(
-                                self.ctrl_frame_queue,
-                                output_file=self.output_file_path,
-                                frame_ms=int(
-                                    1000 * TARGET_CHUNK_SAMPLES / TARGET_SAMPLE_RATE
-                                ),
-                                vad_silence_ms=500,
-                                vad_threshold=500,
-                                max_record_ms=15000,
-                            ),
-                            timeout=CTRL_ASR_TIMEOUT_SEC,
-                        )
-                    except asyncio.TimeoutError:
-                        print(
-                            f"[CTRL-WORKER] 语音捕获超时 (>{CTRL_ASR_TIMEOUT_SEC}s)，将重试。"
-                        )
-                        asr_text = ""
-                    except Exception as e:
-                        print(f"[CTRL-WORKER] 调用 SAUC 队列版失败: {e}")
-                        asr_text = ""
-                    finally:
-                        # 关闭 ctrl 捕获模式：主采集线程恢复正常，把音频直接发给大模型
-                        self._pause_mic_for_ctrl = False
-                        # 清空队列残帧，避免下次启动时受影响
-                        try:
-                            while not self.ctrl_frame_queue.empty():
-                                self.ctrl_frame_queue.get_nowait()
-                        except Exception:
-                            pass
-
-                    print(f"[CTRL-WORKER] 第 {attempt} 次 SAUC 队列识别结果：{asr_text!r}")
-
-                    if asr_text:
-                        combined_text = f"{current_ctrl} {asr_text}".strip()
-                        print(
-                            f"[CTRL-WORKER] 发送“控制信号 + 本轮语音”到大模型：{combined_text!r}"
-                        )
-                        try:
-                            await self.client.chat_text_query(combined_text)
-                        except Exception as e:
-                            print(f"[CTRL-WORKER] chat_text_query 发送失败: {e}")
-
-                        self._ctrl_pending_texts.popleft()
-                        print("[CTRL-WORKER] 已处理本条控制文本，继续检查队列。")
-                        break
-
-                    silent_attempts += 1
-                    if silent_attempts >= CTRL_MAX_SILENT_ATTEMPTS:
-                        print(
-                            "[CTRL-WORKER] 多次未捕获有效语音，仅发送控制文本以避免长时间挂起。"
-                        )
-                        try:
-                            await self.client.chat_text_query(current_ctrl)
-                        except Exception as e:
-                            print(f"[CTRL-WORKER] 仅发送控制文本失败: {e}")
-
-                        self._ctrl_pending_texts.popleft()
-                        break
-
+                    # 小睡一下避免紧密循环
                     await asyncio.sleep(0.2)
+                    continue
 
-            print("[CTRL-WORKER] 退出：会话已结束或无挂起控制。")
+                # 仍以最新 pending ctrl 文本为准（中途可能被覆盖）
+                ctrl_text_final = self._ctrl_pending_text or initial_ctrl_text
+                pieces = []
+                if ctrl_text_final:
+                    pieces.append(ctrl_text_final)
+                pieces.append(asr_text)
+                # combined_text = "\n".join(pieces)
+                combined_text = " ".join(pieces)
+
+                print(
+                    f"[CTRL-WORKER] 发送“控制信号 + 本轮语音”到大模型：{combined_text!r}"
+                )
+                try:
+                    await self.client.chat_text_query(combined_text)
+                except Exception as e:
+                    print(f"[CTRL-WORKER] chat_text_query 发送失败: {e}")
+
+                # 本轮控制信号已成功消耗
+                self._ctrl_pending_text = None
+                print("[CTRL-WORKER] 本轮 ctrl 已消耗，worker 结束。")
+                return
+
+            print("[CTRL-WORKER] 退出：会话已结束或 ctrl_pending_text 已被清空。")
 
         except asyncio.CancelledError:
             print("[CTRL-WORKER] 被取消，结束。")
@@ -527,7 +524,6 @@ class DialogSession:
                     self.ctrl_frame_queue.get_nowait()
             except Exception:
                 pass
-            self._ctrl_worker_task = None
 
     def _remote_audio_status_callback(self, msg):
         self.remote_playing = msg.data
