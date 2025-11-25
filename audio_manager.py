@@ -7,22 +7,21 @@ import random
 import re
 import signal
 import socket
-import sys
 import threading
 import time
 import uuid
 import wave
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Set
+
+# from pathlib import Path  # 已移除：不再读取 a.txt
+from typing import Any, Dict, Optional
 
 import pyaudio
 
 import config
 from realtime_dialog_client import RealtimeDialogClient
 
-# === 改：使用“共享队列版” SAUC 识别，而不是再开一条麦克风 ===
-from sauc_python.sauc_websocket_mic2 import recognize_once_from_queue
-
+# --- 兼容 Python 3.8：为 asyncio.to_thread 提供后备实现（保留，无实际使用） ---
 try:
     _to_thread = asyncio.to_thread  # Python 3.9+
 except AttributeError:
@@ -53,26 +52,7 @@ except Exception:
 TARGET_SAMPLE_RATE = 16000
 TARGET_SAMPLE_WIDTH = 2
 TARGET_CHANNELS = 1
-TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
-
-# ASR 关键词配置：标签 -> 若干“包含匹配”的短语（用于语音识别结果）
-ASR_KWS_PATTERNS: Dict[str, list] = {
-    "wave": ["挥手", "挥一挥", "挥一下", "握一下手", "wave"],
-    "nod": ["点头", "点一下", "nod"],
-    "shake": ["击掌", "击一下"],
-    "woshou": ["握手", "握一下", "握个手", "shake"],
-    "end": ["再见", "拜拜", "bye"],
-}
-
-# LLM 文本关键词配置：标签 -> 若干“包含匹配”的短语（用于大模型文本 content）
-LLM_KWS_PATTERNS: Dict[str, list] = {
-    "left": ["向左", "往左"],
-    "right": ["向右", "往右", "测试成功啦"],
-    # 结束访谈/结束控制，由 LLM 说出
-    "end": ["感谢你", "感谢您", "感谢"],
-    # 后面可以继续加，比如:
-    # "stop": ["停一下", "停止", "先到这里"],
-}
+TARGET_CHUNK_SAMPLES = 320
 
 
 @dataclass
@@ -261,47 +241,13 @@ class DialogSession:
         self.mic_udp_port = 5558
         self.mic_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # 关键词“挥手” 及去抖（KWS 通道，当前未直接使用 _wave_re，但保留字段不影响）
+        # 关键词“挥手” 及去抖
         self._wave_re = re.compile(r"(挥手|揮手|招手|挥个手|挥下手)")
         self._kws_wave_cooldown = 1.5
         self._kws_wave_last_ts = 0.0
 
         # 话筒指令冷却
         self._last_mic_send_time = 0.0
-
-        # === LLM 输出关键短语检测缓冲（用于跨 token 检测“感谢你”“左”“右”等） ===
-        self._llm_keyword_buffer: str = ""
-        self._llm_buffer_max_len: int = 50  # 只保留最近若干字符即可
-        # 当前这一轮 LLM 回复中已经触发过的关键词，避免同一轮触发多次
-        self._llm_kws_fired: Set[str] = set()
-
-        # === 控制 ctrl.txt 的文本触发 + SAUC 识别 ===
-        # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
-        self._pause_mic_for_ctrl = False
-
-        # 共享 16k PCM 帧队列：主采集线程写，ctrl + SAUC 从这里读
-        # 帧格式：s16le 单声道，采样率 16000，每帧 TARGET_CHUNK_SAMPLES 样本 ≈ 20ms
-        self.ctrl_frame_queue: asyncio.Queue = asyncio.Queue()
-
-        # sauc_python 目录 & 文件路径（相对于当前文件）
-        self.sauc_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "sauc_python"
-        )
-        self.ctrl_file_path = os.path.join(self.sauc_dir, "ctrl.txt")
-        self.output_file_path = os.path.join(self.sauc_dir, "output.txt")
-
-        # ctrl 相关状态：
-        #   - _last_ctrl_text：用于检测 ctrl.txt 是否有变化
-        #   - _ctrl_pending_text：最新的控制信号内容，等待“下一轮用户说话”
-        #   - _ctrl_worker_task：负责“等模型空闲 → 捕获下一轮说话 → 发送 ctrl+语音文本” 的协程任务
-        self._last_ctrl_text: Optional[str] = None
-        self._ctrl_pending_text: Optional[str] = None
-        self._ctrl_worker_task: Optional[asyncio.Task] = None
-
-        self.ctrl_monitor_task: Optional[asyncio.Task] = None
-        if not self.is_audio_file_input:
-            # 只在麦克风模式下监控 ctrl
-            self.ctrl_monitor_task = asyncio.create_task(self._monitor_ctrl_file())
 
         if not self.is_audio_file_input and _HAS_ROS1:
             if not rospy.core.is_initialized():
@@ -371,200 +317,6 @@ class DialogSession:
         print("推销内容播放完毕")
         self._promote_playing = False
 
-    # ---------- 监控 ctrl.txt ----------
-    async def _monitor_ctrl_file(self):
-        """
-        监控 sauc_python/ctrl.txt 内容变化：
-        一旦 ctrl 内容变化，不立刻打断当前对话，而是：
-          1）只记录“待发送的 ctrl 文本”到 _ctrl_pending_text；
-          2）启动一个后台协程 _ctrl_utterance_worker：
-             - 等这一轮 TTS 播放完、大模型空闲；
-             - 使用 SAUC 队列版 ASR 捕获「用户下一句说话」；
-             - 将 ctrl 文本 + 该句文本合并，作为“下一轮自然对话”的输入发给大模型。
-        """
-        if not os.path.isdir(self.sauc_dir):
-            print(f"[CTRL-MONITOR] 未找到目录: {self.sauc_dir}，跳过 ctrl 监控。")
-            return
-
-        print(f"[CTRL-MONITOR] 启动，监控 ctrl: {self.ctrl_file_path}")
-
-        while self.is_running:
-            try:
-                try:
-                    with open(self.ctrl_file_path, "r", encoding="utf-8") as f:
-                        current_ctrl = f.read().strip()
-                except FileNotFoundError:
-                    # ctrl.txt 还没建好，稍后再试
-                    await asyncio.sleep(0.5)
-                    continue
-
-                if self._last_ctrl_text is None:
-                    # 第一次读取，只当基线，不触发逻辑
-                    self._last_ctrl_text = current_ctrl
-                elif current_ctrl != self._last_ctrl_text:
-                    self._last_ctrl_text = current_ctrl
-                    await self._handle_ctrl_file_change(current_ctrl)
-
-                await asyncio.sleep(0.3)
-            except asyncio.CancelledError:
-                print("[CTRL-MONITOR] 监控任务被取消")
-                break
-            except Exception as e:
-                print(f"[CTRL-MONITOR] 监控异常: {e}")
-                await asyncio.sleep(0.5)
-
-    async def _handle_ctrl_file_change(self, ctrl_text: str) -> None:
-        """
-        ctrl.txt 内容改变时调用：
-        不再立刻调用 SAUC / chat_text_query，而是：
-          - 只更新 _ctrl_pending_text；
-          - 如果没有正在运行的 ctrl worker，则启动一个。
-        """
-        try:
-            print(f"[CTRL-MONITOR] 检测到 ctrl.txt 内容变化，内容: {ctrl_text!r}")
-            # 更新“待绑定到下一轮说话”的控制文本
-            self._ctrl_pending_text = ctrl_text
-
-            # 若已有 worker 在跑，则只更新 pending 内容即可
-            if self._ctrl_worker_task is not None and not self._ctrl_worker_task.done():
-                print(
-                    "[CTRL-MONITOR] 已有 ctrl worker 在运行，更新 pending 文本后等待其完成。"
-                )
-                return
-
-            # 启动新的后台 worker
-            self._ctrl_worker_task = asyncio.create_task(self._ctrl_utterance_worker())
-            print("[CTRL-MONITOR] 启动 ctrl worker，等待下一轮自然说话。")
-
-        except Exception as e:
-            print(f"[CTRL-MONITOR] 处理 ctrl 变化失败: {e}")
-
-    async def _ctrl_utterance_worker(self):
-        """
-        背景任务：
-        1）等待当前一轮 TTS 播放结束，大模型空闲（不在回复中）；
-        2）启用“ctrl 捕获模式”：主采集线程仍然读麦克风，但：
-           - 实际音频帧推到 ctrl_frame_queue；
-           - 向大模型端只发静音帧保持会话；
-        3）使用 SAUC 队列版一次性 ASR，从 ctrl_frame_queue 捕获“用户下一句说话”；
-        4）若成功识别到文本 asr_text，则将 (ctrl_pending_text + asr_text) 合并成一条文本，
-           用 chat_text_query 发给大模型，作为“下一轮自然对话”的输入；
-        5）如果一直没识别出有效文本，本次控制信号不会被丢弃，
-           而是继续挂起等待下一轮语音，直到有文本才真正发送。
-        """
-        try:
-            # 启动时的 ctrl 文本快照（期间 ctrl.txt 再变更，会走下一轮 worker）
-            initial_ctrl_text = self._ctrl_pending_text
-            if not initial_ctrl_text:
-                print("[CTRL-WORKER] 启动时 ctrl_pending_text 为空，直接退出。")
-                return
-
-            print(
-                f"[CTRL-WORKER] 启动，等待模型空闲后捕获下一句说话，ctrl_text={initial_ctrl_text!r}"
-            )
-
-            attempt = 0
-            # 只要会话还在、且还有挂起的 ctrl，就一直守着这次控制信号
-            while self.is_running and self._ctrl_pending_text:
-                attempt += 1
-                print(f"[CTRL-WORKER] 开始第 {attempt} 次 ctrl 语音捕获尝试...")
-
-                # 1）等待：模型不在回复中 & 不在播放 TTS
-                while self.is_running:
-                    if (not self.is_user_querying) and (not self._is_tts_playing()):
-                        break
-                    await asyncio.sleep(0.1)
-
-                if not self.is_running:
-                    print("[CTRL-WORKER] 会话已结束，提前退出。")
-                    return
-
-                # 清空上一轮可能残留的 ctrl 帧
-                try:
-                    while not self.ctrl_frame_queue.empty():
-                        self.ctrl_frame_queue.get_nowait()
-                except Exception:
-                    pass
-
-                # 2）开启 ctrl 捕获模式：主采集线程会把 16k 帧扔进 ctrl_frame_queue，并对大模型只发静音
-                self._pause_mic_for_ctrl = True
-
-                print(
-                    "[CTRL-WORKER] 模型已空闲，启用 ctrl 捕获模式，从共享队列采集下一句语音..."
-                )
-
-                # 3）调用 SAUC 队列版一次性 ASR（内部带 VAD：检测到一段语音 -> 静音 -> 结束）
-                try:
-                    asr_text = await recognize_once_from_queue(
-                        self.ctrl_frame_queue,
-                        output_file=self.output_file_path,
-                        frame_ms=int(1000 * TARGET_CHUNK_SAMPLES / TARGET_SAMPLE_RATE),
-                        vad_silence_ms=500,
-                        vad_threshold=500,
-                        max_record_ms=15000,
-                    )
-                except Exception as e:
-                    print(f"[CTRL-WORKER] 调用 SAUC 队列版失败: {e}")
-                    asr_text = ""
-                finally:
-                    # 关闭 ctrl 捕获模式：主采集线程恢复正常，把音频直接发给大模型
-                    self._pause_mic_for_ctrl = False
-                    # 清空队列残帧，避免下次启动时受影响
-                    try:
-                        while not self.ctrl_frame_queue.empty():
-                            self.ctrl_frame_queue.get_nowait()
-                    except Exception:
-                        pass
-
-                print(f"[CTRL-WORKER] 第 {attempt} 次 SAUC 队列识别结果：{asr_text!r}")
-
-                # 4）根据“控制信号 + 语音文本”是否齐全，决定是否发给大模型
-                if not asr_text:
-                    # 不再认为“控制信号本次作废”，只打印日志，保留 _ctrl_pending_text
-                    print(
-                        "[CTRL-WORKER] 本轮未检测到有效语音，控制信号继续挂起，等待下一轮语音。"
-                    )
-                    # 小睡一下避免紧密循环
-                    await asyncio.sleep(0.2)
-                    continue
-
-                # 仍以最新 pending ctrl 文本为准（中途可能被覆盖）
-                ctrl_text_final = self._ctrl_pending_text or initial_ctrl_text
-                pieces = []
-                if ctrl_text_final:
-                    pieces.append(ctrl_text_final)
-                pieces.append(asr_text)
-                combined_text = "\n".join(pieces)
-
-                print(
-                    f"[CTRL-WORKER] 发送“控制信号 + 本轮语音”到大模型：{combined_text!r}"
-                )
-                try:
-                    await self.client.chat_text_query(combined_text)
-                except Exception as e:
-                    print(f"[CTRL-WORKER] chat_text_query 发送失败: {e}")
-
-                # 本轮控制信号已成功消耗
-                self._ctrl_pending_text = None
-                print("[CTRL-WORKER] 本轮 ctrl 已消耗，worker 结束。")
-                return
-
-            print("[CTRL-WORKER] 退出：会话已结束或 ctrl_pending_text 已被清空。")
-
-        except asyncio.CancelledError:
-            print("[CTRL-WORKER] 被取消，结束。")
-            raise
-        except Exception as e:
-            print(f"[CTRL-WORKER] 运行异常: {e}")
-        finally:
-            # 收尾兜底：无论如何都确保关闭 ctrl 捕获模式，避免主采集线程长期只发静音
-            self._pause_mic_for_ctrl = False
-            try:
-                while not self.ctrl_frame_queue.empty():
-                    self.ctrl_frame_queue.get_nowait()
-            except Exception:
-                pass
-
     def _remote_audio_status_callback(self, msg):
         self.remote_playing = msg.data
 
@@ -592,24 +344,11 @@ class DialogSession:
             except Exception:
                 pass
 
-        # 推广播报任务
+        # 不再存在：控制通道任务取消
+        # 不再存在：推广播报任务取消由上层 finally 统一清理
         try:
             if hasattr(self, "promote_task") and self.promote_task:
                 self.promote_task.cancel()
-        except Exception:
-            pass
-
-        # 取消 ctrl 监控任务
-        try:
-            if hasattr(self, "ctrl_monitor_task") and self.ctrl_monitor_task:
-                self.ctrl_monitor_task.cancel()
-        except Exception:
-            pass
-
-        # 取消 ctrl worker 任务
-        try:
-            if hasattr(self, "_ctrl_worker_task") and self._ctrl_worker_task:
-                self._ctrl_worker_task.cancel()
         except Exception:
             pass
 
@@ -648,9 +387,6 @@ class DialogSession:
             print(f"[KWS] 发送UDP失败: {e}")
 
     def _maybe_emit_wave_from_asr(self, payload_msg: Dict[str, Any]):
-        """
-        从 ASR 的 payload 里抽取文本，使用 ASR_KWS_PATTERNS 做关键词匹配。
-        """
         cand_texts = []
         for r in payload_msg.get("results", []):
             if r.get("text"):
@@ -664,13 +400,27 @@ class DialogSession:
         joined = " ".join(cand_texts)
         if not joined:
             return
-
-        # 统一用配置表做“包含匹配”，方便后续扩展
-        for keyword, patterns in ASR_KWS_PATTERNS.items():
-            if any(p in joined for p in patterns):
-                self._emit_voice_keyword(keyword)
-                print(f"[ASR-KWS] 检测到关键词 '{keyword}', 已发送 UDP 消息")
-                break
+        if (
+            "挥手" in joined
+            or "挥一挥" in joined
+            or "挥一下" in joined
+            or "wave" in joined
+        ):
+            self._emit_voice_keyword("wave")
+        elif "点头" in joined or "点一下" in joined or "nod" in joined:
+            self._emit_voice_keyword("nod")
+        elif "击掌" in joined or "击一下" in joined:
+            self._emit_voice_keyword("shake")
+        elif (
+            "握手" in joined
+            or "握一下" in joined
+            or "握个手" in joined
+            or "握下手" in joined
+            or "shake" in joined
+        ):
+            self._emit_voice_keyword("woshou")
+        elif "再见" in joined or "拜拜" in joined or "bye" in joined:
+            self._emit_voice_keyword("end")
 
     def handle_server_response(self, response: Dict[str, Any]) -> None:
         # 已移除：静默控制窗口（丢弃确认回包/文本回包）
@@ -691,40 +441,73 @@ class DialogSession:
             event = response.get("event")
             payload_msg = response.get("payload_msg", {})
 
-            # 每一轮文本回答开始（例如 event=553），重置 LLM 关键词缓冲区 & 已触发集合
-            if event == 553:
-                self._llm_keyword_buffer = ""
-                self._llm_kws_fired.clear()
-
-            # 在 LLM 文本里做统一关键词检测（使用缓冲区 + 字典配置）
+            # 在 LLM 文本里找“左/右” → 走关键词通道(5557)
             if "content" in payload_msg:
                 content = payload_msg["content"]
-
-                # 1. 把当前 content 追加到缓冲区，保留最近若干字符（支持跨 token）
-                self._llm_keyword_buffer += content
-                if len(self._llm_keyword_buffer) > self._llm_buffer_max_len:
-                    self._llm_keyword_buffer = self._llm_keyword_buffer[
-                        -self._llm_buffer_max_len :
-                    ]
-
-                buf = self._llm_keyword_buffer
-
-                # 2. 遍历 LLM_KWS_PATTERNS，检测关键短语
-                for keyword, patterns in LLM_KWS_PATTERNS.items():
-                    # 本轮已经触发过的 keyword 不再重复触发
-                    if keyword in self._llm_kws_fired:
-                        continue
-
-                    if any(p in buf for p in patterns):
-                        self._emit_voice_keyword(keyword)
-                        print(f"[LLM-KWS] 检测到关键词 '{keyword}', 已发送 UDP 消息")
-                        self._llm_kws_fired.add(keyword)
-
-                        # 如果是 end，可以选择清空缓冲，防止后续 content 再次触发
-                        if keyword == "end":
-                            self._llm_keyword_buffer = ""
-                        # 如果希望“一次 content 只触发一个关键词”，可以在这里 break
-                        # break
+                if "左" in content:
+                    try:
+                        message = json.dumps(
+                            {
+                                "type": "voice_keyword",
+                                "keyword": "left",
+                                "timestamp": time.time(),
+                            }
+                        )
+                        self.voice_udp_socket.sendto(
+                            message.encode("utf-8"),
+                            (self.voice_udp_host, self.voice_udp_port),
+                        )
+                        print("检测到'左'关键词，发送UDP消息")
+                    except Exception as e:
+                        print(f"发送UDP消息失败: {e}")
+                if "右" in content:
+                    try:
+                        message = json.dumps(
+                            {
+                                "type": "voice_keyword",
+                                "keyword": "right",
+                                "timestamp": time.time(),
+                            }
+                        )
+                        self.voice_udp_socket.sendto(
+                            message.encode("utf-8"),
+                            (self.voice_udp_host, self.voice_udp_port),
+                        )
+                        print("检测到'右'关键词，发送UDP消息")
+                    except Exception as e:
+                        print(f"发送UDP消息失败: {e}")
+                if "感谢" in content or "感谢您" in content:
+                    try:
+                        message = json.dumps(
+                            {
+                                "type": "voice_keyword",
+                                "keyword": "end",
+                                "timestamp": time.time(),
+                            }
+                        )
+                        self.voice_udp_socket.sendto(
+                            message.encode("utf-8"),
+                            (self.voice_udp_host, self.voice_udp_port),
+                        )
+                        print("检测到'右'关键词，发送UDP消息")
+                    except Exception as e:
+                        print(f"发送UDP消息失败: {e}")
+                # if "您好" in content or "你好" in content:
+                #     try:
+                #         message = json.dumps(
+                #             {
+                #                 "type": "voice_keyword",
+                #                 "keyword": "start",
+                #                 "timestamp": time.time(),
+                #             }
+                #         )
+                #         self.voice_udp_socket.sendto(
+                #             message.encode("utf-8"),
+                #             (self.voice_udp_host, self.voice_udp_port),
+                #         )
+                #         print("检测到'开始'关键词，发送UDP消息")
+                #     except Exception as e:
+                #         print(f"发送UDP消息失败: {e}")
 
             if event == 451:
                 try:
@@ -791,6 +574,8 @@ class DialogSession:
             self.is_user_querying, False, True, "这是第二轮TTS的结束事件。"
         )
 
+    # —— 已彻底移除：读取/监听 a.txt 并静默下发控制指令的全部方法 ——
+
     def _keyboard_signal(self, sig, frame):
         print(f"receive keyboard Ctrl+C")
         self.stop()
@@ -811,7 +596,7 @@ class DialogSession:
                     and "event" in response
                     and response["event"] == 359
                 ):
-                    print("receive tts ended event")
+                    print(f"receive tts ended event")
                     self.is_session_finished = True
                     break
                 if (
@@ -820,7 +605,7 @@ class DialogSession:
                     and response["event"] == 359
                     and not self.say_hello_over_event.is_set()
                 ):
-                    print("receive tts sayhello ended event")
+                    print(f"receive tts sayhello ended event")
                     self.say_hello_over_event.set()
         except asyncio.CancelledError:
             print("接收任务已取消")
@@ -848,7 +633,7 @@ class DialogSession:
                 if not audio_data:
                     break
                 await self.client.task_request(audio_data)
-            print("音频文件处理完成，等待服务器响应...")
+            print(f"音频文件处理完成，等待服务器响应...")
 
     async def process_silence_audio(self) -> None:
         silence_data = b"\x00" * (TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES)
@@ -868,14 +653,6 @@ class DialogSession:
         return converted
 
     async def process_microphone_input(self) -> None:
-        """
-        统一采集线程：
-          - 只这一处打开 PyAudio 输入流；
-          - 把数据转换成 16k/s16le 单声道 20ms 帧；
-          - 正常情况下：把这些帧发给大模型；
-          - 若 _pause_mic_for_ctrl=True：这些帧推给 ctrl_frame_queue，
-            同时对大模型只发静音帧（保持会话但不让这句话走“正常语音通路”）。
-        """
         await self.client.say_hello()
         await self.say_hello_over_event.wait()
         await self.client.chat_text_query(self.start_prompt)
@@ -901,7 +678,11 @@ class DialogSession:
                     self.stop()
                     break
 
-                # 统一从 PyAudio 读一块数据
+                if self.block_mic_while_playing and self._is_tts_playing():
+                    await self._send_silence_if_due()
+                    await asyncio.sleep(0.01)
+                    continue
+
                 audio_data = stream.read(
                     config.input_audio_config["chunk"], exception_on_overflow=False
                 )
@@ -911,29 +692,10 @@ class DialogSession:
                 frame_bytes = TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES
                 total_len = len(pcm16_16k)
                 offset = 0
-
                 while total_len - offset >= frame_bytes:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
+                    await self.client.task_request(chunk16k)
                     offset += frame_bytes
-
-                    # 如果 ctrl 捕获模式开启：这帧给 ctrl_frame_queue 做 VAD + 识别
-                    if self._pause_mic_for_ctrl:
-                        try:
-                            self.ctrl_frame_queue.put_nowait(chunk16k)
-                        except Exception:
-                            # 队列如果出意外（理论上不太会），就丢帧，但不影响主对话
-                            pass
-
-                    # 决定是否把这帧发给大模型：
-                    # 1）如果正在播放 TTS 且需要屏蔽麦克风；
-                    # 2）或者处于 ctrl 捕获模式；
-                    # -> 对大模型只发静音帧（间隔 self._silence_interval_sec）
-                    if (
-                        self.block_mic_while_playing and self._is_tts_playing()
-                    ) or self._pause_mic_for_ctrl:
-                        await self._send_silence_if_due()
-                    else:
-                        await self.client.task_request(chunk16k)
 
                 # 采集一轮后 → 收话筒（独立 MIC 通道）
                 self.send_mic_command("release_microphone")
