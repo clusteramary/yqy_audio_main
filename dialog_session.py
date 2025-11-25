@@ -302,7 +302,7 @@ class DialogSession:
             self.mic_udp_socket.sendto(
                 msg.encode("utf-8"), (self.mic_udp_host, self.mic_udp_port)
             )
-            print(f"[MIC-UDP:{self.mic_udp_port}] 发送指令：{command}")
+            # print(f"[MIC-UDP:{self.mic_udp_port}] 发送指令：{command}")
             self._last_mic_send_time = now
         except Exception as e:
             print(f"[MIC-UDP] 发送失败: {e}")
@@ -493,7 +493,8 @@ class DialogSession:
                 if ctrl_text_final:
                     pieces.append(ctrl_text_final)
                 pieces.append(asr_text)
-                combined_text = "\n".join(pieces)
+                # combined_text = "\n".join(pieces)
+                combined_text = " ".join(pieces)
 
                 print(
                     f"[CTRL-WORKER] 发送“控制信号 + 本轮语音”到大模型：{combined_text!r}"
