@@ -415,6 +415,7 @@ class DialogSession:
             "握手" in joined
             or "握一下" in joined
             or "握个手" in joined
+            or "握下手" in joined
             or "shake" in joined
         ):
             self._emit_voice_keyword("woshou")
