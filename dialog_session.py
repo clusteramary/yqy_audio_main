@@ -329,7 +329,7 @@ class DialogSession:
                     # if self._mic_state != "sent" and stable_sec >= 0.35:
                     #     self.send_mic_command("send_microphone")
                     #     self._mic_state = "sent"
-                    if self._mic_state != "released" and stable_sec >= 0.12:
+                    if self._mic_state != "released" and stable_sec >= 0.02:
                         self.send_mic_command("release_microphone")
                         self._mic_state = "released"
 
@@ -554,7 +554,20 @@ class DialogSession:
                 audio_data = self.audio_queue.get(timeout=1.0)
                 if audio_data is not None:
                     self.output_stream.write(audio_data)
-                    self._local_audio_deadline = time.time() + self._local_play_hold_sec
+                    # self._local_audio_deadline = time.time() + self._local_play_hold_sec
+                    now = time.time()
+                    # 假设下行是 s16le（2字节）+ 单声道 + output sample_rate（通常16k/24k）
+                    sr = int(config.output_audio_config.get("sample_rate", 16000))
+                    ch = int(config.output_audio_config.get("channels", 1))
+                    bytes_per_sample = 2  # s16le
+                    dur = len(audio_data) / max(1, (sr * ch * bytes_per_sample))
+
+                    # 给一点点余量，避免刚好卡边造成抖动
+                    hold = max(0.05, dur + 0.05)
+
+                    self._local_audio_deadline = max(
+                        self._local_audio_deadline, now + hold
+                    )
             except queue.Empty:
                 time.sleep(0.05)
             except Exception as e:
