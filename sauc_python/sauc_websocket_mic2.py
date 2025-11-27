@@ -59,11 +59,17 @@ class CompressionType:
 
 # ================== 鉴权配置 ==================
 class Config:
+    # def __init__(self):
+    #     # 这里用你之前的 app_key / access_key
+    #     self.auth = {
+    #         "app_key": "4601805855",
+    #         "access_key": "6b4WXX4EfPhh8W2oLF2B-A9h69BP-qyj",
+    #     }
     def __init__(self):
         # 这里用你之前的 app_key / access_key
         self.auth = {
-            "app_key": "4601805855",
-            "access_key": "6b4WXX4EfPhh8W2oLF2B-A9h69BP-qyj",
+            "app_key": "7381194560",
+            "access_key": "PmMJqNvQDStP4xpTi4pnuO83F793BplS",
         }
 
     @property

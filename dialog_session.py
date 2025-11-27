@@ -18,7 +18,15 @@ import pyaudio
 import config
 
 # AudioConfig 用于 AudioDeviceManager
-from audio_constants import AudioConfig
+from audio_constants import (
+    ASR_KWS_PATTERNS,
+    LLM_KWS_PATTERNS,
+    TARGET_CHANNELS,
+    TARGET_CHUNK_SAMPLES,
+    TARGET_SAMPLE_RATE,
+    TARGET_SAMPLE_WIDTH,
+    AudioConfig,
+)
 from audio_device_manager import AudioDeviceManager
 from realtime_dialog_client import RealtimeDialogClient
 
@@ -59,29 +67,29 @@ except Exception:
     _HAS_ROS1 = False
     _HAS_AUDIO_DATA_MSG = False
 
-# ---------- 音频处理常量 ----------
-TARGET_SAMPLE_RATE = 16000
-TARGET_SAMPLE_WIDTH = 2
-TARGET_CHANNELS = 1
-TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
+# # ---------- 音频处理常量 ----------
+# TARGET_SAMPLE_RATE = 16000
+# TARGET_SAMPLE_WIDTH = 2
+# TARGET_CHANNELS = 1
+# TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
 
-# ---------- ASR / LLM 关键词配置 ----------
-# ASR 关键词配置：标签 -> 若干“包含匹配”的短语（用于语音识别结果）
-ASR_KWS_PATTERNS: Dict[str, list] = {
-    "wave": ["挥手", "挥一挥", "挥一下", "wave"],
-    "nod": ["点头", "点一下", "nod"],
-    "shake": ["击掌", "击一下"],
-    "woshou": ["握手", "握一下", "握个手", "shake"],
-    "end": ["再见", "拜拜", "bye"],
-}
+# # ---------- ASR / LLM 关键词配置 ----------
+# # ASR 关键词配置：标签 -> 若干“包含匹配”的短语（用于语音识别结果）
+# ASR_KWS_PATTERNS: Dict[str, list] = {
+#     "wave": ["挥手", "挥一挥", "挥一下", "wave"],
+#     "nod": ["点头", "点一下", "nod"],
+#     "shake": ["击掌", "击一下"],
+#     "woshou": ["握手", "握一下", "握个手", "shake"],
+#     "end": ["再见", "拜拜", "bye"],
+# }
 
-# LLM 文本关键词配置：标签 -> 若干“包含匹配”的短语（用于大模型文本 content）
-LLM_KWS_PATTERNS: Dict[str, list] = {
-    "left": ["向左转", "左"],
-    "right": ["右", "测试成功啦"],
-    # 结束访谈/结束控制，由 LLM 说出
-    "end": ["感谢你", "感谢您", "感谢"],
-}
+# # LLM 文本关键词配置：标签 -> 若干“包含匹配”的短语（用于大模型文本 content）
+# LLM_KWS_PATTERNS: Dict[str, list] = {
+#     "left": ["向左转", "左"],
+#     "right": ["右", "测试成功啦"],
+#     # 结束访谈/结束控制，由 LLM 说出
+#     "end": ["感谢你", "感谢您", "感谢"],
+# }
 
 
 def save_input_pcm_to_wav(pcm_data: bytes, filename: str) -> None:

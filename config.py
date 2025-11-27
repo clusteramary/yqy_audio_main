@@ -6,12 +6,11 @@ import pyaudio
 runtime_control_path = "./yuying/a.txt"
 
 
-# ============ WebSocket 连接配置 ============
 # ws_connect_config = {
 #     "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
 #     "headers": {
-#         "X-Api-App-ID": "4601805855",
-#         "X-Api-Access-Key": "6b4WXX4EfPhh8W2oLF2B-A9h69BP-qyj",
+#         "X-Api-App-ID": "5167059820",
+#         "X-Api-Access-Key": "spzdT_8qFFeghO2oiFBMaI0p9RbVR35k",
 #         "X-Api-Resource-Id": "volc.speech.dialog",
 #         "X-Api-App-Key": "PlgvMymc7f3tQnJ6",
 #         "X-Api-Connect-Id": str(uuid.uuid4()),
