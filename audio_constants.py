@@ -13,7 +13,7 @@ ASR_KWS_PATTERNS: Dict[str, List[str]] = {
     "nod": ["点头", "点一下", "点个头", "nod"],
     "shake": ["击掌", "击一下", "机长", "击个掌"],
     "woshou": ["握手", "握一下", "握个手", "shake"],
-    "end": ["再见", "拜拜", "bye"],
+    "end": ["再见"],
     "good": [
         "太好",
         "真棒",

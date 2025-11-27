@@ -310,7 +310,7 @@ class DialogSession:
             self.mic_udp_socket.sendto(
                 msg.encode("utf-8"), (self.mic_udp_host, self.mic_udp_port)
             )
-            # print(f"[MIC-UDP:{self.mic_udp_port}] 发送指令：{command}")
+            print(f"[MIC-UDP:{self.mic_udp_port}] 发送指令：{command}")
             self._last_mic_send_time = now
         except Exception as e:
             print(f"[MIC-UDP] 发送失败: {e}")
