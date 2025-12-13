@@ -3,30 +3,28 @@ import signal
 import subprocess
 import threading
 import time
-from queue import Queue, Empty
 import tkinter as tk
-from tkinter import messagebox
+from queue import Empty, Queue
 from tkinter import font as tkfont
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-
 # ========= 你需要确认这里 =========
-CONDA_BASE = "/home/zxr/miniconda3"  # ← 改成你的 conda 根目录
-ROOT_DIR   = "/home/zxr/Documents/DA_robot/interview"
-YQY_DIR    = "/home/zxr/Documents/DA_robot/interview/yqy_audio"
+CONDA_BASE = "/home/zxr/Software/anaconda3"  # ← 改成你的 conda 根目录
+ROOT_DIR = "/home/zxr/Documents/DA_robot/interview"
+YQY_DIR = "/home/zxr/Documents/DA_robot/interview/yqy_audio"
 
 CONDA_SH = os.path.join(CONDA_BASE, "etc/profile.d/conda.sh")
 
 
 def bash_cmd(env_name: str, body: str) -> str:
     """拼出能在非交互 shell 正常 conda activate 的命令串"""
-    return f'''
+    return f"""
 set -e
 source "{CONDA_SH}"
 conda activate "{env_name}"
 {body}
-'''
+"""
 
 
 class ManagedTask:
@@ -34,9 +32,17 @@ class ManagedTask:
     管理一个子进程（开进程组，方便 SIGINT/TERM/KILL 一锅端）。
     日志通过 enqueue_log 推进队列，由主线程刷新到UI（线程安全）。
     """
-    def __init__(self, name, cwd, cmd, enqueue_log,
-                 stop_mode="sigint",  # "sigint" / "termkill"
-                 auto_retry_pattern=None, max_retries=0):
+
+    def __init__(
+        self,
+        name,
+        cwd,
+        cmd,
+        enqueue_log,
+        stop_mode="sigint",  # "sigint" / "termkill"
+        auto_retry_pattern=None,
+        max_retries=0,
+    ):
         self.name = name
         self.cwd = cwd
         self.cmd = cmd
@@ -55,7 +61,9 @@ class ManagedTask:
 
     def start(self):
         if not os.path.exists(CONDA_SH):
-            messagebox.showerror("错误", f"找不到 conda.sh：\n{CONDA_SH}\n请把 CONDA_BASE 改对。")
+            messagebox.showerror(
+                "错误", f"找不到 conda.sh：\n{CONDA_SH}\n请把 CONDA_BASE 改对。"
+            )
             return
 
         if self.is_running():
@@ -73,7 +81,7 @@ class ManagedTask:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
-            preexec_fn=os.setsid  # 新进程组
+            preexec_fn=os.setsid,  # 新进程组
         )
 
         self.enqueue_log(self.name, f"启动成功 PID={self.proc.pid}")
@@ -129,11 +137,16 @@ class ManagedTask:
                     self.enqueue_log(self.name, line)
 
                 # 自动重试：仅在用户没点 stop 的情况下
-                if (not self._stop_requested
+                if (
+                    not self._stop_requested
                     and self.auto_retry_pattern
                     and self.auto_retry_pattern in line
-                    and self._retries_left > 0):
-                    self.enqueue_log(self.name, f"检测到「{self.auto_retry_pattern}」，准备自动重试（剩余 {self._retries_left} 次）")
+                    and self._retries_left > 0
+                ):
+                    self.enqueue_log(
+                        self.name,
+                        f"检测到「{self.auto_retry_pattern}」，准备自动重试（剩余 {self._retries_left} 次）",
+                    )
                     self._retries_left -= 1
                     self.stop()
                     time.sleep(0.8)
@@ -182,12 +195,16 @@ class App(tk.Tk):
         main.add(right, weight=3)
 
         # ========= 左侧：控制面板 =========
-        ttk.Label(left, text="控制面板", style="Title.TLabel").pack(anchor="w", pady=(0, 8))
+        ttk.Label(left, text="控制面板", style="Title.TLabel").pack(
+            anchor="w", pady=(0, 8)
+        )
 
         toolbar = ttk.Frame(left)
         toolbar.pack(fill="x", pady=(0, 10))
 
-        ttk.Button(toolbar, text="全部启动", command=self.start_all).pack(side="left", padx=(0, 8))
+        ttk.Button(toolbar, text="全部启动", command=self.start_all).pack(
+            side="left", padx=(0, 8)
+        )
         ttk.Button(toolbar, text="全部结束", command=self.stop_all).pack(side="left")
 
         ttk.Separator(left).pack(fill="x", pady=10)
@@ -195,7 +212,9 @@ class App(tk.Tk):
         self.status_vars = {}
 
         # ========= 右侧：日志输出（Tab：汇总 + 每任务一页） =========
-        ttk.Label(right, text="命令输出 / 日志", style="Title.TLabel").pack(anchor="w", pady=(0, 8))
+        ttk.Label(right, text="命令输出 / 日志", style="Title.TLabel").pack(
+            anchor="w", pady=(0, 8)
+        )
 
         self.nb = ttk.Notebook(right)
         self.nb.pack(fill="both", expand=True)
@@ -281,14 +300,18 @@ class App(tk.Tk):
         ttk.Label(row1, text="状态：", style="Status.TLabel").pack(side="left")
         status_var = tk.StringVar(value="已停止")
         self.status_vars[task.name] = status_var
-        ttk.Label(row1, textvariable=status_var, style="Status.TLabel").pack(side="left")
+        ttk.Label(row1, textvariable=status_var, style="Status.TLabel").pack(
+            side="left"
+        )
 
         row2 = ttk.Frame(card)
         row2.pack(fill="x", pady=(2, 8), padx=8)
 
         ttk.Button(row2, text="开始", command=task.start).pack(side="left", padx=(0, 8))
         ttk.Button(row2, text="结束", command=task.stop).pack(side="left", padx=(0, 8))
-        ttk.Button(row2, text="清空该任务日志", command=lambda: self._clear_task_log(task.name)).pack(side="left")
+        ttk.Button(
+            row2, text="清空该任务日志", command=lambda: self._clear_task_log(task.name)
+        ).pack(side="left")
 
     def _clear_task_log(self, task_name: str):
         tw = self.text_by_task.get(task_name)
@@ -305,17 +328,17 @@ class App(tk.Tk):
             cwd=os.path.expanduser("~"),
             cmd="roscore",
             enqueue_log=self.enqueue_log,
-            stop_mode="sigint"
+            stop_mode="sigint",
         )
 
         # 2) direct_control（连接失败自动重试 3 次）
         cmd2 = bash_cmd(
             "myx_realman",
-            f'''
+            f"""
 cd "{ROOT_DIR}"
 source devel/setup.bash
 rosrun direct_control interview_emo_1204_a.py
-'''
+""",
         )
         self.tasks["direct_control"] = ManagedTask(
             name="direct_control",
@@ -324,40 +347,40 @@ rosrun direct_control interview_emo_1204_a.py
             enqueue_log=self.enqueue_log,
             stop_mode="sigint",
             auto_retry_pattern="连接失败",
-            max_retries=3
+            max_retries=3,
         )
 
         # 3) gaze.launch
         cmd3 = bash_cmd(
             "robot_interview",
-            f'''
+            f"""
 cd "{ROOT_DIR}"
 source ./devel/setup.bash
 roslaunch ./launch/gaze.launch
-'''
+""",
         )
         self.tasks["gaze"] = ManagedTask(
             name="gaze",
             cwd=ROOT_DIR,
             cmd=cmd3,
             enqueue_log=self.enqueue_log,
-            stop_mode="sigint"
+            stop_mode="sigint",
         )
 
         # 4) yqy_audio main.py（TERM->KILL）
         cmd4 = bash_cmd(
             "yqy1",
-            f'''
+            f"""
 cd "{YQY_DIR}"
 python main.py
-'''
+""",
         )
         self.tasks["yqy_audio"] = ManagedTask(
             name="yqy_audio",
             cwd=YQY_DIR,
             cmd=cmd4,
             enqueue_log=self.enqueue_log,
-            stop_mode="termkill"
+            stop_mode="termkill",
         )
 
     def start_all(self):
