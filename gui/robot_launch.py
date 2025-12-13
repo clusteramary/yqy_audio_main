@@ -7,9 +7,7 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext
 
 # ====== 你需要确认这里 ======
-CONDA_BASE = (
-    "/home/zxr/miniconda3"  # ← 改成你的 conda 根目录(里面应有 etc/profile.d/conda.sh)
-)
+CONDA_BASE = "/home/zxr/Software/anaconda3"  # ← 改成你的 conda 根目录(里面应有 etc/profile.d/conda.sh)
 CONDA_SH = os.path.join(CONDA_BASE, "etc/profile.d/conda.sh")
 
 # ====== 项目路径 ======
