@@ -194,6 +194,15 @@ class DialogSession:
         # 当前这一轮 LLM 回复中已经触发过的关键词，避免同一轮触发多次
         self._llm_kws_fired: Set[str] = set()
 
+        # ---------- 对话文本异步写入 ----------
+        # 将 LLM 回复内容逐行写入 dialog.txt，使用异步队列与写入任务避免阻塞
+        self.dialog_write_queue: asyncio.Queue = asyncio.Queue()
+        self.dialog_file_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "dialog.txt"
+        )
+        # 创建写入任务（懒启动，连接建立后进行）
+        self.dialog_writer_task: Optional[asyncio.Task] = None
+
         # ---------- ctrl.txt + SAUC 队列识别 ----------
         # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
         self._pause_mic_for_ctrl = False
@@ -588,6 +597,13 @@ class DialogSession:
         except Exception:
             pass
 
+        # 取消对话写入任务
+        try:
+            if hasattr(self, "dialog_writer_task") and self.dialog_writer_task:
+                self.dialog_writer_task.cancel()
+        except Exception:
+            pass
+
     def _audio_player_thread(self):
         while self.is_playing:
             try:
@@ -674,6 +690,14 @@ class DialogSession:
             # 在 LLM 文本里做统一关键词检测（使用缓冲区 + 字典配置）
             if "content" in payload_msg:
                 content = payload_msg["content"]
+
+                # 异步写入对话文本，不阻塞主流程
+                try:
+                    # 仅写入非空文本
+                    if content:
+                        self.dialog_write_queue.put_nowait(content)
+                except Exception:
+                    pass
 
                 # 1. 把当前 content 追加到缓冲区，保留最近若干字符（支持跨 token）
                 self._llm_keyword_buffer += content
@@ -935,6 +959,14 @@ class DialogSession:
     async def start(self) -> None:
         try:
             await self.client.connect()
+            # 启动异步写入任务，并清理旧文件（不影响对话延迟）
+            try:
+                # 重置文件内容为当前会话起点
+                with open(self.dialog_file_path, "w", encoding="utf-8") as f:
+                    f.write("")
+            except Exception:
+                pass
+            self.dialog_writer_task = asyncio.create_task(self._dialog_writer())
             if self.is_audio_file_input:
                 asyncio.create_task(self.process_audio_file())
                 await self.receive_loop()
@@ -962,3 +994,61 @@ class DialogSession:
         finally:
             if not self.is_audio_file_input:
                 self.audio_device.cleanup()
+
+    async def _dialog_writer(self) -> None:
+        """
+        将队列中的文本批量、逐行写入 dialog.txt。
+        通过小批量与异步休眠，避免频繁文件 IO 导致延迟。
+        """
+        try:
+            while self.is_running:
+                try:
+                    # 等待最多 100ms 收集一批文本，降低 IO 次数
+                    batch: list[str] = []
+                    try:
+                        # 立即获取可用项
+                        while True:
+                            item = self.dialog_write_queue.get_nowait()
+                            batch.append(item)
+                            if len(batch) >= 50:
+                                break
+                    except Exception:
+                        pass
+
+                    if not batch:
+                        # 若无数据，短暂等待后重试
+                        await asyncio.sleep(0.1)
+                        continue
+
+                    # 追加写入，逐行
+                    try:
+                        with open(self.dialog_file_path, "a", encoding="utf-8") as f:
+                            for line in batch:
+                                f.write(line.replace("\r\n", "\n").replace("\r", "\n"))
+                                f.write("\n")
+                    except Exception as e:
+                        print(f"[DIALOG-WRITER] 写入失败: {e}")
+
+                    # 轻微休眠，避免紧密循环
+                    await asyncio.sleep(0.02)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    print(f"[DIALOG-WRITER] 任务异常: {e}")
+                    await asyncio.sleep(0.1)
+        finally:
+            # 退出前尝试写入残留数据
+            try:
+                remaining: list[str] = []
+                try:
+                    while True:
+                        remaining.append(self.dialog_write_queue.get_nowait())
+                except Exception:
+                    pass
+                if remaining:
+                    with open(self.dialog_file_path, "a", encoding="utf-8") as f:
+                        for line in remaining:
+                            f.write(line.replace("\r\n", "\n").replace("\r", "\n"))
+                            f.write("\n")
+            except Exception:
+                pass
