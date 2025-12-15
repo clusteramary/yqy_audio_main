@@ -126,7 +126,7 @@ ASR_KWS_PATTERNS: Dict[str, List[str]] = {
 LLM_KWS_PATTERNS: Dict[str, List[str]] = {
     "wave": ["挥手", "挥一挥", "挥一下", "摆个手", "wave"],
     "nod": ["点头", "点一下", "点个头", "nod"],
-    "shake": ["击一下", "准备击掌"],
+    "shake": ["击一下", "准备击掌", "准备机长"],
     "left": ["往左", "向左", "左"],
     "right": ["向右", "往右"],
     # 结束访谈/结束控制，由 LLM 说出
