@@ -38,7 +38,7 @@ start_session_req = {
         "audio_config": {
             "channel": 1,
             "format": "pcm",
-            "sample_rate": 24000,
+            "sample_rate": 48000,
         },
     },
     "dialog": {
@@ -90,7 +90,7 @@ output_audio_config = {
     "chunk": 3200,  # 供本地 PyAudio 使用的缓冲大小；ROS 模式下不影响发布
     "format": "pcm",
     "channels": 1,
-    "sample_rate": 24000,  # 与 start_session_req.tts.audio_config 保持一致
+    "sample_rate": 48000,  # 与 start_session_req.tts.audio_config 保持一致
     # 对于本地 PyAudio 播放：bit_size 要与下行位宽一致
     # 你之前用的是 paFloat32，这里保持原样；若服务端确认为 s16le，建议改为 pyaudio.paInt16
     "bit_size": pyaudio.paFloat32,
