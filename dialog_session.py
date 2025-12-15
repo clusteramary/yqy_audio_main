@@ -207,6 +207,9 @@ class DialogSession:
         self._llm_text_accum: list[str] = []  # 累积机器人整段文本
         self._last_user_text_written: str = ""  # 去重：用户
         self._last_bot_text_written: str = ""   # 去重：机器人
+        # 用户一轮话语的累积与写入控制
+        self._user_text_accum: str = ""
+        self._user_text_round_written: bool = False
 
         # ---------- ctrl.txt + SAUC 队列识别 ----------
         # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
@@ -705,6 +708,17 @@ class DialogSession:
             if event == 553:
                 self._llm_keyword_buffer = ""
                 self._llm_kws_fired.clear()
+                # 机器人开始回答时，固定上一轮用户文本（若未写过则写入一次）
+                try:
+                    if (not self._user_text_round_written) and self._user_text_accum.strip():
+                        try:
+                            self.dialog_write_queue.put_nowait(f"用户: {self._user_text_accum.strip()}")
+                            self._last_user_text_written = self._user_text_accum.strip()
+                        except Exception:
+                            pass
+                    self._user_text_round_written = True
+                except Exception as e:
+                    print(f"[DIALOG] 固定用户文本失败: {e}")
 
             # 在 LLM 文本里做统一关键词检测（使用缓冲区 + 字典配置）
             if "content" in payload_msg:
@@ -745,7 +759,7 @@ class DialogSession:
                     self._maybe_emit_wave_from_asr(payload_msg)
                 except Exception as e:
                     print(f"[KWS] 解析ASR(451)失败: {e}")
-                # 提取用户整句文本并写入（451 视为一次完整识别结果）
+                # 仅累积用户整句候选文本（451 可能多次到达，这里不写入，只保留最新）
                 try:
                     cand_texts = []
                     for r in payload_msg.get("results", []):
@@ -758,14 +772,10 @@ class DialogSession:
                     if extra.get("origin_text"):
                         cand_texts.append(extra["origin_text"])
                     user_text_joined = " ".join(cand_texts).strip()
-                    if user_text_joined and user_text_joined != self._last_user_text_written:
-                        try:
-                            self.dialog_write_queue.put_nowait(f"用户: {user_text_joined}")
-                            self._last_user_text_written = user_text_joined
-                        except Exception:
-                            pass
+                    if user_text_joined:
+                        self._user_text_accum = user_text_joined
                 except Exception as e:
-                    print(f"[DIALOG] 写入用户文本失败: {e}")
+                    print(f"[DIALOG] 累积用户文本失败: {e}")
 
             if event == 450:
                 print(f"清空缓存音频: {response['session_id']}")
@@ -775,6 +785,9 @@ class DialogSession:
                     except queue.Empty:
                         continue
                 self.is_user_querying = True
+                # 用户新一轮开始：清理累积并标记未写
+                self._user_text_accum = ""
+                self._user_text_round_written = False
 
             if (
                 event == 350
@@ -790,6 +803,9 @@ class DialogSession:
 
             if event == 459:
                 self.is_user_querying = False
+                # 结束一轮后，为稳妥也清理用户累积（若 553 时未写，这里不再补写）
+                self._user_text_accum = ""
+                self._user_text_round_written = False
                 # 机器人一轮回答已彻底结束，写入整段文本
                 try:
                     if self._llm_text_accum:
