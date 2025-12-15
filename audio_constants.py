@@ -264,6 +264,9 @@ class AudioConfig:
     channels: int
     sample_rate: int
     chunk: int
+    # Optional human-readable device name; if provided and device_index is None,
+    # AudioDeviceManager will resolve it to an index by substring match.
+    device_name: Optional[str] = None
     device_index: Optional[int] = None
     mode: str = "pyaudio"
     ros1_topic: str = "/robot/speaker/audio"

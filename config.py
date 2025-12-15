@@ -1,4 +1,5 @@
 # config.py
+import os
 import uuid
 
 import pyaudio
@@ -75,12 +76,16 @@ input_audio_config = {
     "channels": 2,  # *** 注意：一定要和 audio_capture 的 channels 一致 ***
     "sample_rate": 48000,  # *** 注意：和 audio_capture 的 sample_rate 一致 ***
     "bit_size": pyaudio.paInt16,
+    # 当不走 PyAudio 采集时仍可保留 None；若需强制指定麦克风，填入名称关键词即可
+    "device_name": None,  # 例如 "USB Microphone"（模糊匹配，优先于 device_index）        
     "device_index": None,  # 现在不再用 PyAudio 采麦，可设 None
 }
 
 # ============ 输出音频（扬声器，经 ROS1 发送到下位机） ============
 # 关键：mode = "ros1" -> 使用我们实现的 Ros1SpeakerStream，把“原始 PCM 字节”发布到话题
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
+# 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
+OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "ros1")
 output_audio_config = {
     "chunk": 3200,  # 供本地 PyAudio 使用的缓冲大小；ROS 模式下不影响发布
     "format": "pcm",
@@ -89,9 +94,11 @@ output_audio_config = {
     # 对于本地 PyAudio 播放：bit_size 要与下行位宽一致
     # 你之前用的是 paFloat32，这里保持原样；若服务端确认为 s16le，建议改为 pyaudio.paInt16
     "bit_size": pyaudio.paFloat32,
+    # 当 mode="pyaudio" 时可用名称模糊匹配声卡输出；优先级高于 device_index。
+    "device_name": None,  # 例如 "Realtek" / "Speakers"（大小写不敏感、子串匹配）
     "device_index": None,  # 仅在 mode='pyaudio' 时生效
     # === 下面这些是“ROS1 扬声器发布”相关的新增字段 ===
-    "mode": "ros1",  # 'ros1' 表示通过 ROS 发布音频；改为 'pyaudio' 可切回本地声卡
+    "mode": OUTPUT_AUDIO_MODE,  # 'ros1' 经 ROS 发布；设为 'pyaudio' 切回本地扬声器
     "ros1_topic": "/audio",  # 发布的话题名
     "ros1_node_name": "speaker_publisher",  # 发布节点名（进程内自动 init）
     "ros1_queue_size": 10,  # 发布队列
@@ -112,4 +119,11 @@ output_audio_config = {
 3) 若确认服务端返回的是 s16le：
    - 建议把 output_audio_config['bit_size'] 改为 pyaudio.paInt16，以保持一致（仅在 'pyaudio' 模式下有用；
      'ros1' 模式下该字段不参与发布，但建议保持与真实位宽一致，以免后续切回本地时爆音）。
+
+添加扬声器功能：
+    新增输出切换：支持用环境变量或配置切换到本地扬声器。PowerShell 运行本地播放示例：$env:OUTPUT_AUDIO_MODE='pyaudio'; python main.py；恢复 ROS：$env:OUTPUT_AUDIO_MODE='ros1'; python main.py。也可以直接改 config.py 的 output_audio_config["mode"]。
+新增按设备名选取索引：AudioConfig 增加 device_name，AudioDeviceManager 会在 device_index 为空时按子串（不区分大小写）模糊匹配 PyAudio 设备并填入索引，分别支持输入/输出。
+    在 config.py 中填写：麦克风 input_audio_config["device_name"] = "USB Microphone"（示例），扬声器 output_audio_config["device_name"] = "Realtek"。若同时写了 device_index，索引用作更高优先级。
+变更文件：audio_constants.py（device_name 字段），audio_device_manager.py（模糊匹配设备名并应用），config.py（新增 device_name 字段、环境变量切换输出模式）。
+    下一步可选：在实际环境下运行一次，确认用 pyaudio 输出时选到期望的设备（查看控制台日志或用 PyAudio 枚举工具打印设备列表）。
 """
