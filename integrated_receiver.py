@@ -72,6 +72,10 @@ class IntegratedReceiver:
             return 13
         if kw == "good":
             return 14
+        if kw == "photo1":
+            return 15
+        if kw == "photo2":
+            return 16
         return None
 
     def start(self):
