@@ -84,7 +84,7 @@ class RealtimeDialogClient:
         """发送Hello消息并直接发送start关键词"""
         payload = {
             # "content": "I am a humanoid intelligent robot reporter from Huazhong University of Science and Technology.",
-            "content": "我是华中科技大学人形智能机器人记者。",
+            "content": "我是华中科技大学智能机器人记者小助手小科呢。",
         }
         hello_request = bytearray(protocol.generate_header())
         hello_request.extend(int(300).to_bytes(4, "big"))
