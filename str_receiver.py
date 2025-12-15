@@ -63,12 +63,14 @@ class UDPReceiver:
                 print(f"收到来自 {addr} 的消息: {message}")
 
                 # 将接收到的字符串写入文件
-                self._write_to_file(message)
+                # self._write_to_file(message)
 
                 # 如果收到退出信号，停止接收
                 if message.lower() == "exit":
                     print("收到退出信号，停止接收...")
                     self.stop_receiving()
+                else:
+                    print("[UDPReceiver] 已忽略该UDP消息（不写入 ctrl.txt）")
 
         except Exception as e:
             print(f"接收错误: {e}")
