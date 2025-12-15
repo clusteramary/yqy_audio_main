@@ -38,7 +38,7 @@ start_session_req = {
         "audio_config": {
             "channel": 1,
             "format": "pcm",
-            "sample_rate": 48000,
+            "sample_rate": 24000,
         },
     },
     "dialog": {
@@ -77,7 +77,7 @@ input_audio_config = {
     "sample_rate": 48000,  # *** 注意：和 audio_capture 的 sample_rate 一致 ***
     "bit_size": pyaudio.paInt16,
     # 当不走 PyAudio 采集时仍可保留 None；若需强制指定麦克风，填入名称关键词即可
-    "device_name": None,  # 例如 "USB Microphone"（模糊匹配，优先于 device_index）        
+    "device_name": None,  # 例如 "USB Microphone"（模糊匹配，优先于 device_index）
     "device_index": None,  # 现在不再用 PyAudio 采麦，可设 None
 }
 
@@ -85,12 +85,12 @@ input_audio_config = {
 # 关键：mode = "ros1" -> 使用我们实现的 Ros1SpeakerStream，把“原始 PCM 字节”发布到话题
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
-OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "ros1")
+OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "pyaudio")
 output_audio_config = {
     "chunk": 3200,  # 供本地 PyAudio 使用的缓冲大小；ROS 模式下不影响发布
     "format": "pcm",
     "channels": 1,
-    "sample_rate": 48000,  # 与 start_session_req.tts.audio_config 保持一致
+    "sample_rate": 24000,  # 与 start_session_req.tts.audio_config 保持一致
     # 对于本地 PyAudio 播放：bit_size 要与下行位宽一致
     # 你之前用的是 paFloat32，这里保持原样；若服务端确认为 s16le，建议改为 pyaudio.paInt16
     "bit_size": pyaudio.paFloat32,
