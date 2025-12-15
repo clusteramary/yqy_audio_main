@@ -203,6 +203,11 @@ class DialogSession:
         # 创建写入任务（懒启动，连接建立后进行）
         self.dialog_writer_task: Optional[asyncio.Task] = None
 
+        # 机器人与用户整段文本的累积/去重
+        self._llm_text_accum: list[str] = []  # 累积机器人整段文本
+        self._last_user_text_written: str = ""  # 去重：用户
+        self._last_bot_text_written: str = ""   # 去重：机器人
+
         # ---------- ctrl.txt + SAUC 队列识别 ----------
         # 是否处于“因为 ctrl 流程而暂停向大模型上传真实麦克风数据”的状态
         self._pause_mic_for_ctrl = False
@@ -597,6 +602,20 @@ class DialogSession:
         except Exception:
             pass
 
+        # 停止前刷新未写出的机器人整段
+        try:
+            if hasattr(self, "_llm_text_accum") and self._llm_text_accum:
+                bot_text = "".join(self._llm_text_accum).strip()
+                if bot_text and bot_text != self._last_bot_text_written:
+                    try:
+                        self.dialog_write_queue.put_nowait(f"机器人: {bot_text}")
+                        self._last_bot_text_written = bot_text
+                    except Exception:
+                        pass
+                self._llm_text_accum.clear()
+        except Exception:
+            pass
+
         # 取消对话写入任务
         try:
             if hasattr(self, "dialog_writer_task") and self.dialog_writer_task:
@@ -691,13 +710,9 @@ class DialogSession:
             if "content" in payload_msg:
                 content = payload_msg["content"]
 
-                # 异步写入对话文本，不阻塞主流程
-                try:
-                    # 仅写入非空文本
-                    if content:
-                        self.dialog_write_queue.put_nowait(content)
-                except Exception:
-                    pass
+                # 1) 累积机器人整段文本（避免逐 token 写入导致频繁换行）
+                if content:
+                    self._llm_text_accum.append(content)
 
                 # 1. 把当前 content 追加到缓冲区，保留最近若干字符（支持跨 token）
                 self._llm_keyword_buffer += content
@@ -730,6 +745,27 @@ class DialogSession:
                     self._maybe_emit_wave_from_asr(payload_msg)
                 except Exception as e:
                     print(f"[KWS] 解析ASR(451)失败: {e}")
+                # 提取用户整句文本并写入（451 视为一次完整识别结果）
+                try:
+                    cand_texts = []
+                    for r in payload_msg.get("results", []):
+                        if r.get("text"):
+                            cand_texts.append(r["text"])
+                        for alt in r.get("alternatives", []):
+                            if alt.get("text"):
+                                cand_texts.append(alt["text"])
+                    extra = payload_msg.get("extra", {})
+                    if extra.get("origin_text"):
+                        cand_texts.append(extra["origin_text"])
+                    user_text_joined = " ".join(cand_texts).strip()
+                    if user_text_joined and user_text_joined != self._last_user_text_written:
+                        try:
+                            self.dialog_write_queue.put_nowait(f"用户: {user_text_joined}")
+                            self._last_user_text_written = user_text_joined
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f"[DIALOG] 写入用户文本失败: {e}")
 
             if event == 450:
                 print(f"清空缓存音频: {response['session_id']}")
@@ -754,6 +790,20 @@ class DialogSession:
 
             if event == 459:
                 self.is_user_querying = False
+                # 机器人一轮回答已彻底结束，写入整段文本
+                try:
+                    if self._llm_text_accum:
+                        bot_text = "".join(self._llm_text_accum).strip()
+                        if bot_text and bot_text != self._last_bot_text_written:
+                            try:
+                                self.dialog_write_queue.put_nowait(f"机器人: {bot_text}")
+                                self._last_bot_text_written = bot_text
+                            except Exception:
+                                pass
+                    # 重置累积区
+                    self._llm_text_accum.clear()
+                except Exception as e:
+                    print(f"[DIALOG] 写入机器人文本失败: {e}")
                 # 一轮回答彻底结束，也可以顺便清空关键词状态（可选，如果你感觉“左”偶尔不触发，可以用这句）
                 # self._llm_keyword_buffer = ""
                 # self._llm_kws_fired.clear()
