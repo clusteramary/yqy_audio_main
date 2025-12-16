@@ -13,7 +13,7 @@ from str_receiver import UDPReceiver
 # ABSENT_SECONDS = 30.0      # ✅ 对话进行时，连续多久没看到人脸就重启
 ABSENT_SECONDS = 100000.0  # ✅ 对话进行时，连续多久没看到人脸就重启
 EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
-INITIAL_DETECT_TIMEOUT = 100.0  # 首次做人脸特征引导的超时时间
+INITIAL_DETECT_TIMEOUT = 2000.0  # 首次做人脸特征引导的超时时间
 
 # ctrl.txt 写入配置：按顺序在指定时间写入不同提示
 # 修改顺序、时间或内容，仅需调整下方元组列表
