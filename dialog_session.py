@@ -1025,13 +1025,7 @@ class DialogSession:
     async def start(self) -> None:
         try:
             await self.client.connect()
-            # 启动异步写入任务，并清理旧文件（不影响对话延迟）
-            try:
-                # 重置文件内容为当前会话起点
-                with open(self.dialog_file_path, "w", encoding="utf-8") as f:
-                    f.write("")
-            except Exception:
-                pass
+            # 启动异步写入任务（追加到历史对话，不再清空文件）
             self.dialog_writer_task = asyncio.create_task(self._dialog_writer())
             if self.is_audio_file_input:
                 asyncio.create_task(self.process_audio_file())
