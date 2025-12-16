@@ -206,7 +206,7 @@ class DialogSession:
         # 机器人与用户整段文本的累积/去重
         self._llm_text_accum: list[str] = []  # 累积机器人整段文本
         self._last_user_text_written: str = ""  # 去重：用户
-        self._last_bot_text_written: str = ""   # 去重：机器人
+        self._last_bot_text_written: str = ""  # 去重：机器人
         # 用户一轮话语的累积与写入控制
         self._user_text_accum: str = ""
         self._user_text_round_written: bool = False
@@ -710,9 +710,13 @@ class DialogSession:
                 self._llm_kws_fired.clear()
                 # 机器人开始回答时，固定上一轮用户文本（若未写过则写入一次）
                 try:
-                    if (not self._user_text_round_written) and self._user_text_accum.strip():
+                    if (
+                        not self._user_text_round_written
+                    ) and self._user_text_accum.strip():
                         try:
-                            self.dialog_write_queue.put_nowait(f"用户: {self._user_text_accum.strip()}")
+                            self.dialog_write_queue.put_nowait(
+                                f"用户: {self._user_text_accum.strip()}"
+                            )
                             self._last_user_text_written = self._user_text_accum.strip()
                         except Exception:
                             pass
@@ -812,7 +816,9 @@ class DialogSession:
                         bot_text = "".join(self._llm_text_accum).strip()
                         if bot_text and bot_text != self._last_bot_text_written:
                             try:
-                                self.dialog_write_queue.put_nowait(f"机器人: {bot_text}")
+                                self.dialog_write_queue.put_nowait(
+                                    f"机器人: {bot_text}"
+                                )
                                 self._last_bot_text_written = bot_text
                             except Exception:
                                 pass
@@ -1025,13 +1031,13 @@ class DialogSession:
     async def start(self) -> None:
         try:
             await self.client.connect()
-            # 启动异步写入任务，并清理旧文件（不影响对话延迟）
-            try:
-                # 重置文件内容为当前会话起点
-                with open(self.dialog_file_path, "w", encoding="utf-8") as f:
-                    f.write("")
-            except Exception:
-                pass
+            # 启动异步写入任务，不清理旧文件（不影响对话延迟）
+            # try:
+            #     # 重置文件内容为当前会话起点
+            #     with open(self.dialog_file_path, "w", encoding="utf-8") as f:
+            #         f.write("")
+            # except Exception:
+            #     pass
             self.dialog_writer_task = asyncio.create_task(self._dialog_writer())
             if self.is_audio_file_input:
                 asyncio.create_task(self.process_audio_file())
