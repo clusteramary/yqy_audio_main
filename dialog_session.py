@@ -803,7 +803,17 @@ class DialogSession:
 
             if event == 459:
                 self.is_user_querying = False
-                # 结束一轮后，为稳妥也清理用户累积（若 553 时未写，这里不再补写）
+                # 若本轮用户文本还未写入，兜底写一次，避免漏日志
+                try:
+                    if (not self._user_text_round_written) and self._user_text_accum.strip():
+                        try:
+                            self.dialog_write_queue.put_nowait(f"用户: {self._user_text_accum.strip()}")
+                            self._last_user_text_written = self._user_text_accum.strip()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print(f"[DIALOG] 兜底写入用户文本失败: {e}")
+                # 结束一轮后清理累积
                 self._user_text_accum = ""
                 self._user_text_round_written = False
                 # 机器人一轮回答已彻底结束，写入整段文本
