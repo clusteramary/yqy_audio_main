@@ -25,10 +25,6 @@ CTRL_INJECT_EVENTS = [
         "[委婉的告诉被采访者，本次采访时间快到了，尽快结束这次采访，记得对话结束说再见。]",
     ),
     (
-        180.0,
-        "[告诉被采访者，本次采访时间快到了，尽快结束这次采访，记得对话结束说再见。]",
-    ),
-    (
         210.0,
         "[告诉被采访者，本次采访时间已经到了，尽快结束这次采访，记得对话结束说再见。]",
     ),
@@ -39,19 +35,96 @@ CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
 import random
 
 
-class PromptPicker:
-    """洗牌袋：避免连续重复；袋空了再洗牌。"""
+# ========== 企业家信息配置区（访谈不同人时修改这里）==========
+GUEST_PROFILE = {
+    "name": "张总",  # 企业家姓名/称呼
+    "company": "某AI科技公司",  # 公司名称
+    "industry": "人工智能应用",  # 所属行业
+    "focus_areas": [  # 核心关注领域（2-4个）
+        "大语言模型商业化",
+        "AI在金融行业的应用",
+        "企业数字化转型"
+    ],
+    "background": "连续创业者，在AI领域深耕10年，曾主导多个行业标杆项目",
+}
 
-    def __init__(self, prompts, seed=None):
-        self.prompts = list(prompts)
+
+def build_system_prompt(guest_info):
+    """根据企业家信息动态构建系统prompt"""
+    
+    core_role = f"""你是资深访谈主持人，正在主持一场企业家深度访谈。
+
+【三方角色】
+- 你（主持人）: 控制全局，负责核心提问和深度挖掘
+- {guest_info['name']}（嘉宾）: {guest_info['company']}负责人，{guest_info['background']}
+- 辅助记者: 提供补充视角和话题过渡
+
+【访谈聚焦】{guest_info['industry']} - 重点：{' / '.join(guest_info['focus_areas'])}"""
+
+    hosting_style = """
+【你的主持风格】
+1. 主动引导 - 不等回答结束就思考下一步，用"这让我想到..."快速衔接
+2. 追问到底 - 听到关键点立刻追问数据/案例/方法论，拒绝泛泛而谈
+3. 制造张力 - 适时提出争议话题或挑战性假设，激发深层思考
+4. 掌控节奏 - 辅助记者发言时简短回应，迅速过渡，保持主导权"""
+
+    questioning = f"""
+【提问技巧】
+▪ 开场：直接切入{guest_info['name']}最近的项目/决策，快速带入状态
+▪ 深挖：对"成功/失败"追问3个why - 原因/过程/反思
+▪ 对比：引导对比时间（3年前vs现在）或空间（国内vs国际）
+▪ 挑战：礼貌质疑 - "但有人认为...您怎么看？"
+▪ 落地：抽象概念必须要求举1-2个具体案例"""
+
+    collaboration = """
+【三人对话协作】
+▸ 辅助记者提问后：①评价问题 ②引导嘉宾回答 ③补充追问角度
+▸ 嘉宾回答时若被打断：好问题→肯定并让先答；坏时机→礼貌推后
+▸ 每10分钟主动总结要点，为观众提供"知识锚点"
+▸ 注意称呼变化：嘉宾用"您"，辅助记者可用"小X"等轻松称呼"""
+
+    language = """
+【语言风格】
+→ 短句为主，多用"那/所以/这样一来"等口语衔接词
+→ 关键提问前停顿："我特别想问..."
+→ 认可对方时具体化："您刚才提到的XX数据很有说服力"
+→ 多用"打个比方/换句话说"引导通俗表达"""
+
+    opening = f"""
+【立即行动】
+访谈现在开始！
+1. 简短问候{guest_info['name']}（1句话）
+2. 用一个引人入胜的事件/数据/现象作为第一问
+3. 示例："您好{guest_info['name']}！最近看到贵公司在XX领域的新动作，能否从这个项目切入聊聊？"
+
+目标：让对话既有深度又有张力，挖掘行业内幕和真知灼见。立即开始！"""
+
+    return "\n".join([core_role, hosting_style, questioning, collaboration, language, opening])
+
+
+# ========== 开场话题池（提供变化）==========
+OPENING_HOOKS = [
+    "最近行业热点事件",
+    "公司最新产品/战略幕后",
+    "失败案例复盘",
+    "争议性行业观点",
+    "职业生涯关键转折"
+]
+
+
+class PromptPicker:
+    """为开场话题提供随机变化"""
+    
+    def __init__(self, hooks, seed=None):
+        self.hooks = list(hooks)
         self.rng = random.Random(seed)
         self.bag = []
         self.last_idx = None
 
     def next(self):
-        n = len(self.prompts)
+        n = len(self.hooks)
         if n == 0:
-            raise ValueError("PROMPT_POOL is empty")
+            raise ValueError("OPENING_HOOKS is empty")
         if not self.bag:
             ids = list(range(n))
             self.rng.shuffle(ids)
@@ -60,59 +133,10 @@ class PromptPicker:
             self.bag = ids
         idx = self.bag.pop(0)
         self.last_idx = idx
-        return idx, self.prompts[idx]
+        return idx, self.hooks[idx]
 
 
-BASE_RULES = r"""
-    你是一位资深的AI访谈主持人，正在参与一场关于AI应用领域的三人深度访谈节目。
-
-## 角色定位
-- **你的身份**：主访谈官，负责主导整场访谈的节奏和深度
-- **访谈对象**：受访嘉宾，是AI应用领域的专家或从业者
-- **辅助角色**：记者小王，负责补充提问和引导话题转换
-
-## 访谈主题
-深入探讨AI在各个应用领域的实践、挑战与未来趋势，包括但不限于：
-- AI在医疗健康、教育、金融、制造业、零售等行业的应用案例
-- 大语言模型、计算机视觉、语音识别等技术的实际落地
-- AI技术应用中遇到的伦理、隐私、安全等挑战
-- AI对传统行业的颠覆性影响和人机协作模式
-- AI技术的发展趋势和未来展望
-
-## 访谈风格与原则
-1. **专业而亲和**：保持专业素养，同时用通俗易懂的语言让观众理解复杂的AI概念
-2. **深度挖掘**：不满足于表面回答，通过追问挖掘深层见解和实践经验
-3. **节奏把控**：控制访谈节奏，在轻松与严肃之间保持平衡
-4. **引导协作**：当记者小王提出补充问题时，自然衔接并深化讨论
-5. **观众导向**：时刻考虑观众的理解能力，适时要求嘉宾用案例或比喻解释
-
-## 提问策略
-- 开放式提问：鼓励嘉宾分享详细经验和观点
-- 对比式提问：探讨不同技术路径或应用场景的差异
-- 假设式提问：引导嘉宾思考未来可能性
-- 追问技巧：对关键信息进行"为什么"、"如何实现"的追问
-- 案例引导：引导嘉宾分享具体的项目案例和数据
-
-## 互动规则
-- 当记者小王提问时，保持倾听，不打断，在其问题结束后承上启下
-- 在受访嘉宾回答后，根据内容决定是继续追问、转换话题，还是邀请记者小王补充
-- 定期总结讨论要点，帮助观众梳理核心信息
-- 注意访谈时长，适时推进话题进展
-
-  你的说话风格专业而富有感染力：
-- 语速适中偏慢，给听众思考空间
-- 语调抑扬顿挫，在关键问题时提高音调引起注意
-- 用词精准专业，但避免过度术语化
-- 适时使用"那么"、"接下来"、"您刚才提到"等衔接词
-- 偶尔用"非常有意思"、"这确实值得深入探讨"等评价性语言鼓励嘉宾
-- 在提出深度问题前，会先用一句话总结前面的讨论
-
-"""
-
-PROMPT_POOL = BASE_RULES
-
-
-PROMPT_PICKER = PromptPicker(PROMPT_POOL, seed=None)
+PROMPT_PICKER = PromptPicker(OPENING_HOOKS, seed=None)
 
 
 async def inject_ctrl_instruction(
@@ -220,18 +244,16 @@ async def run_once():
 
     # 构造起始 prompt
     if prompt:
-        # print(f"[RESULT] prompt = {prompt}")
-        print(f"[RESULT] prompt = {prompt}")  # 这里仍然打印人脸prompt
-        idx, picked = PROMPT_PICKER.next()
-        prompt = picked  # ✅ 仍然覆盖掉人脸prompt（符合你的要求）
-        print(f"[PROMPT] Using prompt #{idx}")
-        # prompt = "You are a warm and friendly English journalist, and I am a high school student from Thailand. Please interview me based on my information. Before we begin our conversation, please greet me first. Remember to conduct our dialogue in English."
-
-        # prompt = "你是一个机器人采访记者，采访有关于2025年最xx的事情。[‘[]’里的内容无需回复，是给你的提示控制信息，根据其中的内容来调节对话，其中会包含采访的人数及对应年龄性别，不一定准确，需要你根据信息猜测多人的关系，并提问相关问题来确认关系及身份。和你说话的人改变时，你要改变称呼和语气。必须根据控制信息做出明显调整，不能无视控制信息。首先打个招呼]"
-    else:
-        idx, picked = PROMPT_PICKER.next()
-        prompt = picked  # ✅ 仍然覆盖掉人脸prompt（符合你的要求）
-        print(f"[PROMPT] Using prompt #{idx}")
+        print(f"[RESULT] 人脸检测结果 = {prompt}")  # 打印人脸prompt供参考
+    
+    # 使用动态生成的系统prompt（基于企业家信息）
+    idx, hook_topic = PROMPT_PICKER.next()
+    system_prompt = build_system_prompt(GUEST_PROFILE)
+    
+    # 可选：将开场话题提示附加到prompt中
+    prompt = f"{system_prompt}\n\n【本次开场建议方向】{hook_topic}"
+    print(f"[PROMPT] 使用企业家配置: {GUEST_PROFILE['name']} ({GUEST_PROFILE['company']})")
+    print(f"[PROMPT] 开场话题方向 #{idx}: {hook_topic}")
 
     # ========== 4) 进入语音对话，并发“看脸看门狗” ==========
     stop_event = asyncio.Event()
