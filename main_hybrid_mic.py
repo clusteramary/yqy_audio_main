@@ -218,8 +218,8 @@ class HybridMicDialogApp:
         print(f"启动辅助记者麦克风 ASR（设备索引: {self.assistant_mic_index}）...")
         self.assistant_worker = MicASRWorker(
             device_index=self.assistant_mic_index,
-            on_text_callback=self._on_assistant_text,
-            label="辅助记者",
+            speaker_label="assistant",
+            on_text_callback=lambda text, label: self._on_assistant_text(text),
         )
         self.assistant_worker.start()
 

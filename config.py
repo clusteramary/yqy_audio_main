@@ -86,9 +86,26 @@ input_audio_config = {
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
 # ============ 双麦克风配置（用于三人深度采访场景） ============
-# 嘉宾麦克风索引（运行 test_device.py 列出所有设备后填写正确的索引）
+# 
+# 【重要】嘉宾麦克风配置说明：
+# 
+# 混合模式 (main_hybrid_mic.py) 下，嘉宾麦克风使用 ROS 的 audio_capture 采集。
+# 你需要在启动 audio_capture 时指定正确的麦克风设备：
+#
+#   roslaunch audio_capture capture.launch device:=hw:2,0
+#
+# 其中 hw:2,0 对应 ALSA 设备。可用以下命令查看 ALSA 设备列表：
+#   arecord -l
+#
+# 或者，如果你想让嘉宾也走 PyAudio（而不是 ROS），可以修改上面的 input_audio_config：
+#   input_audio_config["device_index"] = 3  # 设置为嘉宾麦克风的 PyAudio 索引
+#
+# 运行 `python dual_mic_asr.py` 或 `python test_device.py` 查看 PyAudio 设备列表。
+
+# 嘉宾麦克风索引（用于全 ASR 模式 main_dual_mic.py）
 GUEST_MIC_INDEX = 3  # 嘉宾麦克风设备索引
-# 辅助记者麦克风索引
+
+# 辅助记者麦克风索引（用于混合模式和全 ASR 模式）
 ASSISTANT_MIC_INDEX = 2  # 辅助记者麦克风设备索引
 
 # 双麦克风 ASR 配置
