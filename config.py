@@ -9,9 +9,9 @@ runtime_control_path = "./yuying/a.txt"
 
 # ============ 双麦克风独立识别配置 ============
 # 嘉宾麦克风设备索引（使用 pyaudio.PyAudio().get_device_info_by_index(index) 查看）
-GUEST_MIC_INDEX = None  # 例如: 1，需要根据实际设备填写
+GUEST_MIC_INDEX = 3  # 例如: 1，需要根据实际设备填写
 # 辅助记者麦克风设备索引
-ASSISTANT_MIC_INDEX = None  # 例如: 2，需要根据实际设备填写
+ASSISTANT_MIC_INDEX = 2  # 例如: 2，需要根据实际设备填写
 
 # ASR 鉴权配置（复用 sauc_python 下的鉴权信息）
 ASR_CONFIG = {
