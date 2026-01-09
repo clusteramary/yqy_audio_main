@@ -1085,6 +1085,20 @@ class DialogSession:
         仅通过 inject_tagged_text() 方法接收外部文本输入。
         """
         try:
+            # 初始化音频输出设备（用于播放 TTS）
+            if not hasattr(self, 'audio_device') or self.audio_device is None:
+                self.audio_device = AudioDeviceManager(
+                    AudioConfig(**config.input_audio_config),
+                    AudioConfig(**config.output_audio_config),
+                )
+                self.output_stream = self.audio_device.open_output_stream()
+                self.is_playing = True
+                self.player_thread = threading.Thread(
+                    target=self._audio_player_thread, daemon=True
+                )
+                self.player_thread.start()
+                print("[TEXT-ONLY] 已启动音频播放器线程")
+
             await self.client.connect()
             # 启动异步写入任务
             self.dialog_writer_task = asyncio.create_task(self._dialog_writer())
@@ -1122,7 +1136,7 @@ class DialogSession:
         except Exception as e:
             print(f"[TEXT-ONLY] 会话错误: {e}")
         finally:
-            if not self.is_audio_file_input and hasattr(self, "audio_device"):
+            if hasattr(self, "audio_device") and self.audio_device:
                 self.audio_device.cleanup()
 
     async def _keepalive_silence_loop(self) -> None:
