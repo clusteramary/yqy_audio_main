@@ -85,6 +85,29 @@ input_audio_config = {
 # 关键：mode = "ros1" -> 使用我们实现的 Ros1SpeakerStream，把“原始 PCM 字节”发布到话题
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
+# ============ 双麦克风配置（用于三人深度采访场景） ============
+# 嘉宾麦克风索引（运行 test_device.py 列出所有设备后填写正确的索引）
+GUEST_MIC_INDEX = 1  # 嘉宾麦克风设备索引
+# 辅助记者麦克风索引
+ASSISTANT_MIC_INDEX = 2  # 辅助记者麦克风设备索引
+
+# 双麦克风 ASR 配置
+dual_mic_asr_config = {
+    "url": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
+    "sample_rate": 16000,
+    "channels": 1,  # 单声道
+    "chunk_ms": 100,  # 每次读取的毫秒数
+    "vad_threshold": 500,  # VAD 静音检测阈值（RMS）
+    "vad_silence_ms": 600,  # 静音多久后认为说话结束
+    "max_record_ms": 30000,  # 单次录音最大时长
+}
+
+# 角色标签配置
+SPEAKER_LABELS = {
+    "guest": "【嘉宾】",
+    "assistant": "【辅助记者】",
+}
+
 OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "ros1")
 output_audio_config = {
     "chunk": 3200,  # 供本地 PyAudio 使用的缓冲大小；ROS 模式下不影响发布

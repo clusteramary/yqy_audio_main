@@ -1071,6 +1071,104 @@ class DialogSession:
             if not self.is_audio_file_input:
                 self.audio_device.cleanup()
 
+    # ========== 双麦克风模式：纯文本输入 ==========
+    async def start_text_only_mode(self) -> None:
+        """
+        启动纯文本输入模式（用于双麦克风场景）。
+        不初始化 ROS 麦克风订阅和本地 PyAudio 输入，
+        仅通过 inject_tagged_text() 方法接收外部文本输入。
+        """
+        try:
+            await self.client.connect()
+            # 启动异步写入任务
+            self.dialog_writer_task = asyncio.create_task(self._dialog_writer())
+
+            # 发送打招呼消息
+            await self.client.say_hello()
+            await self.say_hello_over_event.wait()
+
+            # 发送初始 prompt
+            await self.client.chat_text_query(self.start_prompt)
+
+            # 启动接收循环
+            asyncio.create_task(self.receive_loop())
+
+            # 启动静音保活任务
+            asyncio.create_task(self._keepalive_silence_loop())
+
+            print("[TEXT-ONLY] 纯文本输入模式已启动，等待外部文本输入...")
+
+            # 主循环
+            while self.is_running:
+                if self.external_stop_event and self.external_stop_event.is_set():
+                    self.stop()
+                    break
+                await asyncio.sleep(0.1)
+
+            await self.client.finish_session()
+            while not self.is_session_finished:
+                await asyncio.sleep(0.1)
+            await self.client.finish_connection()
+            await asyncio.sleep(0.1)
+            await self.client.close()
+            print(f"[TEXT-ONLY] dialog request logid: {self.client.logid}")
+            save_output_to_file(self.audio_buffer, "output.pcm")
+        except Exception as e:
+            print(f"[TEXT-ONLY] 会话错误: {e}")
+        finally:
+            if not self.is_audio_file_input and hasattr(self, "audio_device"):
+                self.audio_device.cleanup()
+
+    async def _keepalive_silence_loop(self) -> None:
+        """
+        静音保活循环：定期发送静音帧保持 WebSocket 会话活跃。
+        """
+        while self.is_running:
+            try:
+                await self.process_silence_audio()
+                await asyncio.sleep(0.2)  # 每 200ms 发送一次静音帧
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"[KEEPALIVE] 发送静音帧失败: {e}")
+                await asyncio.sleep(0.5)
+
+    async def inject_tagged_text(self, text: str, speaker_label: str) -> None:
+        """
+        注入带标签的文本到对话系统。
+        
+        Args:
+            text: 识别出的文本内容
+            speaker_label: 说话人标签，如 "guest" 或 "assistant"
+        
+        用法示例:
+            await session.inject_tagged_text("你好", "guest")
+            # 实际发送: "【嘉宾】说：你好"
+        """
+        if not text or not text.strip():
+            return
+
+        # 获取标签前缀
+        label_map = getattr(config, "SPEAKER_LABELS", {
+            "guest": "【嘉宾】",
+            "assistant": "【辅助记者】",
+        })
+        prefix = label_map.get(speaker_label, f"【{speaker_label}】")
+
+        # 构造带标签的文本
+        tagged_text = f"{prefix}说：{text.strip()}"
+
+        print(f"[INJECT] 发送带标签文本: {tagged_text}")
+
+        try:
+            # 记录到对话日志
+            self.dialog_write_queue.put_nowait(f"{prefix}: {text.strip()}")
+        except Exception:
+            pass
+
+        # 发送给大模型
+        await self.client.chat_text_query(tagged_text)
+
     async def _dialog_writer(self) -> None:
         """
         将队列中的文本批量、逐行写入 dialog.txt。
