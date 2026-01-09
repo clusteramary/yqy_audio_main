@@ -141,6 +141,10 @@ class HybridMicDialogApp:
 
         # 文本注入队列（线程安全）
         self._text_queue: queue.Queue = queue.Queue()
+        
+        # 播放状态监控线程
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._last_playing_state: bool = False
 
     def _on_assistant_text(self, text: str) -> None:
         """辅助记者语音识别回调"""
@@ -164,6 +168,45 @@ class HybridMicDialogApp:
                 break
             except Exception as e:
                 print(f"[TEXT-INJECT] 注入失败: {e}")
+
+    def _monitor_playback_state(self) -> None:
+        """
+        监控播放状态，自动暂停/恢复辅助记者麦克风
+        
+        逻辑：
+        - TTS 开始播放 → 暂停辅助记者麦克风（避免回声）
+        - TTS 停止播放 → 恢复辅助记者麦克风
+        """
+        grace_period = 0.3  # 播放结束后再等 300ms 才恢复麦克风（避免回声残留）
+        
+        while self.running:
+            try:
+                if not self.session or not self.assistant_worker:
+                    time.sleep(0.1)
+                    continue
+                
+                # 检查是否正在播放 TTS
+                is_playing = self.session._is_tts_playing(grace_ms=300)
+                
+                # 状态变化时打印日志并控制麦克风
+                if is_playing != self._last_playing_state:
+                    if is_playing:
+                        print("[播放监控] TTS 开始播放 → 暂停辅助记者麦克风")
+                        self.assistant_worker.pause()
+                    else:
+                        # 等待一段时间，确保回声完全消失
+                        time.sleep(grace_period)
+                        print("[播放监控] TTS 已停止 → 恢复辅助记者麦克风")
+                        self.assistant_worker.resume()
+                    
+                    self._last_playing_state = is_playing
+                
+                # 轮询间隔
+                time.sleep(0.1)
+                
+            except Exception as e:
+                print(f"[播放监控] 错误: {e}")
+                time.sleep(0.5)
 
     async def _run_session(self) -> None:
         """运行对话会话（标准模式，支持流式音频输入）"""
@@ -214,19 +257,38 @@ class HybridMicDialogApp:
         print("等待对话会话初始化...")
         time.sleep(3)
 
-        # 只启动辅助记者的 ASR Worker
+        # 只启动辅助记者的 ASR Worker（使用收音范围控制配置）
+        range_cfg = getattr(config, "assistant_mic_range_config", {})
+        
         print(f"启动辅助记者麦克风 ASR（设备索引: {self.assistant_mic_index}）...")
+        print(f"  - VAD 阈值: {range_cfg.get('vad_threshold', 800)}")
+        print(f"  - 最小说话时长: {range_cfg.get('min_speaking_duration_ms', 400)}ms")
+        print(f"  - 音量稳定性检测: {'启用' if range_cfg.get('volume_stability_check', True) else '禁用'}")
+        
         self.assistant_worker = MicASRWorker(
             device_index=self.assistant_mic_index,
             speaker_label="assistant",
             on_text_callback=lambda text, label: self._on_assistant_text(text),
+            vad_threshold=range_cfg.get("vad_threshold", 800),
+            min_speaking_duration_ms=range_cfg.get("min_speaking_duration_ms", 400),
+            volume_stability_check=range_cfg.get("volume_stability_check", True),
+            volume_variance_threshold=range_cfg.get("volume_variance_threshold", 0.3),
         )
         self.assistant_worker.start()
+
+        # 启动播放状态监控线程（自动暂停/恢复麦克风）
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_playback_state, daemon=True
+        )
+        self._monitor_thread.start()
+        print("[播放监控] 已启动 TTS 播放状态监控")
 
         print("\n" + "=" * 60)
         print("混合麦克风对话系统已启动！")
         print(f"  嘉宾麦克风: 使用 ROS/PyAudio 流式输入（低延迟）")
         print(f"  辅助记者麦克风: 设备索引 {self.assistant_mic_index}（ASR 打断）")
+        print("  ✓ 自动回声抑制: TTS 播放时暂停辅助记者麦克风")
+        print("  ✓ 收音范围控制: 降低捕获远距离声音（嘉宾）的概率")
         print("=" * 60)
         print("\n请开始对话，按 Ctrl+C 停止...\n")
 

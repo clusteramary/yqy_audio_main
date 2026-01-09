@@ -18,6 +18,7 @@ import logging
 import os
 import struct
 import threading
+import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
@@ -252,6 +253,10 @@ class MicASRWorker:
         vad_threshold: int = 500,
         vad_silence_ms: int = 600,
         max_record_ms: int = 30000,
+        # ========== 新增：收音范围控制参数 ==========
+        min_speaking_duration_ms: int = 300,  # 最小说话时长（ms），过滤短暂远距离声音
+        volume_stability_check: bool = True,  # 是否启用音量稳定性检测
+        volume_variance_threshold: float = 0.3,  # 音量方差阈值（0-1），超过则认为是远距离
     ):
         self.device_index = device_index
         self.speaker_label = speaker_label
@@ -262,6 +267,11 @@ class MicASRWorker:
         self.vad_threshold = vad_threshold
         self.vad_silence_ms = vad_silence_ms
         self.max_record_ms = max_record_ms
+        
+        # 收音范围控制
+        self.min_speaking_duration_ms = min_speaking_duration_ms
+        self.volume_stability_check = volume_stability_check
+        self.volume_variance_threshold = volume_variance_threshold
 
         # 计算每帧字节数
         self.bytes_per_sample = 2  # 16bit
@@ -275,6 +285,8 @@ class MicASRWorker:
         # 控制标志
         self.running = False
         self._stop_event = threading.Event()
+        self._pause_event = threading.Event()  # 暂停标志（set=运行，clear=暂停）
+        self._pause_event.set()  # 默认不暂停
 
         # ASR 请求构造器
         self.request_builder = AsrRequestBuilder(
@@ -316,6 +328,16 @@ class MicASRWorker:
 
         self._close_stream()
         logger.info(f"[{self.speaker_label}] Worker 已停止")
+
+    def pause(self) -> None:
+        """暂停录音（用于避免扬声器回声）"""
+        self._pause_event.clear()
+        logger.debug(f"[{self.speaker_label}] 麦克风已暂停")
+
+    def resume(self) -> None:
+        """恢复录音"""
+        self._pause_event.set()
+        logger.debug(f"[{self.speaker_label}] 麦克风已恢复")
 
     def _open_stream(self) -> bool:
         """打开麦克风流"""
@@ -409,6 +431,12 @@ class MicASRWorker:
 
         while not self._stop_event.is_set():
             try:
+                # 检查是否暂停
+                if not self._pause_event.is_set():
+                    # 暂停状态：短暂休眠后继续检查
+                    time.sleep(0.1)
+                    continue
+
                 # 进行一次 VAD + ASR
                 pcm_data = self._record_with_vad()
 
@@ -434,11 +462,17 @@ class MicASRWorker:
         """
         VAD 录音：检测到语音后录制，静音超时后返回
         返回 PCM 数据（16k/16bit/单声道）
+        
+        新增收音范围控制：
+        1. 最小说话时长检测：过滤短暂的远距离声音
+        2. 音量稳定性检测：近距离说话音量稳定，远距离音量波动大
         """
         frames: List[bytes] = []
+        rms_history: List[float] = []  # 记录 RMS 历史，用于稳定性分析
         speaking = False
         silence_ms = 0
         total_ms = 0
+        speaking_duration_ms = 0  # 实际说话时长（不含静音）
 
         while not self._stop_event.is_set():
             try:
@@ -458,14 +492,17 @@ class MicASRWorker:
             if rms > self.vad_threshold:
                 # 检测到语音
                 frames.append(data)
+                rms_history.append(float(rms))
                 if not speaking:
                     speaking = True
                     logger.debug(f"[{self.speaker_label}] 检测到语音，开始录制...")
                 silence_ms = 0
+                speaking_duration_ms += self.chunk_ms
             else:
                 # 静音
                 if speaking:
                     frames.append(data)
+                    rms_history.append(float(rms))
                     silence_ms += self.chunk_ms
                     if silence_ms >= self.vad_silence_ms:
                         logger.debug(
@@ -480,6 +517,37 @@ class MicASRWorker:
 
         if not frames:
             return b""
+
+        # ========== 收音范围过滤 ==========
+        
+        # 1. 检查最小说话时长
+        if speaking_duration_ms < self.min_speaking_duration_ms:
+            logger.debug(
+                f"[{self.speaker_label}] 说话时长 {speaking_duration_ms}ms < "
+                f"最小时长 {self.min_speaking_duration_ms}ms，忽略（可能是远距离声音）"
+            )
+            return b""
+        
+        # 2. 检查音量稳定性（近距离说话音量稳定，远距离波动大）
+        if self.volume_stability_check and len(rms_history) > 3:
+            # 只分析有效语音部分的 RMS（去除接近阈值的部分）
+            valid_rms = [r for r in rms_history if r > self.vad_threshold * 1.2]
+            
+            if len(valid_rms) >= 3:
+                # 计算归一化方差（变异系数 CV = std / mean）
+                mean_rms = sum(valid_rms) / len(valid_rms)
+                variance = sum((r - mean_rms) ** 2 for r in valid_rms) / len(valid_rms)
+                std_dev = variance ** 0.5
+                cv = std_dev / mean_rms if mean_rms > 0 else 1.0
+                
+                if cv > self.volume_variance_threshold:
+                    logger.debug(
+                        f"[{self.speaker_label}] 音量不稳定 (CV={cv:.2f} > {self.volume_variance_threshold})，"
+                        f"忽略（可能是远距离声音）"
+                    )
+                    return b""
+                else:
+                    logger.debug(f"[{self.speaker_label}] 音量稳定 (CV={cv:.2f})，接受录音")
 
         return b"".join(frames)
 

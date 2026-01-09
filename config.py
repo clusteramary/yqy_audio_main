@@ -119,6 +119,33 @@ dual_mic_asr_config = {
     "max_record_ms": 30000,  # 单次录音最大时长
 }
 
+# ========== 辅助记者麦克风收音范围控制（防止捕获嘉宾声音）==========
+# 这些参数用于减少辅助记者麦克风捕获远距离声音（如嘉宾说话）的概率
+assistant_mic_range_config = {
+    # VAD 阈值（建议比默认值高）：只响应近距离大音量
+    # 如果经常误识别嘉宾声音，可以逐步提高（600, 800, 1000...）
+    "vad_threshold": 800,  # 默认 500，提高到 800（更严格）
+    
+    # 最小说话时长（毫秒）：过滤短暂的远距离声音
+    # 近距离说话通常持续时间较长，远距离声音可能很短
+    "min_speaking_duration_ms": 400,  # 至少说话 400ms 才识别
+    
+    # 是否启用音量稳定性检测
+    # 近距离说话音量稳定，远距离音量波动大
+    "volume_stability_check": True,
+    
+    # 音量变异系数阈值（0-1）
+    # 越小越严格，0.25 表示标准差不能超过均值的 25%
+    # 如果误拒绝辅助记者的话，可以调大到 0.35 或 0.4
+    "volume_variance_threshold": 0.3,
+}
+
+# 提示：如果辅助记者说话也被过滤掉了，可以：
+# 1. 降低 vad_threshold（例如 700 或 600）
+# 2. 减少 min_speaking_duration_ms（例如 300）
+# 3. 增大 volume_variance_threshold（例如 0.35）
+# 4. 关闭音量稳定性检测：volume_stability_check = False
+
 # 角色标签配置
 SPEAKER_LABELS = {
     "guest": "【嘉宾】",
