@@ -74,6 +74,21 @@ ASSISTANT_MIC_INDEX = 2    # 辅助记者麦克风设备索引
 
 ### 3. 启动双麦克风交互
 
+**Linux 系统（推荐使用启动脚本）：**
+```bash
+# 给脚本添加执行权限
+chmod +x run_dual_mic.sh
+
+# 使用启动脚本（自动设置环境变量）
+bash run_dual_mic.sh
+```
+
+或者直接运行（如果环境变量已在代码中设置）：
+```bash
+python main_dual_mic.py
+```
+
+**Windows 系统：**
 ```bash
 python main_dual_mic.py
 ```
@@ -161,34 +176,37 @@ SPEAKER_LABELS = {
 
 ### Q1: Linux 系统报错 "Assertion failed" 怎么办？
 
-这是 PyAudio 在 Linux 系统上的已知问题。代码已自动添加了修复措施，但如果仍然失败，请尝试：
+这是 PyAudio 在 Linux 系统上的已知问题。**解决方案**：
 
-**方法 1：使用 PulseAudio（推荐）**
+**方法 1：使用启动脚本（推荐）**
 ```bash
-# 确保 PulseAudio 正在运行
-pulseaudio --check
-pulseaudio --start
+chmod +x run_dual_mic.sh
+bash run_dual_mic.sh
+```
+启动脚本会自动设置必要的环境变量。
 
-# 重新运行程序
+**方法 2：手动设置环境变量**
+```bash
+export PA_ALSA_PLUGHW=1
+export JACK_NO_AUDIO_RESERVATION=1
+export PULSE_LATENCY_MSEC=60
 python main_dual_mic.py
 ```
 
-**方法 2：临时禁用有问题的音频后端**
+**方法 3：确保 PulseAudio 正在运行**
 ```bash
-# 设置环境变量后运行
-export AUDIODEV=null
-export SDL_AUDIODRIVER=dummy
+pulseaudio --check && echo "PulseAudio is running" || pulseaudio --start
 python main_dual_mic.py
 ```
 
-**方法 3：使用特定设备索引**
-在 `config.py` 中使用测试时显示的**实际硬件设备索引**（hw:X,Y）而不是虚拟设备（pulse/default）。
-
-示例配置：
+**方法 4：使用特定硬件设备索引**
+在 `config.py` 中使用实际硬件设备索引（hw:X,Y）而不是虚拟设备（pulse/default）：
 ```python
 GUEST_MIC_INDEX = 2    # KTMICRO-Device-1: USB Audio (hw:1,0)
 ASSISTANT_MIC_INDEX = 3  # USB.MIC: Audio (hw:2,0)
 ```
+
+**注意**：程序已自动设置了必要的环境变量，大多数情况下可以直接运行 `python main_dual_mic.py`。
 
 ### Q2: 两个麦克风同时说话会怎样？
 

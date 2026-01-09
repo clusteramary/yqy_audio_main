@@ -21,15 +21,17 @@ import threading
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
+# ================== 修复 Linux 系统 PyAudio 初始化问题 ==================
+# 必须在导入 pyaudio 之前设置这些环境变量
+# 这些设置可以避免 PyAudio 在枚举设备时触发断言失败
+os.environ.setdefault('PA_ALSA_PLUGHW', '1')
+os.environ.setdefault('JACK_NO_AUDIO_RESERVATION', '1')
+os.environ.setdefault('PULSE_LATENCY_MSEC', '60')
+
 import aiohttp
 import pyaudio
 
 import config
-
-# ================== 修复 Linux 系统 PyAudio 初始化问题 ==================
-# 禁用有问题的 ALSA 插件，避免断言失败
-os.environ['ALSA_CARD'] = 'Generic'
-os.environ['ALSA_PCM_CARD'] = 'Generic'
 
 # ================== 日志配置 ==================
 logging.basicConfig(
@@ -318,19 +320,13 @@ class MicASRWorker:
     def _open_stream(self) -> bool:
         """打开麦克风流"""
         try:
-            # 使用 try-except 包裹 PyAudio 初始化，处理可能的断言失败
+            # 初始化 PyAudio（环境变量已在模块导入时设置）
             try:
                 self.pa = pyaudio.PyAudio()
             except Exception as e:
                 logger.error(f"[{self.speaker_label}] PyAudio 初始化失败: {e}")
-                # 尝试设置环境变量后重试
-                os.environ['JACK_NO_AUDIO_RESERVATION'] = '1'
-                os.environ['PULSE_LATENCY_MSEC'] = '60'
-                try:
-                    self.pa = pyaudio.PyAudio()
-                except Exception as e2:
-                    logger.error(f"[{self.speaker_label}] PyAudio 重试初始化失败: {e2}")
-                    return False
+                logger.error("请尝试运行: bash run_dual_mic.sh")
+                return False
 
             # 验证设备索引是否有效
             if self.device_index >= self.pa.get_device_count():

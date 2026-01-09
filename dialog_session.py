@@ -274,7 +274,13 @@ class DialogSession:
                 )
 
         # ---------- 播放线程 ----------
-        signal.signal(signal.SIGINT, self._keyboard_signal)
+        # 注意：signal.signal() 只能在主线程调用，所以这里需要检查
+        try:
+            signal.signal(signal.SIGINT, self._keyboard_signal)
+        except ValueError as e:
+            # 在子线程中初始化时会失败，这是正常的
+            print(f"[INFO] 无法在子线程注册信号处理器（这是正常的）: {e}")
+        
         self.audio_queue = queue.Queue()
         if not self.is_audio_file_input:
             self.audio_device = AudioDeviceManager(
