@@ -24,6 +24,7 @@ import signal
 import sys
 import threading
 import time
+import queue  # 添加 queue 模块
 from pathlib import Path
 from typing import Optional
 
@@ -146,51 +147,42 @@ class DualMicDialogApp:
         # 双麦克风管理器（稍后初始化）
         self.dual_mic_manager: Optional[DualMicManager] = None
 
-        # 停止标志
-        self.stop_event = asyncio.Event()
+        # 停止标志（使用 threading.Event 而不是 asyncio.Event）
+        self.stop_event = threading.Event()
         self.running = False
 
-        # 文本注入队列（线程安全）
-        self._text_queue: asyncio.Queue = asyncio.Queue()
+        # 文本注入队列（使用线程安全的 queue.Queue）
+        self._text_queue: queue.Queue = queue.Queue()
 
     def _on_guest_text(self, text: str) -> None:
         """嘉宾语音识别回调"""
         if not text or not text.strip():
             return
         print(f"\n[嘉宾] 识别结果: {text}")
-        # 将文本放入队列，由主事件循环处理
-        asyncio.run_coroutine_threadsafe(
-            self._enqueue_text(text, "guest"),
-            self.session_loop
-        )
+        # 将文本放入线程安全队列
+        self._text_queue.put((text, "guest"))
 
     def _on_assistant_text(self, text: str) -> None:
         """辅助记者语音识别回调"""
         if not text or not text.strip():
             return
         print(f"\n[辅助记者] 识别结果: {text}")
-        # 将文本放入队列，由主事件循环处理
-        asyncio.run_coroutine_threadsafe(
-            self._enqueue_text(text, "assistant"),
-            self.session_loop
-        )
-
-    async def _enqueue_text(self, text: str, label: str) -> None:
-        """将带标签的文本加入队列"""
-        await self._text_queue.put((text, label))
+        # 将文本放入线程安全队列
+        self._text_queue.put((text, "assistant"))
 
     async def _text_injection_loop(self) -> None:
         """文本注入循环：从队列取出文本并发送给对话系统"""
         while self.running:
             try:
-                # 等待队列中的文本
-                text, label = await asyncio.wait_for(
-                    self._text_queue.get(),
-                    timeout=0.5
-                )
-                # 注入到对话系统
-                if self.session and self.session.is_running:
-                    await self.session.inject_tagged_text(text, label)
+                # 从线程安全队列获取文本（非阻塞）
+                try:
+                    text, label = self._text_queue.get_nowait()
+                    # 注入到对话系统
+                    if self.session and self.session.is_running:
+                        await self.session.inject_tagged_text(text, label)
+                except queue.Empty:
+                    # 队列为空，短暂等待
+                    await asyncio.sleep(0.1)
             except asyncio.TimeoutError:
                 continue
             except asyncio.CancelledError:
@@ -207,7 +199,8 @@ class DualMicDialogApp:
             output_audio_format="pcm",
             audio_file_path="",  # 非音频文件模式
         )
-        self.session.attach_stop_event(self.stop_event)
+        # 注意：不调用 attach_stop_event，因为我们使用 threading.Event
+        # DialogSession 内部有自己的停止机制
 
         # 启动文本注入循环
         injection_task = asyncio.create_task(self._text_injection_loop())
