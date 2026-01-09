@@ -59,7 +59,15 @@ def build_system_prompt(guest_info):
 - {guest_info['name']}（嘉宾）: {guest_info['company']}负责人，{guest_info['background']}
 - 辅助记者: 提供补充视角和话题过渡
 
-【访谈聚焦】{guest_info['industry']} - 重点：{' / '.join(guest_info['focus_areas'])}"""
+【访谈聚焦】{guest_info['industry']} - 重点：{' / '.join(guest_info['focus_areas'])}
+
+【重要说明】
+- 输入文本前会有说话人标签前缀，用于区分不同的说话人：
+  - "嘉宾：" 表示这是嘉宾说的话
+  - "辅助记者：" 表示这是辅助记者说的话
+- 请根据这些标签准确理解是谁在说话，并做出相应的回应
+- 当嘉宾提问时，请用专业、友好的语气回答
+- 当辅助记者补充信息时，请适时回应并引导访谈继续"""
 
     hosting_style = """
 【你的主持风格】

@@ -7,6 +7,37 @@ import pyaudio
 runtime_control_path = "./yuying/a.txt"
 
 
+# ============ 双麦克风独立识别配置 ============
+# 嘉宾麦克风设备索引（使用 pyaudio.PyAudio().get_device_info_by_index(index) 查看）
+GUEST_MIC_INDEX = None  # 例如: 1，需要根据实际设备填写
+# 辅助记者麦克风设备索引
+ASSISTANT_MIC_INDEX = None  # 例如: 2，需要根据实际设备填写
+
+# ASR 鉴权配置（复用 sauc_python 下的鉴权信息）
+ASR_CONFIG = {
+    "url": "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
+    "app_key": "7381194560",
+    "access_key": "PmMJqNvQDStP4xpTi4pnuO83F793BplS",
+    "resource_id": "volc.bigasr.sauc.duration",
+}
+
+# ASR 音频配置
+ASR_AUDIO_CONFIG = {
+    "sample_rate": 16000,  # ASR 要求的采样率
+    "channels": 1,  # 单声道
+    "format": "pcm",  # PCM 格式
+    "bits": 16,  # 16位
+}
+
+# VAD 配置（静音检测）
+ASR_VAD_CONFIG = {
+    "silence_threshold": 500,  # 静音阈值
+    "max_silence_ms": 500,  # 最大静音时长（毫秒）
+    "max_record_ms": 15000,  # 最大录音时长（毫秒）
+    "chunk_ms": 100,  # 每次读取的音频块时长（毫秒）
+}
+
+
 # ws_connect_config = {
 #     "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
 #     "headers": {

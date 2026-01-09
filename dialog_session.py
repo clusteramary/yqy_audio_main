@@ -128,10 +128,13 @@ class DialogSession:
         start_prompt: str,
         output_audio_format: str = "pcm",
         audio_file_path: str = "",
+        enable_audio_capture: bool = True,
     ):
         self.start_prompt = start_prompt
         self.audio_file_path = audio_file_path
         self.is_audio_file_input = self.audio_file_path != ""
+        self.enable_audio_capture = enable_audio_capture
+        
         if self.is_audio_file_input:
             self.quit_event = asyncio.Event()
         else:
@@ -235,15 +238,15 @@ class DialogSession:
         self._ctrl_worker_task: Optional[asyncio.Task] = None
 
         self.ctrl_monitor_task: Optional[asyncio.Task] = None
-        if not self.is_audio_file_input:
-            # 只在麦克风模式下监控 ctrl
+        if not self.is_audio_file_input and self.enable_audio_capture:
+            # 只在麦克风模式且启用音频采集时监控 ctrl
             self.ctrl_monitor_task = asyncio.create_task(self._monitor_ctrl_file())
 
         # ---------- ROS 下位机播放状态 + ROS 麦克风输入 ----------
         self.ros_audio_queue: Optional["queue.Queue[bytes]"] = None
         self.ros_audio_sub = None
 
-        if not self.is_audio_file_input and _HAS_ROS1:
+        if not self.is_audio_file_input and self.enable_audio_capture and _HAS_ROS1:
             if not rospy.core.is_initialized():
                 rospy.init_node(
                     "audio_manager_client", anonymous=True, disable_signals=True
@@ -276,7 +279,7 @@ class DialogSession:
         # ---------- 播放线程 ----------
         signal.signal(signal.SIGINT, self._keyboard_signal)
         self.audio_queue = queue.Queue()
-        if not self.is_audio_file_input:
+        if not self.is_audio_file_input and self.enable_audio_capture:
             self.audio_device = AudioDeviceManager(
                 AudioConfig(**config.input_audio_config),
                 AudioConfig(**config.output_audio_config),
@@ -289,6 +292,20 @@ class DialogSession:
                 target=self._audio_player_thread, daemon=True
             )
             self.player_thread.start()
+        elif not self.is_audio_file_input and not self.enable_audio_capture:
+            # 纯文本输入模式：只打开输出，不打开输入
+            self.audio_device = AudioDeviceManager(
+                None,  # 不需要输入配置
+                AudioConfig(**config.output_audio_config),
+            )
+            self.output_stream = self.audio_device.open_output_stream()
+            self.is_recording = False  # 不录制
+            self.is_playing = True
+            self.player_thread = threading.Thread(
+                target=self._audio_player_thread, daemon=True
+            )
+            self.player_thread.start()
+            print("[DIALOG] 纯文本输入模式：已禁用音频采集")
 
     # ---------- ROS 麦克风回调 ----------
     def _ros_audio_callback(self, msg: RosAudioData):
@@ -875,6 +892,35 @@ class DialogSession:
             self.is_user_querying, False, True, "这是第二轮TTS的结束事件。"
         )
 
+    async def inject_tagged_text(self, text: str, prefix: str = "") -> None:
+        """
+        注入带标签的文本到对话系统
+        用于双麦克风独立识别方案：将识别后的文本打上说话人标签后发送给大模型
+        
+        Args:
+            text: 识别的文本内容
+            prefix: 说话人标签前缀（如 "嘉宾：" 或 "辅助记者："）
+        """
+        if not text:
+            return
+        
+        # 组合文本
+        combined_text = f"{prefix}{text}" if prefix else text
+        
+        print(f"[DIALOG] 注入文本到对话系统：{combined_text!r}")
+        
+        # 写入对话日志
+        try:
+            self.dialog_write_queue.put_nowait(combined_text)
+        except Exception as e:
+            print(f"[DIALOG] 写入对话日志失败: {e}")
+        
+        # 发送给大模型
+        try:
+            await self.client.chat_text_query(combined_text)
+        except Exception as e:
+            print(f"[DIALOG] 发送文本到对话系统失败: {e}")
+
     def _keyboard_signal(self, sig, frame):
         print("receive keyboard Ctrl+C")
         self.stop()
@@ -1043,14 +1089,32 @@ class DialogSession:
             await self.client.connect()
             # 启动异步写入任务（追加到历史对话，不再清空文件）
             self.dialog_writer_task = asyncio.create_task(self._dialog_writer())
+            
             if self.is_audio_file_input:
+                # 音频文件输入模式
                 asyncio.create_task(self.process_audio_file())
                 await self.receive_loop()
                 self.quit_event.set()
                 await asyncio.sleep(0.1)
-            else:
+            elif self.enable_audio_capture:
+                # 麦克风输入模式（启用音频采集）
                 asyncio.create_task(self.process_microphone_input())
                 asyncio.create_task(self.receive_loop())
+                while self.is_running:
+                    if self.external_stop_event and self.external_stop_event.is_set():
+                        self.stop()
+                        break
+                    await asyncio.sleep(0.1)
+            else:
+                # 纯文本输入模式（不启用音频采集）
+                # 发送初始提示词
+                await self.client.say_hello()
+                await self.client.chat_text_query(self.start_prompt)
+                
+                # 启动接收循环
+                asyncio.create_task(self.receive_loop())
+                
+                # 保持运行状态
                 while self.is_running:
                     if self.external_stop_event and self.external_stop_event.is_set():
                         self.stop()
