@@ -87,7 +87,7 @@ input_audio_config = {
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
 # ============ 双麦克风配置（用于三人深度采访场景） ============
 # 嘉宾麦克风索引（运行 test_device.py 列出所有设备后填写正确的索引）
-GUEST_MIC_INDEX = 1  # 嘉宾麦克风设备索引
+GUEST_MIC_INDEX = 3  # 嘉宾麦克风设备索引
 # 辅助记者麦克风索引
 ASSISTANT_MIC_INDEX = 2  # 辅助记者麦克风设备索引
 
