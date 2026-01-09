@@ -15,6 +15,7 @@ import audioop
 import gzip
 import json
 import logging
+import os
 import struct
 import threading
 import uuid
@@ -24,6 +25,11 @@ import aiohttp
 import pyaudio
 
 import config
+
+# ================== 修复 Linux 系统 PyAudio 初始化问题 ==================
+# 禁用有问题的 ALSA 插件，避免断言失败
+os.environ['ALSA_CARD'] = 'Generic'
+os.environ['ALSA_PCM_CARD'] = 'Generic'
 
 # ================== 日志配置 ==================
 logging.basicConfig(
@@ -312,7 +318,52 @@ class MicASRWorker:
     def _open_stream(self) -> bool:
         """打开麦克风流"""
         try:
-            self.pa = pyaudio.PyAudio()
+            # 使用 try-except 包裹 PyAudio 初始化，处理可能的断言失败
+            try:
+                self.pa = pyaudio.PyAudio()
+            except Exception as e:
+                logger.error(f"[{self.speaker_label}] PyAudio 初始化失败: {e}")
+                # 尝试设置环境变量后重试
+                os.environ['JACK_NO_AUDIO_RESERVATION'] = '1'
+                os.environ['PULSE_LATENCY_MSEC'] = '60'
+                try:
+                    self.pa = pyaudio.PyAudio()
+                except Exception as e2:
+                    logger.error(f"[{self.speaker_label}] PyAudio 重试初始化失败: {e2}")
+                    return False
+
+            # 验证设备索引是否有效
+            if self.device_index >= self.pa.get_device_count():
+                logger.error(
+                    f"[{self.speaker_label}] 无效的设备索引: {self.device_index} "
+                    f"(总设备数: {self.pa.get_device_count()})"
+                )
+                self.pa.terminate()
+                self.pa = None
+                return False
+
+            # 获取设备信息并验证
+            try:
+                dev_info = self.pa.get_device_info_by_index(self.device_index)
+                if dev_info['maxInputChannels'] < self.channels:
+                    logger.error(
+                        f"[{self.speaker_label}] 设备不支持 {self.channels} 个输入通道 "
+                        f"(最大: {dev_info['maxInputChannels']})"
+                    )
+                    self.pa.terminate()
+                    self.pa = None
+                    return False
+                logger.info(
+                    f"[{self.speaker_label}] 使用设备: {dev_info['name']} "
+                    f"(索引: {self.device_index})"
+                )
+            except Exception as e:
+                logger.error(f"[{self.speaker_label}] 获取设备信息失败: {e}")
+                self.pa.terminate()
+                self.pa = None
+                return False
+
+            # 打开音频流
             self.stream = self.pa.open(
                 format=pyaudio.paInt16,
                 channels=self.channels,
@@ -327,6 +378,12 @@ class MicASRWorker:
             return True
         except Exception as e:
             logger.error(f"[{self.speaker_label}] 打开麦克风失败: {e}")
+            if self.pa:
+                try:
+                    self.pa.terminate()
+                except Exception:
+                    pass
+                self.pa = None
             return False
 
     def _close_stream(self) -> None:
@@ -588,22 +645,41 @@ class DualMicManager:
 # ================== 工具函数：列出可用麦克风 ==================
 def list_audio_devices() -> List[Dict[str, Any]]:
     """列出所有可用的音频输入设备"""
-    pa = pyaudio.PyAudio()
     devices = []
+    
+    try:
+        pa = pyaudio.PyAudio()
+    except Exception as e:
+        logger.error(f"PyAudio 初始化失败: {e}")
+        print(f"\n错误：无法初始化 PyAudio。请尝试以下解决方案：")
+        print("1. 确保安装了正确的音频驱动")
+        print("2. 运行: sudo apt-get install libasound2-dev portaudio19-dev (Ubuntu/Debian)")
+        print("3. 检查系统音频服务是否正常运行")
+        return devices
 
-    for i in range(pa.get_device_count()):
-        info = pa.get_device_info_by_index(i)
-        if info["maxInputChannels"] > 0:  # 只列出输入设备
-            devices.append(
-                {
-                    "index": i,
-                    "name": info["name"],
-                    "channels": info["maxInputChannels"],
-                    "sample_rate": int(info["defaultSampleRate"]),
-                }
-            )
+    try:
+        for i in range(pa.get_device_count()):
+            try:
+                info = pa.get_device_info_by_index(i)
+                if info["maxInputChannels"] > 0:  # 只列出输入设备
+                    devices.append(
+                        {
+                            "index": i,
+                            "name": info["name"],
+                            "channels": info["maxInputChannels"],
+                            "sample_rate": int(info["defaultSampleRate"]),
+                        }
+                    )
+            except Exception as e:
+                # 跳过无效的设备
+                logger.debug(f"跳过设备 {i}: {e}")
+                continue
+    finally:
+        try:
+            pa.terminate()
+        except Exception:
+            pass
 
-    pa.terminate()
     return devices
 
 

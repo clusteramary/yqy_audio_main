@@ -159,23 +159,58 @@ SPEAKER_LABELS = {
 
 ## 常见问题
 
-### Q1: 两个麦克风同时说话会怎样？
+### Q1: Linux 系统报错 "Assertion failed" 怎么办？
+
+这是 PyAudio 在 Linux 系统上的已知问题。代码已自动添加了修复措施，但如果仍然失败，请尝试：
+
+**方法 1：使用 PulseAudio（推荐）**
+```bash
+# 确保 PulseAudio 正在运行
+pulseaudio --check
+pulseaudio --start
+
+# 重新运行程序
+python main_dual_mic.py
+```
+
+**方法 2：临时禁用有问题的音频后端**
+```bash
+# 设置环境变量后运行
+export AUDIODEV=null
+export SDL_AUDIODRIVER=dummy
+python main_dual_mic.py
+```
+
+**方法 3：使用特定设备索引**
+在 `config.py` 中使用测试时显示的**实际硬件设备索引**（hw:X,Y）而不是虚拟设备（pulse/default）。
+
+示例配置：
+```python
+GUEST_MIC_INDEX = 2    # KTMICRO-Device-1: USB Audio (hw:1,0)
+ASSISTANT_MIC_INDEX = 3  # USB.MIC: Audio (hw:2,0)
+```
+
+### Q2: 两个麦克风同时说话会怎样？
 
 两条识别结果会按时间顺序依次发送给大模型。大模型会根据上下文理解对话场景，不需要人为处理冲突。
 
-### Q2: 延迟高怎么办？
+### Q2: 两个麦克风同时说话会怎样？
+
+两条识别结果会按时间顺序依次发送给大模型。大模型会根据上下文理解对话场景，不需要人为处理冲突。
+
+### Q3: 延迟高怎么办？
 
 - 检查网络连接
 - 适当调低 `vad_silence_ms`（但不要太低，否则会过早截断）
 - 确保 ASR 服务响应正常
 
-### Q3: 识别不准确怎么办？
+### Q4: 识别不准确怎么办？
 
 - 调整 `vad_threshold`（声音大的环境调高，安静环境调低）
 - 确保麦克风正对说话人
 - 检查麦克风硬件质量
 
-### Q4: 如何切换回单麦克风模式？
+### Q5: 如何切换回单麦克风模式？
 
 使用原来的 `main.py` 启动即可：
 ```bash
@@ -189,7 +224,17 @@ python main.py
 - `aiohttp`
 - `websockets`
 
-安装命令：
+**Ubuntu/Debian 系统安装：**
+```bash
+# 先安装系统依赖
+sudo apt-get update
+sudo apt-get install -y portaudio19-dev python3-pyaudio libasound2-dev
+
+# 再安装 Python 包
+pip install pyaudio aiohttp websockets
+```
+
+**Windows 系统安装：**
 ```bash
 pip install pyaudio aiohttp websockets
 ```
@@ -198,6 +243,12 @@ Windows 用户如果 PyAudio 安装失败，可以尝试：
 ```bash
 pip install pipwin
 pipwin install pyaudio
+```
+
+**macOS 系统安装：**
+```bash
+brew install portaudio
+pip install pyaudio aiohttp websockets
 ```
 
 ## 注意事项
