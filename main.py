@@ -21,11 +21,11 @@ INITIAL_DETECT_TIMEOUT = 1.0  # 首次做人脸特征引导的超时时间
 CTRL_INJECT_EVENTS = [
     # (20.0, "[回复完当前问题后向被采访者提问：2025年你最难忘的时刻是什么]"),
     (
-        150.0,
+        1500.0,
         "[委婉的告诉被采访者，本次采访时间快到了，尽快结束这次采访，记得对话结束说再见。]",
     ),
     (
-        210.0,
+        2100.0,
         "[告诉被采访者，本次采访时间已经到了，尽快结束这次采访，记得对话结束说再见。]",
     ),
 ]
@@ -33,7 +33,6 @@ CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
 
 
 import random
-
 
 # ========== 企业家信息配置区（访谈不同人时修改这里）==========
 GUEST_PROFILE = {
@@ -43,7 +42,7 @@ GUEST_PROFILE = {
     "focus_areas": [  # 核心关注领域（2-4个）
         "大语言模型商业化",
         "AI在金融行业的应用",
-        "企业数字化转型"
+        "企业数字化转型",
     ],
     "background": "连续创业者，在AI领域深耕10年，曾主导多个行业标杆项目",
 }
@@ -51,7 +50,7 @@ GUEST_PROFILE = {
 
 def build_system_prompt(guest_info):
     """根据企业家信息动态构建系统prompt"""
-    
+
     core_role = f"""你是资深访谈主持人，正在主持一场企业家深度访谈。
 
 【三方角色】
@@ -99,7 +98,9 @@ def build_system_prompt(guest_info):
 
 目标：让对话既有深度又有张力，挖掘行业内幕和真知灼见。立即开始！"""
 
-    return "\n".join([core_role, hosting_style, questioning, collaboration, language, opening])
+    return "\n".join(
+        [core_role, hosting_style, questioning, collaboration, language, opening]
+    )
 
 
 # ========== 开场话题池（提供变化）==========
@@ -108,13 +109,13 @@ OPENING_HOOKS = [
     "公司最新产品/战略幕后",
     "失败案例复盘",
     "争议性行业观点",
-    "职业生涯关键转折"
+    "职业生涯关键转折",
 ]
 
 
 class PromptPicker:
     """为开场话题提供随机变化"""
-    
+
     def __init__(self, hooks, seed=None):
         self.hooks = list(hooks)
         self.rng = random.Random(seed)
@@ -245,14 +246,16 @@ async def run_once():
     # 构造起始 prompt
     if prompt:
         print(f"[RESULT] 人脸检测结果 = {prompt}")  # 打印人脸prompt供参考
-    
+
     # 使用动态生成的系统prompt（基于企业家信息）
     idx, hook_topic = PROMPT_PICKER.next()
     system_prompt = build_system_prompt(GUEST_PROFILE)
-    
+
     # 可选：将开场话题提示附加到prompt中
     prompt = f"{system_prompt}\n\n【本次开场建议方向】{hook_topic}"
-    print(f"[PROMPT] 使用企业家配置: {GUEST_PROFILE['name']} ({GUEST_PROFILE['company']})")
+    print(
+        f"[PROMPT] 使用企业家配置: {GUEST_PROFILE['name']} ({GUEST_PROFILE['company']})"
+    )
     print(f"[PROMPT] 开场话题方向 #{idx}: {hook_topic}")
 
     # ========== 4) 进入语音对话，并发“看脸看门狗” ==========

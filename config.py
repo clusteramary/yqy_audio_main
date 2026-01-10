@@ -49,7 +49,7 @@ start_session_req = {
         "extra": {
             "strict_audit": False,
             # "strict_audit": True,
-            "audit_response": "当我用开心的语气说话，你就用开心的语气说话，当我用悲伤的语气说话，你就用悲伤的语气说话。",
+            "audit_response": "說的很不錯",
             # "audit_response": "文化宫先往左走再往前走，少年宫先往右边走再往左边走。",
         },
     },
@@ -86,9 +86,9 @@ input_audio_config = {
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
 # ============ 双麦克风配置（用于三人深度采访场景） ============
-# 
+#
 # 【重要】嘉宾麦克风配置说明：
-# 
+#
 # 混合模式 (main_hybrid_mic.py) 下，嘉宾麦克风使用 ROS 的 audio_capture 采集。
 # 你需要在启动 audio_capture 时指定正确的麦克风设备：
 #
