@@ -124,20 +124,20 @@ dual_mic_asr_config = {
 assistant_mic_range_config = {
     # VAD 阈值（建议比默认值高）：只响应近距离大音量
     # 如果经常误识别嘉宾声音，可以逐步提高（600, 800, 1000...）
-    "vad_threshold": 800,  # 默认 500，提高到 800（更严格）
-    
+    "vad_threshold": 500,  # 降低回默认值，让辅助记者麦克风能正常检测语音
+
     # 最小说话时长（毫秒）：过滤短暂的远距离声音
     # 近距离说话通常持续时间较长，远距离声音可能很短
-    "min_speaking_duration_ms": 400,  # 至少说话 400ms 才识别
-    
+    "min_speaking_duration_ms": 300,  # 降低到 300ms，提高响应速度
+
     # 是否启用音量稳定性检测
     # 近距离说话音量稳定，远距离音量波动大
     "volume_stability_check": True,
-    
+
     # 音量变异系数阈值（0-1）
     # 越小越严格，0.25 表示标准差不能超过均值的 25%
     # 如果误拒绝辅助记者的话，可以调大到 0.35 或 0.4
-    "volume_variance_threshold": 0.3,
+    "volume_variance_threshold": 0.5,  # 增大到 0.5，降低误拒绝率
 }
 
 # 提示：如果辅助记者说话也被过滤掉了，可以：
