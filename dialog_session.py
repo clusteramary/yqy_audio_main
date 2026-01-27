@@ -641,7 +641,7 @@ class DialogSession:
                 print(f"音频播放错误: {e}")
                 time.sleep(0.1)
 
-    def _is_tts_playing(self, grace_ms: float = 150.0) -> bool:
+    def _is_tts_playing(self, grace_ms: float = 300.0) -> bool:
         local_playing = (
             time.time() - self._last_play_ts
         ) * 1000.0 < grace_ms or not self.audio_queue.empty()
@@ -809,9 +809,13 @@ class DialogSession:
                 self.is_user_querying = False
                 # 若本轮用户文本还未写入，兜底写一次，避免漏日志
                 try:
-                    if (not self._user_text_round_written) and self._user_text_accum.strip():
+                    if (
+                        not self._user_text_round_written
+                    ) and self._user_text_accum.strip():
                         try:
-                            self.dialog_write_queue.put_nowait(f"用户: {self._user_text_accum.strip()}")
+                            self.dialog_write_queue.put_nowait(
+                                f"用户: {self._user_text_accum.strip()}"
+                            )
                             self._last_user_text_written = self._user_text_accum.strip()
                         except Exception:
                             pass

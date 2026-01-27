@@ -49,7 +49,7 @@ start_session_req = {
         "extra": {
             "strict_audit": False,
             # "strict_audit": True,
-            "audit_response": "当我用开心的语气说话，你就用开心的语气说话，当我用悲伤的语气说话，你就用悲伤的语气说话。",
+            "audit_response": "说的很好",
             # "audit_response": "文化宫先往左走再往前走，少年宫先往右边走再往左边走。",
         },
     },
