@@ -85,7 +85,7 @@ class RealtimeDialogClient:
         payload = {
             # "content": "I am a humanoid intelligent robot reporter from Huazhong University of Science and Technology.",
             # "content": "我是华中科技大学智能机器人记者助手小科。",
-            "content": "大家好呀，我是小科！",
+            "content": "大家好呀！",
         }
         hello_request = bytearray(protocol.generate_header())
         hello_request.extend(int(300).to_bytes(4, "big"))
@@ -146,6 +146,23 @@ class RealtimeDialogClient:
         chat_tts_text_request.extend((len(payload_bytes)).to_bytes(4, "big"))
         chat_tts_text_request.extend(payload_bytes)
         await self.ws.send(chat_tts_text_request)
+
+    async def chat_rag_text(self, external_rag: str) -> None:
+        """发送 ChatRAGText 消息（event 502）：外部 RAG 知识注入"""
+        payload = {
+            "external_rag": external_rag,
+        }
+        print(f"ChatRAGText payload length: {len(external_rag)} chars")
+        payload_bytes = str.encode(json.dumps(payload))
+        payload_bytes = gzip.compress(payload_bytes)
+
+        chat_rag_text_request = bytearray(protocol.generate_header())
+        chat_rag_text_request.extend(int(502).to_bytes(4, "big"))
+        chat_rag_text_request.extend((len(self.session_id)).to_bytes(4, "big"))
+        chat_rag_text_request.extend(str.encode(self.session_id))
+        chat_rag_text_request.extend((len(payload_bytes)).to_bytes(4, "big"))
+        chat_rag_text_request.extend(payload_bytes)
+        await self.ws.send(chat_rag_text_request)
 
     async def task_request(self, audio: bytes) -> None:
         task_request = bytearray(

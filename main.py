@@ -1,54 +1,73 @@
 # async_app.py
 import asyncio
-import threading
 import time
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import config
 from audio_manager import DialogSession
 from CameraAdapter import CameraAdapter
 from FacePromptDetector import FacePromptDetector
-from str_receiver import UDPReceiver
 
 # ABSENT_SECONDS = 30.0      # ✅ 对话进行时，连续多久没看到人脸就重启
 ABSENT_SECONDS = 100000.0  # ✅ 对话进行时，连续多久没看到人脸就重启
 EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
 INITIAL_DETECT_TIMEOUT = 1.0  # 首次做人脸特征引导的超时时间
 
-# ctrl.txt 写入配置：按顺序在指定时间写入不同提示
-# 修改顺序、时间或内容，仅需调整下方元组列表
-# 每个命令要不同
-CTRL_INJECT_EVENTS = [
-    # (20.0, "[回复完当前问题后向被采访者提问：2025年你最难忘的时刻是什么]"),
+# RAG 定时注入配置：(延迟秒数, RAG内容)
+# 使用 ChatRAGText 事件 (event 502) 直接注入，不再走 ctrl.txt → SAUC 间接路径
+RAG_INJECT_EVENTS = [
     (
         20.0,
-        """[根据如下RAG信息作答：跨境电商与AI在广告投放优化中的应用
-跨境电商行业面临着多平台、多渠道的广告投放和推广挑战，AI技术可以有效提升广告投放的精准度和回报率。通过使用机器学习模型，电商平台可以根据用户行为、历史交易数据和实时反馈优化广告内容和投放策略。深度学习（尤其是卷积神经网络CNN和递归神经网络RNN）在广告效果预测中的应用使得电商平台能够实时调整广告策略，以最大化投资回报率（ROI）。例如，利用自然语言处理（NLP）技术分析广告文本与目标用户的匹配度，使用强化学习算法优化广告竞价策略等，均能显著提升跨境电商的广告效益。
-在AI驱动的广告优化系统中，算法模型通过多轮迭代优化广告的显示时间、展示位置以及用户目标群体，从而提高广告的点击率（CTR）和转化率（CVR）。AI还能够通过多维数据源（如用户搜索历史、购买历史、社交媒体活动等）为不同市场定制化广告投放，提高不同文化、消费习惯地区用户的参与度。】""",
+        "跨境电商与AI在广告投放优化中的应用\n"
+        "跨境电商行业面临着多平台、多渠道的广告投放和推广挑战，AI技术可以有效提升广告投放的精准度和回报率。"
+        "通过使用机器学习模型，电商平台可以根据用户行为、历史交易数据和实时反馈优化广告内容和投放策略。"
+        "深度学习（尤其是卷积神经网络CNN和递归神经网络RNN）在广告效果预测中的应用使得电商平台能够实时调整广告策略，"
+        "以最大化投资回报率（ROI）。例如，利用自然语言处理（NLP）技术分析广告文本与目标用户的匹配度，"
+        "使用强化学习算法优化广告竞价策略等，均能显著提升跨境电商的广告效益。\n"
+        "在AI驱动的广告优化系统中，算法模型通过多轮迭代优化广告的显示时间、展示位置以及用户目标群体，"
+        "从而提高广告的点击率（CTR）和转化率（CVR）。AI还能够通过多维数据源（如用户搜索历史、购买历史、"
+        "社交媒体活动等）为不同市场定制化广告投放，提高不同文化、消费习惯地区用户的参与度。",
     ),
     (
         180.0,
-        """[根据如下RAG信息作答：2. AI在跨境电商选品和市场预测中的应用
-选品和市场预测是跨境电商中最为关键的环节之一。AI技术能够通过分析大数据、用户评论、趋势预测等来识别具有潜力的产品，并根据历史数据预测不同产品在特定市场的表现。机器学习和深度学习模型可以基于大量历史销售数据、用户行为数据、市场需求和竞争情况进行分析，从而实现精准选品和市场预测。AI还可通过情感分析（Sentiment Analysis）和NLP技术分析用户在社交媒体和电商平台上的评论，帮助电商平台在不同市场进行产品定制。例如，通过分析用户对某一类产品的情感反应，AI可以预测该产品在不同地区的市场需求，帮助企业提前调整库存和供应链策略。此外，AI还能够实时监控竞争对手的销售情况，通过对比分析，帮助跨境电商平台及时调整战略。
-3. AI在跨境电商用户画像与个性化推荐中的应用
-跨境电商平台需要针对全球范围内的用户提供个性化的购物体验。AI通过深度学习技术（如协同过滤、矩阵分解等推荐算法）能够根据用户的行为数据（如浏览历史、购买历史、搜索记录等）生成精准的用户画像，并为每个用户推荐符合其偏好的产品。
-机器学习中的聚类算法（如K-means聚类、DBSCAN等）能够有效地将相似用户群体进行划分，帮助平台为不同群体提供定制化的营销活动和产品推荐。通过NLP，AI可以分析用户的评论、搜索查询等文本数据，进一步深化对用户兴趣的理解，提供更加个性化的购物建议。
-在跨境电商中，AI能够帮助商家对用户画像进行多维度构建，包括用户的购买频率、品牌偏好、价格敏感度等，同时还可以实时跟踪用户的行为变化，做出动态调整。例如，当用户在某个特定类别上有频繁浏览时，AI系统会智能地推送该类别的相关商品，提高用户转化率。]
-""",
+        "AI在跨境电商选品和市场预测中的应用\n"
+        "选品和市场预测是跨境电商中最为关键的环节之一。AI技术能够通过分析大数据、用户评论、趋势预测等来识别具有潜力的产品，"
+        "并根据历史数据预测不同产品在特定市场的表现。机器学习和深度学习模型可以基于大量历史销售数据、用户行为数据、"
+        "市场需求和竞争情况进行分析，从而实现精准选品和市场预测。\n"
+        "AI还可通过情感分析（Sentiment Analysis）和NLP技术分析用户在社交媒体和电商平台上的评论，"
+        "帮助电商平台在不同市场进行产品定制。例如，通过分析用户对某一类产品的情感反应，AI可以预测该产品在不同地区的市场需求，"
+        "帮助企业提前调整库存和供应链策略。此外，AI还能够实时监控竞争对手的销售情况，通过对比分析，帮助跨境电商平台及时调整战略。\n"
+        "AI在跨境电商用户画像与个性化推荐中的应用\n"
+        "跨境电商平台需要针对全球范围内的用户提供个性化的购物体验。AI通过深度学习技术（如协同过滤、矩阵分解等推荐算法）"
+        "能够根据用户的行为数据（如浏览历史、购买历史、搜索记录等）生成精准的用户画像，并为每个用户推荐符合其偏好的产品。\n"
+        "机器学习中的聚类算法（如K-means聚类、DBSCAN等）能够有效地将相似用户群体进行划分，"
+        "帮助平台为不同群体提供定制化的营销活动和产品推荐。通过NLP，AI可以分析用户的评论、搜索查询等文本数据，"
+        "进一步深化对用户兴趣的理解，提供更加个性化的购物建议。\n"
+        "在跨境电商中，AI能够帮助商家对用户画像进行多维度构建，包括用户的购买频率、品牌偏好、价格敏感度等，"
+        "同时还可以实时跟踪用户的行为变化，做出动态调整。例如，当用户在某个特定类别上有频繁浏览时，"
+        "AI系统会智能地推送该类别的相关商品，提高用户转化率。",
     ),
     (
         210.0,
-        """[根据如下RAG信息作答：4. AI在跨境电商供应链与物流优化中的应用
-跨境电商面临着复杂的供应链管理和物流优化挑战。AI在这方面的应用，主要体现在需求预测、库存管理和运输路径优化等方面。通过深度学习模型，电商平台可以预测不同地区的产品需求波动，从而优化库存和供应链管理。AI算法可以基于历史数据、季节性趋势、市场需求、天气等因素进行精准预测，帮助电商平台提前调整库存，避免缺货或滞销。AI还可以在运输和物流环节中进行优化，利用最短路径算法、强化学习等技术，帮助跨境电商降低运输成本并提高配送效率。通过实时监控全球供应链中的运输状况，AI能够提前发现潜在问题，如运输延误或运输成本过高，从而帮助企业及时调整运输路线，降低风险。
-5. AI在跨境电商客户服务和售后管理中的应用
-跨境电商在全球范围内的客户服务面临着语言、文化和时区差异等挑战。AI可以通过自然语言处理（NLP）和机器学习技术，提升客户服务的效率和质量。例如，AI可以实现自动化的客户支持，通过智能客服系统（如聊天机器人）快速解答客户常见问题，提升客户满意度并降低人工成本。此外，AI还能够在售后管理中发挥重要作用。通过情感分析，AI可以识别客户的负面情绪和投诉，从而为客户提供更加及时和个性化的服务。例如，当客户表达对产品的不满时，AI系统可以实时检测并启动相应的流程（如售后处理、退货管理等），并对客户进行进一步的跟踪，保证问题得到妥善解决。
-6. 跨境电商AI技术面临的挑战和解决方案
-尽管AI在跨境电商中展现了巨大潜力，但其应用仍面临一定的技术挑战。首先是数据的多样性和复杂性，跨境电商涉及多语言、多货币、多个市场，如何有效整合和处理来自不同地区和平台的数据是AI应用的一个关键难点。其次，AI在不同文化背景下的适应性也是一个挑战。AI模型通常是在某一特定地区的数据基础上进行训练的，如何使得这些模型在全球范围内进行迁移并保持高效的应用，需要不断地进行模型的调整和再训练。此外，由于跨境电商的供应链管理和物流环节涉及大量实时数据，如何确保AI系统在面对实时变化时能够作出快速反应也是需要解决的问题。为了应对这些挑战，跨境电商平台可以采取以下策略：1) 数据标准化和统一，保证各地数据口径一致，减少信息不对称；2) 模型迁移学习，通过迁移学习技术优化全球模型的适应性；3) 强化与供应链、物流等环节的实时数据集成，确保AI系统能够在全局环境下灵活应对。]
-""",
+        "AI在跨境电商供应链与物流优化中的应用\n"
+        "跨境电商面临着复杂的供应链管理和物流优化挑战。AI在这方面的应用，主要体现在需求预测、库存管理和运输路径优化等方面。"
+        "通过深度学习模型，电商平台可以预测不同地区的产品需求波动，从而优化库存和供应链管理。"
+        "AI算法可以基于历史数据、季节性趋势、市场需求、天气等因素进行精准预测，帮助电商平台提前调整库存，避免缺货或滞销。"
+        "AI还可以在运输和物流环节中进行优化，利用最短路径算法、强化学习等技术，帮助跨境电商降低运输成本并提高配送效率。"
+        "通过实时监控全球供应链中的运输状况，AI能够提前发现潜在问题，如运输延误或运输成本过高，从而帮助企业及时调整运输路线，降低风险。\n"
+        "AI在跨境电商客户服务和售后管理中的应用\n"
+        "跨境电商在全球范围内的客户服务面临着语言、文化和时区差异等挑战。AI可以通过自然语言处理（NLP）和机器学习技术，"
+        "提升客户服务的效率和质量。例如，AI可以实现自动化的客户支持，通过智能客服系统（如聊天机器人）快速解答客户常见问题，"
+        "提升客户满意度并降低人工成本。此外，AI还能够在售后管理中发挥重要作用。通过情感分析，AI可以识别客户的负面情绪和投诉，"
+        "从而为客户提供更加及时和个性化的服务。\n"
+        "跨境电商AI技术面临的挑战和解决方案\n"
+        "尽管AI在跨境电商中展现了巨大潜力，但其应用仍面临一定的技术挑战。首先是数据的多样性和复杂性，"
+        "跨境电商涉及多语言、多货币、多个市场，如何有效整合和处理来自不同地区和平台的数据是AI应用的一个关键难点。"
+        "其次，AI在不同文化背景下的适应性也是一个挑战。为了应对这些挑战，跨境电商平台可以采取以下策略："
+        "1) 数据标准化和统一，保证各地数据口径一致；2) 模型迁移学习，优化全球模型的适应性；"
+        "3) 强化与供应链、物流等环节的实时数据集成，确保AI系统能够在全局环境下灵活应对。",
     ),
 ]
-CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
 
 
 import random
@@ -265,24 +284,24 @@ def build_deep_interview_prompt(
 """.strip()
 
 
-async def inject_ctrl_instruction(
-    ctrl_path: Path,
-    message: str,
+async def inject_rag_knowledge(
+    session: DialogSession,
+    rag_content: str,
     delay_sec: float,
     stop_event: asyncio.Event,
 ):
+    """延迟指定秒数后，通过 ChatRAGText 事件直接注入 RAG 知识到大模型"""
     try:
         await asyncio.wait_for(stop_event.wait(), timeout=delay_sec)
-        return  # 会话提前结束，跳过写入
+        return  # 会话提前结束，跳过注入
     except asyncio.TimeoutError:
         pass
 
     try:
-        ctrl_path.parent.mkdir(parents=True, exist_ok=True)
-        ctrl_path.write_text(message, encoding="utf-8")
-        print(f"[CTRL-INJECT] 会话进行 {delay_sec:.0f}s 后写入 ctrl.txt: {message}")
+        await session.client.chat_rag_text(rag_content)
+        print(f"[RAG-INJECT] 会话进行 {delay_sec:.0f}s 后注入 RAG 知识 ({len(rag_content)} 字)")
     except Exception as e:
-        print(f"[CTRL-INJECT] 写入 ctrl.txt 失败: {e}")
+        print(f"[RAG-INJECT] 注入 RAG 知识失败: {e}")
 
 
 async def monitor_face_absence(
@@ -376,16 +395,16 @@ async def run_once():
 
     dialog_task = asyncio.create_task(session.start())
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
-    ctrl_inject_tasks = [
+    rag_inject_tasks = [
         asyncio.create_task(
-            inject_ctrl_instruction(
-                CTRL_FILE_PATH,
-                message,
+            inject_rag_knowledge(
+                session,
+                rag_content,
                 delay,
                 stop_event,
             )
         )
-        for delay, message in CTRL_INJECT_EVENTS
+        for delay, rag_content in RAG_INJECT_EVENTS
     ]
 
     # 等待停止信号（来自看门狗或会话自然结束）
@@ -405,7 +424,7 @@ async def run_once():
             pass
 
         # 取消并等待任务退出
-        for t in (watchdog_task, dialog_task, *ctrl_inject_tasks):
+        for t in (watchdog_task, dialog_task, *rag_inject_tasks):
             if not t.done():
                 t.cancel()
                 try:
@@ -417,38 +436,20 @@ async def run_once():
 
 
 async def main():
-    """
+    “””
     外层自恢复循环：每次 run_once 结束（含 无人脸被看门狗杀掉），立即重新开始新一轮。
-    如需“彻底退出”，直接 Ctrl+C 终止进程即可。
-    """
-    udp_receiver = UDPReceiver(
-        listen_ip="0.0.0.0",
-        listen_port=8889,
-        file_path=str(CTRL_FILE_PATH),
-    )
-    udp_thread = threading.Thread(
-        target=udp_receiver.start_receiving,
-        name="ctrl-udp-listener",
-        daemon=True,
-    )
-    udp_thread.start()
-
+    如需”彻底退出”，直接 Ctrl+C 终止进程即可。
+    “””
     while True:
         try:
             await run_once()
         except KeyboardInterrupt:
-            print("程序被用户中断")
+            print(“程序被用户中断”)
             break
         except Exception as e:
             # 防御：任何异常都不至于崩死主循环
-            print(f"[main] 捕获异常：{e}；3s 后重启。")
+            print(f”[main] 捕获异常：{e}；3s 后重启。”)
             await asyncio.sleep(3.0)
-
-    # 主循环退出时，停止 UDP 监听
-    udp_receiver.stop_receiving()
-    udp_receiver.close()
-    if udp_thread.is_alive():
-        udp_thread.join(timeout=1.0)
 
 
 if __name__ == "__main__":

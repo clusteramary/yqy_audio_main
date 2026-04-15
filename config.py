@@ -42,15 +42,14 @@ start_session_req = {
         },
     },
     "dialog": {
-        "bot_name": "华科机器人",
+        "bot_name": "华科机器人小科",
         "system_role": "你使用活泼灵动的女声，性格开朗，热爱生活。",
         "speaking_style": "你的说话风格简洁明了，语速适中，语调自然。",
         "location": {"city": "武汉"},
         "extra": {
             "strict_audit": False,
-            # "strict_audit": True,
             "audit_response": "说的很好",
-            # "audit_response": "文化宫先往左走再往前走，少年宫先往右边走再往左边走。",
+            "model": "1.2.1.1",  # O2.0 版本
         },
     },
 }
