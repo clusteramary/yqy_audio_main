@@ -90,10 +90,11 @@ except Exception:
 
 
 def save_input_pcm_to_wav(pcm_data: bytes, filename: str) -> None:
+    in_cfg = config.get_input_audio_config()
     with wave.open(filename, "wb") as wf:
-        wf.setnchannels(config.input_audio_config["channels"])
+        wf.setnchannels(in_cfg["channels"])
         wf.setsampwidth(2)
-        wf.setframerate(config.input_audio_config["sample_rate"])
+        wf.setframerate(in_cfg["sample_rate"])
         wf.writeframes(pcm_data)
 
 
@@ -205,41 +206,52 @@ class DialogSession:
         self._last_user_text_written: str = ""  # 去重：用户
         self._last_bot_text_written: str = ""  # 去重：机器人
         # 用户一轮话语的累积与写入控制
-        self._user_text_accum: str = “”
+        self._user_text_accum: str = ""
         self._user_text_round_written: bool = False
 
         # ---------- ROS 下位机播放状态 + ROS 麦克风输入 ----------
         self.ros_audio_queue: Optional["queue.Queue[bytes]"] = None
         self.ros_audio_sub = None
+        self.input_stream = None  # PyAudio 直连麦克风时的输入流
 
-        if not self.is_audio_file_input and _HAS_ROS1:
-            if not rospy.core.is_initialized():
-                rospy.init_node(
-                    "audio_manager_client", anonymous=True, disable_signals=True
-                )
-            # 播放状态订阅（和原来一样）
-            self.remote_status_sub = rospy.Subscriber(
-                self.remote_status_topic,
-                Bool,
-                self._remote_audio_status_callback,
-                queue_size=10,
-            )
-            print(f"已订阅下位机播放状态话题: {self.remote_status_topic}")
+        input_mode = getattr(config, "INPUT_AUDIO_MODE", "ros1")
+        input_cfg = config.get_input_audio_config()
 
-            # === 新增：订阅麦克风音频（别人已经用 audio_capture 打开设备并发布到 /audio/audio） ===
-            if _HAS_AUDIO_DATA_MSG and RosAudioData is not None:
-                self.ros_audio_queue = queue.Queue(maxsize=50)
-                # 这里用你的 launch 中的命名空间和 topic：/audio/audio
-                self.ros_audio_sub = rospy.Subscriber(
-                    "/audio/audio",
-                    RosAudioData,
-                    self._ros_audio_callback,
+        if not self.is_audio_file_input:
+            if input_mode == "ros1" and _HAS_ROS1:
+                if not rospy.core.is_initialized():
+                    rospy.init_node(
+                        "audio_manager_client", anonymous=True, disable_signals=True
+                    )
+                # 播放状态订阅（和原来一样）
+                self.remote_status_sub = rospy.Subscriber(
+                    self.remote_status_topic,
+                    Bool,
+                    self._remote_audio_status_callback,
                     queue_size=10,
                 )
-                print("已订阅麦克风音频话题: /audio/audio")
-            else:
+                print(f"已订阅下位机播放状态话题: {self.remote_status_topic}")
+
+                # === 订阅麦克风音频（别人已经用 audio_capture 打开设备并发布到 /audio/audio） ===
+                if _HAS_AUDIO_DATA_MSG and RosAudioData is not None:
+                    self.ros_audio_queue = queue.Queue(maxsize=50)
+                    self.ros_audio_sub = rospy.Subscriber(
+                        "/audio/audio",
+                        RosAudioData,
+                        self._ros_audio_callback,
+                        queue_size=10,
+                    )
+                    print("已订阅麦克风音频话题: /audio/audio")
+                else:
+                    print(
+                        "[ROS-MIC] 未检测到 audio_common_msgs/AudioData，无法订阅麦克风话题"
+                    )
+            elif input_mode == "pyaudio":
+                print(f"[PyAudio-MIC] 输入模式: PyAudio 直连本地麦克风")
+            elif input_mode == "ros1" and not _HAS_ROS1:
                 print(
-                    "[ROS-MIC] 未检测到 audio_common_msgs/AudioData，无法订阅麦克风话题"
+                    "[WARN] INPUT_AUDIO_MODE='ros1' 但未检测到 ROS 环境，"
+                    "请在 config.py 中设置 INPUT_AUDIO_MODE='pyaudio' 或设置环境变量 INPUT_AUDIO_MODE=pyaudio"
                 )
 
         # ---------- 播放线程 ----------
@@ -247,10 +259,16 @@ class DialogSession:
         self.audio_queue = queue.Queue()
         if not self.is_audio_file_input:
             self.audio_device = AudioDeviceManager(
-                AudioConfig(**config.input_audio_config),
+                AudioConfig(**input_cfg),
                 AudioConfig(**config.output_audio_config),
             )
-            # 只打开输出，不再打开 PyAudio 输入
+            # PyAudio 模式：同时打开输入流
+            if input_mode == "pyaudio":
+                self.input_stream = self.audio_device.open_input_stream()
+                dev_info = input_cfg.get("device_index") or input_cfg.get("device_name") or "默认"
+                print(f"[PyAudio-MIC] 已打开本地麦克风（设备: {dev_info}, "
+                      f"采样率={input_cfg['sample_rate']}Hz, "
+                      f"声道={input_cfg['channels']}）")
             self.output_stream = self.audio_device.open_output_stream()
             self.is_recording = True
             self.is_playing = True
@@ -717,28 +735,36 @@ class DialogSession:
 
     async def process_microphone_input(self) -> None:
         """
-        麦克风输入改为从 ROS 话题 /audio/audio 读取：
-          - audio_capture 节点独占硬件采集 + 编码为 S16LE @ 48k / N 通道；
-          - 这里通过 ROS subscriber 收到 AudioData，作为原始 PCM；
-          - 转成单声道，再重采样为 16k/s16le，切成 20ms 帧；
-          - 和原来一样：支持 ctrl 捕获模式、播放期间静音上行等逻辑。
+        麦克风输入入口，根据 INPUT_AUDIO_MODE 分发到对应循环：
+          - "ros1": 从 ROS 话题 /audio/audio 读取
+          - "pyaudio": 从本地 PyAudio 输入流读取
         """
         await self.client.say_hello()
         await self.say_hello_over_event.wait()
         await self.client.chat_text_query(self.start_prompt)
 
-        in_rate = config.input_audio_config["sample_rate"]
-        in_channels = config.input_audio_config["channels"]
+        input_cfg = config.get_input_audio_config()
+        in_rate = input_cfg["sample_rate"]
+        in_channels = input_cfg["channels"]
         in_width = 2
 
-        print(
-            f"使用 ROS /audio/audio 作为麦克风输入，采样率={in_rate}Hz, channels={in_channels}，开始讲话..."
-        )
+        input_mode = getattr(config, "INPUT_AUDIO_MODE", "ros1")
+        if input_mode == "pyaudio":
+            print(
+                f"[PyAudio-MIC] 使用本地麦克风，采样率={in_rate}Hz, channels={in_channels}，开始讲话..."
+            )
+            await self._mic_loop_pyaudio(in_rate, in_channels, in_width)
+        else:
+            print(
+                f"[ROS-MIC] 使用 ROS /audio/audio，采样率={in_rate}Hz, channels={in_channels}，开始讲话..."
+            )
+            await self._mic_loop_ros(in_rate, in_channels, in_width)
 
+    async def _mic_loop_ros(self, in_rate: int, in_channels: int, in_width: int):
+        """ROS 模式：从 ros_audio_queue 读取麦克风数据。"""
         def to_mono(pcm_bytes: bytes) -> bytes:
             if in_channels == 1:
                 return pcm_bytes
-            # 下混为单声道
             try:
                 return audioop.tomono(pcm_bytes, in_width, 0.5, 0.5)
             except Exception as e:
@@ -751,16 +777,13 @@ class DialogSession:
                     self.stop()
                     break
 
-                # 从 ROS 队列中取一条音频块（例如 0.1s 的数据）
                 if self.ros_audio_queue is None:
-                    # 还没准备好，稍等一下
                     await asyncio.sleep(0.01)
                     continue
 
                 try:
                     audio_data = self.ros_audio_queue.get_nowait()
                 except queue.Empty:
-                    # 没有新数据，稍等
                     await asyncio.sleep(0.01)
                     continue
 
@@ -775,8 +798,6 @@ class DialogSession:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
                     offset += frame_bytes
 
-                    # 决定是否把这帧发给大模型：
-                    # 如果正在播放 TTS 且需要屏蔽麦克风 -> 发静音帧
                     if self.block_mic_while_playing and self._is_tts_playing():
                         await self._send_silence_if_due()
                     else:
@@ -788,6 +809,56 @@ class DialogSession:
                 await asyncio.sleep(0.005)
             except Exception as e:
                 print(f"从 ROS 队列读取麦克风数据出错: {e}")
+                await asyncio.sleep(0.1)
+
+    async def _mic_loop_pyaudio(self, in_rate: int, in_channels: int, in_width: int):
+        """PyAudio 模式：从本地麦克风输入流读取数据。"""
+        stream = self.input_stream
+        if stream is None:
+            print("[PyAudio-MIC] 错误：输入流未初始化")
+            return
+
+        chunk_size = config.get_input_audio_config()["chunk"]
+
+        def to_mono(pcm_bytes: bytes) -> bytes:
+            if in_channels == 1:
+                return pcm_bytes
+            try:
+                return audioop.tomono(pcm_bytes, in_width, 0.5, 0.5)
+            except Exception as e:
+                print(f"[PyAudio-MIC] tomono 失败，直接使用原始音频: {e}")
+                return pcm_bytes
+
+        while self.is_recording:
+            try:
+                if self.external_stop_event and self.external_stop_event.is_set():
+                    self.stop()
+                    break
+
+                # 非阻塞读取 PyAudio 流（通过 executor 避免阻塞事件循环）
+                audio_data = await _to_thread(
+                    stream.read, chunk_size, False  # exception_on_overflow=False
+                )
+
+                mono = to_mono(audio_data)
+                pcm16_16k = self._resample_to_16k(mono, in_rate)
+
+                frame_bytes = TARGET_SAMPLE_WIDTH * TARGET_CHUNK_SAMPLES
+                total_len = len(pcm16_16k)
+                offset = 0
+
+                while total_len - offset >= frame_bytes:
+                    chunk16k = pcm16_16k[offset : offset + frame_bytes]
+                    offset += frame_bytes
+
+                    if self.block_mic_while_playing and self._is_tts_playing():
+                        await self._send_silence_if_due()
+                    else:
+                        await self.client.task_request(chunk16k)
+
+                await asyncio.sleep(0.005)
+            except Exception as e:
+                print(f"[PyAudio-MIC] 读取麦克风数据出错: {e}")
                 await asyncio.sleep(0.1)
 
     async def start(self) -> None:
