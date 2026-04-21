@@ -205,7 +205,7 @@ class DialogSession:
         self._last_user_text_written: str = ""  # 去重：用户
         self._last_bot_text_written: str = ""  # 去重：机器人
         # 用户一轮话语的累积与写入控制
-        self._user_text_accum: str = “”
+        self._user_text_accum: str = ""
         self._user_text_round_written: bool = False
 
         # ---------- ROS 下位机播放状态 + ROS 麦克风输入 ----------
