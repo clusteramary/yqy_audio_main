@@ -116,12 +116,12 @@ INPUT_AUDIO_MODE = os.getenv("INPUT_AUDIO_MODE", "pyaudio")
 
 # --- PyAudio 直连麦克风参数（INPUT_AUDIO_MODE="pyaudio" 时使用） ---
 pyaudio_input_audio_config = {
-    "chunk": 960,          # 20ms @ 48k
+    "chunk": 960,  # 20ms @ 48k
     "format": "pcm",
-    "channels": 1,         # PyAudio 直连通常用单声道
+    "channels": 1,  # PyAudio 直连通常用单声道
     "sample_rate": 48000,
     "bit_size": pyaudio.paInt16,
-    "device_name": None,   # e.g. "USB Microphone"（模糊匹配，优先于 device_index）
+    "device_name": None,  # e.g. "USB Microphone"（模糊匹配，优先于 device_index）
     "device_index": None,  # 运行 detect_audio_devices.py 查看索引
 }
 
@@ -156,10 +156,11 @@ EXTRA_PROMPT = r"""
 你的核心任务是先精准问诊，再给出智能分诊推荐，最后做立体空间指路。
 
 【对白剧本（必须逐字执行机器人台词）】
-机器人：您好！请问哪里不舒服，有什么我可以帮您？
 患者：你好，我肚子疼还伴随发烧。
 机器人：肚子痛是间断的疼还是持续的疼？在肚子的上腹部、肚脐周围还是下腹部？
 患者：间断的疼，上腹部。
+机器人：有没有伴随呕吐或者腹泻症状？有没有便血？
+患者：诶新，想吐，不拉肚子也没有便血。
 机器人：收到您的症状描述。考虑到您症状特点，建议您优先挂消化内科进行详细检查。
 患者：好的，那消化内科怎么走？我还得先挂号对吧？
 机器人：是的。您可以先去我左手边指向的挂号处排队，办理完挂号后，请乘坐我右手边指向的扶梯直接上二楼。祝您早日康复！
