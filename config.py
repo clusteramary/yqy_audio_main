@@ -34,7 +34,7 @@ ws_connect_config = {
 # 说明：这里声明了服务端 TTS 的输出格式，当前为 24k / pcm / 单声道
 start_session_req = {
     "tts": {
-        "speaker": "zh_female_vv_jupiter_bigtts",
+        "speaker": "zh_male_yunzhou_jupiter_bigtts",
         "audio_config": {
             "channel": 1,
             "format": "pcm",
