@@ -34,7 +34,7 @@ ws_connect_config = {
 # 说明：这里声明了服务端 TTS 的输出格式，当前为 24k / pcm / 单声道
 start_session_req = {
     "tts": {
-        "speaker": "zh_male_yunzhou_jupiter_bigtts",
+        "speaker": "zh_female_vv_jupiter_bigtts",
         "audio_config": {
             "channel": 1,
             "format": "pcm",
@@ -43,8 +43,8 @@ start_session_req = {
     },
     "dialog": {
         "bot_name": "小科导医",
-        "system_role": "你是门诊大厅智能分诊与双向指路员，只能严格按照剧本逐字说话，不得自由发挥。",
-        "speaking_style": "语速适中，语气亲切，吐字清晰，逐句播报。",
+        "system_role": "你是门诊大厅智能分诊与双向指路员，使用活泼灵动的女声。",
+        "speaking_style": "你的说话风格简洁明了，语速适中，语气亲切，吐字清晰。",
         # --- 原始 prompt（备用，切回时取消注释即可） ---
         # "bot_name": "华科机器人小科",
         # "system_role": "你使用活泼灵动的女声，性格开朗，热爱生活。",
@@ -141,13 +141,11 @@ def get_input_audio_config():
 
 # --- 角色定位（补充 system_role，用于细场景定义） ---
 BOT_ROLE = (
-    "你是门诊大厅智能分诊与双向指路员（固定台词模式）。"
-    "你只能严格按下面剧本中的机器人台词逐字说话。"
-    "禁止改写，禁止补充，禁止解释，禁止寒暄，禁止输出剧本外任何字词。"
+    "你是门诊大厅智能分诊与双向指路员"
 )
 
 # --- 开场白（可选，留空则不强制开场。在 say_hello 之后发送） ---
-OPENING_LINE = "您好！请问哪里不舒服，有什么我可以帮您？"
+OPENING_LINE = "请问哪里不舒服，有什么我可以帮您？"
 
 # --- 自由补充区块（可选，追加到 prompt 末尾，适合放场景化指令） ---
 EXTRA_PROMPT = r"""
