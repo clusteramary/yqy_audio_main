@@ -57,6 +57,12 @@ class AudioDeviceManager:
                 node_name=self.output_config.ros1_node_name,
                 queue_size=self.output_config.ros1_queue_size,
                 latched=self.output_config.ros1_latch,
+                control_topic=getattr(self.output_config, "ros1_control_topic", "/audio/control"),
+                duplex_mode=getattr(self.output_config, "duplex_mode", "half"),
+                audio_frame_ms=getattr(self.output_config, "ros1_audio_frame_ms", 20),
+                sample_rate=self.output_config.sample_rate,
+                channels=self.output_config.channels,
+                sample_width=2,
             )
             return self.output_stream
         else:

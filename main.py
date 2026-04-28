@@ -1,4 +1,5 @@
 # main.py
+import argparse
 import asyncio
 import json
 import time
@@ -176,6 +177,7 @@ async def run_once():
         config.ws_connect_config,
         start_prompt=prompt,
         output_audio_format="pcm",
+        duplex_mode=getattr(config, "DUPLEX_MODE", "half"),
     )
     session.attach_stop_event(stop_event)
 
@@ -228,6 +230,35 @@ async def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="语音对话系统")
+    parser.add_argument(
+        "--duplex-mode",
+        choices=["half", "full"],
+        default=config.DUPLEX_MODE,
+        help="双工模式: half=半双工(默认), full=全双工(可打断)",
+    )
+    parser.add_argument(
+        "--input-audio-mode",
+        choices=["pyaudio", "ros1"],
+        default=config.INPUT_AUDIO_MODE,
+        help="麦克风输入来源: pyaudio=本地麦克风(默认), ros1=ROS话题订阅",
+    )
+    parser.add_argument(
+        "--output-audio-mode",
+        choices=["pyaudio", "ros1"],
+        default=config.OUTPUT_AUDIO_MODE,
+        help="音频输出目标: pyaudio=本地扬声器, ros1=ROS话题发布(默认)",
+    )
+    args = parser.parse_args()
+    config.DUPLEX_MODE = args.duplex_mode
+    config.INPUT_AUDIO_MODE = args.input_audio_mode
+    config.OUTPUT_AUDIO_MODE = args.output_audio_mode
+    config.output_audio_config["mode"] = args.output_audio_mode
+    print(
+        f"[启动参数] duplex={args.duplex_mode}, "
+        f"input={args.input_audio_mode}, "
+        f"output={args.output_audio_mode}"
+    )
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

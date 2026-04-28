@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
 import queue
+import signal
+import sys
 import threading
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pyaudio
 import rospy
@@ -391,6 +396,12 @@ def main():
         sub_type=sub_type,
         status_topic=status_topic,
     )
+
+    def _on_shutdown():
+        rospy.loginfo("[ros_audio_player] shutdown: closing audio player")
+        sink.close()
+
+    rospy.on_shutdown(_on_shutdown)
 
     try:
         rospy.spin()

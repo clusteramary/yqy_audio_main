@@ -1,35 +1,284 @@
-# RealtimeDialog
+# yqy_audio_main — 具身智能语音对话系统
 
-实时语音对话程序，支持语音输入和语音输出。
+基于火山引擎[豆包实时对话 API](https://www.volcengine.com/docs/6561/1328968) 的机器人语音交互主程序，支持 ROS1 分布式音频、人脸检测、情绪识别、知识注入等功能。
 
-## 使用说明
+## 1. 系统架构
 
-此demo使用python3.7环境进行开发调试，其他python版本可能会有兼容性问题，需要自己尝试解决。
+```
+┌─────────────────────────────────────────────────────┐
+│                     main.py                         │
+│  ┌──────────┐  ┌──────────────┐  ┌───────────────┐ │
+│  │ Camera   │  │ FacePrompt   │  │ DialogSession │ │
+│  │(RealSense)│  │ Detector     │  │               │ │
+│  │          │  │ (DeepFace)   │  │ WebSocket ⇄   │ │
+│  └──────────┘  └──────┬───────┘  │  火山豆包 API  │ │
+│                       │          │               │ │
+│                   UDP 5555       │ ┌───────────┐ │ │
+│                   (情绪/表情)     │ │ output    │ │ │
+│                                  │ │ stream    │ │ │
+│  ┌──────────┐                   │ └──┬───┬────┘ │ │
+│  │ ROS Mic  │──►/audio/audio──→ │    │   │      │ │
+│  └──────────┘                   │    │   │      │ │
+│                                  └────┼───┼──────┘ │
+│  ┌──────────┐                        │   │        │
+│  │ PyAudio  │──►本地麦克风──────────→│   │        │
+│  └──────────┘                        │   │        │
+│                                      │   │        │
+│                         ┌────────────┘   │        │
+│                         │                │        │
+│                     PyAudio          ROS /audio   │
+│                     本地扬声器        话题发布     │
+└─────────────────────────────────────────────────────┘
+                                      │
+                          ┌───────────┴───────────┐
+                          │  robot/ros_audio_player│
+                          │  (下位机播放节点)       │
+                          │  订阅 /audio           │
+                          │  订阅 /audio/control   │
+                          │  发布 /audio_playing_   │
+                          │       status           │
+                          └───────────────────────┘
+```
 
-1. 配置API密钥
-   - 打开 `config.py` 文件
-   - 修改以下两个字段：
-     ```python
-     "X-Api-App-ID": "火山控制台上端到端大模型对应的App ID",
-     "X-Api-Access-Key": "火山控制台上端到端大模型对应的Access Key",
-     ```
-   - 修改speaker字段指定发音人，本次支持四个发音人：
-     - `zh_female_vv_jupiter_bigtts`：中文vv女声
-     - `zh_female_xiaohe_jupiter_bigtts`：中文xiaohe女声
-     - `zh_male_yunzhou_jupiter_bigtts`：中文云洲男声
-     - `zh_male_xiaotian_jupiter_bigtts`：中文小天男声
+## 2. 环境要求
 
-2. 安装依赖
-   ```bash
-   pip install -r requirements.txt
-   
-3. 通过麦克风运行程序
-   ```bash
-   python main.py --format=pcm
-   ```
-4. 通过录音文件启动程序
-   ```
-   python main.py --audio=whoareyou.wav
+| 项目     | 版本/说明                          |
+| -------- | ---------------------------------- |
+| Python   | 3.7+（推荐 3.9）                   |
+| Conda    | `conda activate yqy1`              |
+| ROS1     | rospy + audio_common_msgs（可选）   |
+| PyAudio  | 本地麦克风/扬声器                   |
+| 摄像头   | RealSense D435 / ROS topic 均可     |
 
+## 3. 安装
+
+```bash
 conda activate yqy1
-   ```
+pip install -r requirements.txt
+```
+
+核心依赖：`websockets`、`pyaudio`、`numpy`、`opencv-python`、`deepface`、`rospy`（ROS场景）
+
+## 4. 配置
+
+所有配置位于 **`config.py`**，关键项如下：
+
+### 4.1 API 密钥
+
+```python
+ws_connect_config = {
+    "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
+    "headers": {
+        "X-Api-App-ID": "YOUR_APP_ID",
+        "X-Api-Access-Key": "YOUR_ACCESS_KEY",
+        "X-Api-App-Key": "YOUR_APP_KEY",
+    },
+}
+```
+
+### 4.2 TTS / 对话参数
+
+```python
+start_session_req = {
+    "tts": {"speaker": "zh_female_vv_jupiter_bigtts", "audio_config": {
+        "channel": 1, "format": "pcm", "sample_rate": 24000}},
+    "dialog": {
+        "bot_name": "小科导医",
+        "system_role": "...",
+        "speaking_style": "...",
+        "location": {"city": "武汉"},
+        "extra": {"model": "1.2.1.1"},
+    },
+}
+```
+
+可选发音人：`zh_female_vv_jupiter_bigtts`、`zh_female_xiaohe_jupiter_bigtts`、`zh_male_yunzhou_jupiter_bigtts`、`zh_male_xiaotian_jupiter_bigtts`
+
+### 4.3 Prompt 配置
+
+三层 Prompt 结构（均在 `config.py`）：
+
+| 变量           | 作用                                        |
+| -------------- | ------------------------------------------- |
+| `BOT_ROLE`     | 角色定位，补充 `system_role`                  |
+| `OPENING_LINE` | 开场白（可选，留空不强制）                     |
+| `EXTRA_PROMPT` | 场景化指令 / 对白剧本 / 节奏规则等             |
+
+### 4.4 RAG 知识库
+
+```python
+RAG_KNOWLEDGE_BASE = {
+    "主题名": {"title": "...", "content": "..."},
+}
+RAG_INJECT_EVENTS = [
+    (延迟秒数, ["主题1", "主题2"]),  # 定时注入
+]
+```
+
+### 4.5 音频输入/输出模式
+
+| 环境变量              | 默认值    | 说明                            |
+| --------------------- | --------- | ------------------------------- |
+| `INPUT_AUDIO_MODE`    | `pyaudio` | `pyaudio`=本地麦克风, `ros1`=ROS话题订阅   |
+| `OUTPUT_AUDIO_MODE`   | `ros1`    | `pyaudio`=本地扬声器, `ros1`=ROS话题发布  |
+| `DUPLEX_MODE`         | `half`    | `half`=半双工, `full`=全双工(可打断)      |
+
+也可通过命令行参数覆盖（见 §5）。
+
+### 4.6 全双工打断参数
+
+| 参数                       | 默认值         | 说明                              |
+| -------------------------- | -------------- | --------------------------------- |
+| `DUPLEX_MODE`              | `half`         | 双工模式                          |
+| `ENABLE_BARGE_IN`          | `True`         | 启用本地能量检测打断               |
+| `BARGE_IN_THRESHOLD`       | `800`          | RMS 能量阈值（16-bit PCM）         |
+| `BARGE_IN_MIN_DURATION_MS` | `300`          | 连续超过阈值的最小毫秒数            |
+| `ROS_AUDIO_CONTROL_TOPIC`  | `/audio/control` | 全双工时 stop 控制消息话题          |
+| `ROS_AUDIO_FRAME_MS`       | `20`           | 全双工时 ROS 音频小帧毫秒数         |
+
+## 5. 启动方式
+
+### 5.1 命令行（推荐）
+
+```bash
+# 半双工（默认，机器人说话时麦克风静音）
+python main.py --duplex-mode half
+
+# 全双工 本地麦克风（可打断机器人）
+python main.py --duplex-mode full --input-audio-mode pyaudio
+
+# 全双工 ROS 麦克风
+python main.py --duplex-mode full --input-audio-mode ros1
+
+# 本地扬声器输出
+python main.py --output-audio-mode pyaudio
+
+# 查看所有参数
+python main.py --help
+```
+
+### 5.2 环境变量覆盖
+
+```powershell
+$env:DUPLEX_MODE='full'; python main.py
+$env:INPUT_AUDIO_MODE='ros1'; python main.py
+$env:OUTPUT_AUDIO_MODE='pyaudio'; python main.py
+```
+
+### 5.3 GUI 启动器
+
+```bash
+python gui/robot_launch.py    # 任务管理面板（tkinter）
+python gui/gui_photo.py       # 拍照场景启动器
+```
+
+### 5.4 下位机播放节点
+
+在下位机机器人上运行：
+
+```bash
+rosrun yqy_audio ros_audio_player.py _topic:=/audio _control_topic:=/audio/control _sample_format:=f32le
+```
+
+### 5.5 配套程序
+
+```bash
+python emotion.py       # 接受动作索引（UDP 5555）
+python mic.py           # 接收麦克风收放指令（UDP 5558）
+python integrated_receiver.py  # 综合接收器（表情+麦克风）
+python str_receiver.py  # 文本指令接收（UDP 8889）
+python keyListener.py   # 'p' 键监听
+```
+
+## 6. ROS 话题一览
+
+| 话题                     | 方向        | 类型                     | 说明                     |
+| ------------------------ | ----------- | ------------------------ | ------------------------ |
+| `/audio`                 | 发布        | `AudioData` / `ByteMultiArray` | 机器人扬声器音频       |
+| `/audio/control`         | 发布        | `std_msgs/String`        | 停止播放控制（JSON格式） |
+| `/audio/audio`           | 订阅        | `AudioData`              | 麦克风输入（来自 audio_capture） |
+| `/audio_playing_status`  | 订阅        | `std_msgs/Bool`          | 下位机播放状态反馈       |
+| `/camera/color/image_raw`| 订阅        | `sensor_msgs/Image`      | 相机彩色图像             |
+
+## 7. UDP 控制通道
+
+| 端口 | 方向 | 用途                         |
+| ---- | ---- | ---------------------------- |
+| 5555 | 发布 | 情绪/表情索引（emotion_receiver.py） |
+| 5557 | 发布 | 语音关键词触发（wave/nod/shake/start/end等） |
+| 5558 | 发布 | 麦克风收放指令（send_microphone/release_microphone） |
+| 8889 | 订阅 | 文本指令写入 ctrl.txt       |
+
+## 8. 主要文件说明
+
+| 文件                       | 说明                                          |
+| -------------------------- | --------------------------------------------- |
+| `main.py`                  | 主入口：人脸检测 → 对话循环 → 自恢复           |
+| `config.py`                | 全部配置（API、音频、Prompt、RAG、双工）        |
+| `dialog_session.py`        | 核心会话管理：WS通信、音频输入输出、打断逻辑     |
+| `realtime_dialog_client.py`| 火山引擎 WebSocket 客户端封装                   |
+| `protocol.py`              | 二进制协议：header 生成 / response 解析         |
+| `audio_constants.py`       | 音频常量、ASR/LLM 关键词、`AudioConfig` dataclass |
+| `audio_device_manager.py`  | PyAudio/ROS 音频设备管理                       |
+| `ros_audio.py`             | `Ros1SpeakerStream`：ROS音频发布 + 全双工帧封装 |
+| `duplex_audio.py`          | 全双工协议：帧打包/解包、stop控制消息            |
+| `audio_utils.py`           | PCM/WAV 文件保存工具                           |
+| `audio_manager.py`         | `DialogSession` 线程封装，外部调用入口           |
+| `CameraAdapter.py`         | 统一相机接口（RealSense/OpenCV/ROS1/ROS2）      |
+| `FacePromptDetector.py`    | 人脸检测 + 情绪推流（基于 DeepFace）             |
+| `emotion_receiver.py`      | UDP 5555 情绪数据接收                          |
+| `integrated_receiver.py`   | 综合 UDP 接收器（情绪 + 语音关键词）             |
+| `mic_receiver.py`          | UDP 5558 麦克风指令接收                        |
+| `str_receiver.py`          | UDP 8889 文本指令接收                          |
+| `gui/robot_launch.py`      | Tkinter 进程管理面板                           |
+| `gui/gui_photo.py`         | 拍照场景启动器                                |
+| `robot/ros_audio_player.py`| **下位机** ROS→扬声器播放节点（支持打断）        |
+| `ros_audio_sink.py`        | 简易 ROS→PyAudio 接收（无打断）                 |
+
+## 9. 音频格式说明
+
+| 环节          | 采样率 | 声道 | 位深     |
+| ------------- | ------ | ---- | -------- |
+| PyAudio 麦克风| 48000  | 1    | paInt16  |
+| ROS 麦克风输入| 48000  | 2    | paInt16  |
+| 发送给豆包    | 16000  | 1    | 16-bit PCM |
+| 豆包 TTS 输出 | 24000  | 1    | float32/s16le |
+| ROS 播放输出  | 24000  | 1    | f32le/s16le |
+
+> 麦克风 48k→16k 由 `audioop.ratecv` 实时重采样；声道合并由 `audioop.tomono` 处理。
+
+## 10. 对话流程
+
+1. **建立连接**：WS 连接火山引擎 → StartConnection → StartSession
+2. **开场**：say_hello（发送"您好，我是导医助手小科"）→ TTS 播放 → event 359 → 等待完成
+3. **Prompt 注入**：发送 `chat_text_query(start_prompt)`
+4. **麦克风循环**：持续采集音频 → 20ms 帧 → 发送 `task_request`
+5. **服务器响应**：
+   - `SERVER_ACK`（bytes）：TTS 音频 → 入队播放
+   - `event 553`（LLM开始）：重置关键词缓冲区
+   - `event 451`（ASR结果）：关键词检测 + 用户文本累积
+   - `event 450`（用户插话）：触发打断
+   - `event 459`（TTS结束）：写入对话日志
+6. **打断**（全双工）：
+   - 服务端 event 450 或 本地 RMS 超阈值 → `_interrupt_playback`
+   - 清空播放队列 → 发布 `/audio/control` stop → 下位机立即静音
+
+## 11. 对话日志
+
+运行时对话文本实时追加到 `dialog.txt`，格式为：
+
+```
+用户: 你好，我肚子疼还伴随发烧。
+机器人: 肚子痛是间断的疼还是持续的疼？...
+```
+
+## 12. 常见问题
+
+| 问题                                  | 解决方法                                    |
+| ------------------------------------- | ----------------------------------------- |
+| `pyaudio` 找不到设备                  | 运行 `python detect_audio_devices.py` 查看设备列表，在 config.py 中设置 `device_index` 或 `device_name` |
+| ROS 话题收不到数据                    | 确认 `INPUT_AUDIO_MODE=ros1` 且 `audio_capture` 节点在运行 |
+| 全双工打断不生效                      | 确认 `--duplex-mode full`，检查 `BARGE_IN_THRESHOLD` 是否过高 |
+| 程序退出后下位机仍在播放              | 已自动发送 `/audio/control` stop；如下位机未响应，检查 topic 名称一致 |
+| `audio_common_msgs` 未安装            | 程序会自动降级为 `ByteMultiArray`，不影响使用   |
+| `ImportError: duplex_audio`           | 确保 `duplex_audio.py` 在项目根目录，且 Python path 正确 |

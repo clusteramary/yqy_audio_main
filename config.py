@@ -109,6 +109,20 @@ output_audio_config = {
     "ros1_latch": False,  # 音频流不建议 latched，保持 False
 }
 
+# ============ 全双工 / 打断（barge-in）配置 ============
+# duplex_mode: "half" 维持现状（播放时静音麦克风），"full" 允许持续上行并可打断
+DUPLEX_MODE = os.getenv("DUPLEX_MODE", "half")
+# ENABLE_BARGE_IN: 是否启用本地能量检测打断（仅 full 模式生效）
+ENABLE_BARGE_IN = os.getenv("ENABLE_BARGE_IN", "True").lower() in ("1", "true", "yes")
+# BARGE_IN_THRESHOLD: RMS 能量阈值（16-bit PCM），超过此值视为语音
+BARGE_IN_THRESHOLD = int(os.getenv("BARGE_IN_THRESHOLD", "800"))
+# BARGE_IN_MIN_DURATION_MS: 连续超过阈值的最小毫秒数，避免误触发
+BARGE_IN_MIN_DURATION_MS = int(os.getenv("BARGE_IN_MIN_DURATION_MS", "300"))
+# ROS_AUDIO_CONTROL_TOPIC: 全双工时向此话题发送 stop 控制消息
+ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
+# ROS_AUDIO_FRAME_MS: 全双工时 ROS 音频按此毫秒小帧发布
+ROS_AUDIO_FRAME_MS = int(os.getenv("ROS_AUDIO_FRAME_MS", "20"))
+
 # ============ 输入音频模式（麦克风来源） ============
 # "ros1"    -> 订阅 ROS /audio/audio 话题（需 audio_capture 节点运行）
 # "pyaudio" -> 直接用 PyAudio 打开本地麦克风

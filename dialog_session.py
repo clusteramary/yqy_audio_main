@@ -1,5 +1,5 @@
 import asyncio
-import audioop  # 重采样
+import audioop
 import json
 import os
 import queue
@@ -7,6 +7,7 @@ import random
 import re
 import signal
 import socket
+import struct
 import threading
 import time
 import uuid
@@ -126,6 +127,7 @@ class DialogSession:
         start_prompt: str,
         output_audio_format: str = "pcm",
         audio_file_path: str = "",
+        duplex_mode: str = "half",
     ):
         self.start_prompt = start_prompt
         self.audio_file_path = audio_file_path
@@ -157,7 +159,14 @@ class DialogSession:
         self._ratecv_state = None
 
         self._last_play_ts = 0.0
-        self.block_mic_while_playing = True
+        self._duplex_mode = duplex_mode
+        self.block_mic_while_playing = (duplex_mode == "half")
+
+        # ---------- 全双工 barge-in 跟踪 ----------
+        self._bot_utterance_id = 0
+        self._utterance_chunk_seq = 0
+        self._barge_in_counter = 0
+        self._barge_in_start_ts = 0.0
 
         self._last_silence_ts = 0.0
         self._silence_interval_sec = 0.20
@@ -345,6 +354,88 @@ class DialogSession:
     def _remote_audio_status_callback(self, msg):
         self.remote_playing = msg.data
 
+    def _is_ros_output(self) -> bool:
+        return hasattr(self, "output_stream") and hasattr(self.output_stream, "interrupt")
+
+    def _ros_frame_size(self) -> int:
+        out_cfg = config.output_audio_config
+        ms = getattr(config, "ROS_AUDIO_FRAME_MS", 20)
+        return (out_cfg["sample_rate"] * out_cfg["channels"] * 2 * ms) // 1000
+
+    def _compute_rms_16bit(self, data: bytes) -> float:
+        if len(data) < 2:
+            return 0.0
+        count = len(data) // 2
+        fmt = f"<{count}h"
+        try:
+            samples = struct.unpack(fmt, data)
+        except Exception:
+            return 0.0
+        if count == 0:
+            return 0.0
+        return (sum(s * s for s in samples) / count) ** 0.5
+
+    def _check_barge_in(self, chunk16k: bytes) -> bool:
+        if self._duplex_mode != "full":
+            return False
+        if not getattr(config, "ENABLE_BARGE_IN", True):
+            return False
+        if not self._is_tts_playing():
+            return False
+
+        rms = self._compute_rms_16bit(chunk16k)
+        threshold = getattr(config, "BARGE_IN_THRESHOLD", 800)
+        min_frames = getattr(config, "BARGE_IN_MIN_DURATION_MS", 300) // 20
+
+        if rms > threshold:
+            self._barge_in_counter += 1
+            if self._barge_in_counter >= max(min_frames, 1):
+                self._interrupt_playback("local_barge_in")
+                self._barge_in_counter = 0
+                return True
+        else:
+            self._barge_in_counter = 0
+        return False
+
+    def _reset_pyaudio_output(self):
+        try:
+            if hasattr(self, "audio_device") and self.audio_device:
+                if self.audio_device.output_stream is not None:
+                    try:
+                        if hasattr(self.audio_device.output_stream, "stop_stream"):
+                            self.audio_device.output_stream.stop_stream()
+                    except Exception:
+                        pass
+                    try:
+                        self.audio_device.output_stream.close()
+                    except Exception:
+                        pass
+                self.audio_device.output_stream = self.audio_device.open_output_stream()
+                self.output_stream = self.audio_device.output_stream
+        except Exception as e:
+            print(f"[Barge-In] PyAudio output reset failed: {e}")
+
+    def _interrupt_playback(self, reason: str = "barge_in"):
+        print(f"[Barge-In] interrupt playback, reason={reason}")
+
+        while not self.audio_queue.empty():
+            try:
+                self.audio_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        if self._duplex_mode == "full" and self._is_ros_output():
+            try:
+                self.output_stream.interrupt(self._bot_utterance_id, reason)
+            except Exception as e:
+                print(f"[Barge-In] stop msg send failed: {e}")
+
+        if not self._is_ros_output():
+            self._reset_pyaudio_output()
+
+        self._bot_utterance_id += 1
+        self._utterance_chunk_seq = 0
+
     def attach_stop_event(self, evt: asyncio.Event) -> None:
         self.external_stop_event = evt
 
@@ -352,6 +443,12 @@ class DialogSession:
         self.is_recording = False
         self.is_playing = False
         self.is_running = False
+
+        try:
+            self._interrupt_playback("session_end")
+        except Exception:
+            pass
+
         try:
             if hasattr(self, "voice_udp_socket"):
                 self.voice_udp_socket.close()
@@ -409,15 +506,33 @@ class DialogSession:
             try:
                 audio_data = self.audio_queue.get(timeout=1.0)
                 if audio_data is not None:
-                    self.output_stream.write(audio_data)
+                    if self._duplex_mode == "full" and self._is_ros_output():
+                        self._write_framed_to_ros(audio_data)
+                    else:
+                        self.output_stream.write(audio_data)
                     self._last_play_ts = time.time()
-                    # 播放完成后 → 递话筒（独立 MIC 通道）
                     self.send_mic_command("send_microphone")
             except queue.Empty:
                 time.sleep(0.1)
             except Exception as e:
                 print(f"音频播放错误: {e}")
                 time.sleep(0.1)
+
+    def _write_framed_to_ros(self, audio_data: bytes):
+        frame_bytes = self._ros_frame_size()
+        total_len = len(audio_data)
+        offset = 0
+        while offset < total_len:
+            chunk = audio_data[offset : offset + frame_bytes]
+            offset += frame_bytes
+            is_last = (offset >= total_len)
+            self.output_stream.write_framed(
+                self._bot_utterance_id,
+                self._utterance_chunk_seq,
+                is_last,
+                chunk,
+            )
+            self._utterance_chunk_seq += 1
 
     def _is_tts_playing(self, grace_ms: float = 300.0) -> bool:
         local_playing = (
@@ -486,6 +601,8 @@ class DialogSession:
             if event == 553:
                 self._llm_keyword_buffer = ""
                 self._llm_kws_fired.clear()
+                self._bot_utterance_id += 1
+                self._utterance_chunk_seq = 0
                 # 机器人开始回答时，固定上一轮用户文本（若未写过则写入一次）
                 try:
                     if (
@@ -561,11 +678,7 @@ class DialogSession:
 
             if event == 450:
                 print(f"清空缓存音频: {response['session_id']}")
-                while not self.audio_queue.empty():
-                    try:
-                        self.audio_queue.get_nowait()
-                    except queue.Empty:
-                        continue
+                self._interrupt_playback("user_speech")
                 self.is_user_querying = True
                 # 用户新一轮开始：清理累积并标记未写
                 self._user_text_accum = ""
@@ -801,6 +914,8 @@ class DialogSession:
                     if self.block_mic_while_playing and self._is_tts_playing():
                         await self._send_silence_if_due()
                     else:
+                        if self._duplex_mode == "full":
+                            self._check_barge_in(chunk16k)
                         await self.client.task_request(chunk16k)
 
                 # 处理完一批 ROS 音频块后 → 收话筒（独立 MIC 通道）
@@ -854,6 +969,8 @@ class DialogSession:
                     if self.block_mic_while_playing and self._is_tts_playing():
                         await self._send_silence_if_due()
                     else:
+                        if self._duplex_mode == "full":
+                            self._check_barge_in(chunk16k)
                         await self.client.task_request(chunk16k)
 
                 await asyncio.sleep(0.005)
