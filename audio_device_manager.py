@@ -57,6 +57,8 @@ class AudioDeviceManager:
                 node_name=self.output_config.ros1_node_name,
                 queue_size=self.output_config.ros1_queue_size,
                 latched=self.output_config.ros1_latch,
+                control_topic=getattr(self.output_config, "ros1_control_topic", None),
+                duplex_mode=getattr(self.output_config, "duplex_mode", "half"),
             )
             return self.output_stream
         else:
@@ -104,7 +106,10 @@ class AudioDeviceManager:
         self.input_stream = None
         if self.output_stream is not None:
             try:
-                if hasattr(self.output_stream, "stop_stream"):
+                # Full-duplex: send stop control before closing
+                if hasattr(self.output_stream, "interrupt"):
+                    self.output_stream.interrupt()
+                elif hasattr(self.output_stream, "stop_stream"):
                     self.output_stream.stop_stream()
                 if hasattr(self.output_stream, "close"):
                     self.output_stream.close()

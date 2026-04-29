@@ -1,4 +1,5 @@
 # main.py
+import argparse
 import asyncio
 import json
 import time
@@ -14,6 +15,40 @@ from config import (
 from audio_manager import DialogSession
 from CameraAdapter import CameraAdapter
 from FacePromptDetector import FacePromptDetector
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="全双工/半双工语音对话系统")
+    parser.add_argument(
+        "--duplex-mode",
+        choices=["half", "full"],
+        default=None,
+        help="双工模式: half=半双工(默认), full=全双工(支持用户打断机器人播放)",
+    )
+    parser.add_argument(
+        "--input-audio-mode",
+        choices=["pyaudio", "ros1"],
+        default=None,
+        help="麦克风输入模式: pyaudio=本地麦克风, ros1=ROS话题订阅",
+    )
+    parser.add_argument(
+        "--output-audio-mode",
+        choices=["pyaudio", "ros1"],
+        default=None,
+        help="扬声器输出模式: pyaudio=本地声卡, ros1=ROS话题发布",
+    )
+    return parser.parse_args()
+
+
+def apply_args_to_config(args):
+    """将命令行参数覆盖到 config 模块。"""
+    if args.duplex_mode is not None:
+        config.DUPLEX_MODE = args.duplex_mode
+    if args.input_audio_mode is not None:
+        config.INPUT_AUDIO_MODE = args.input_audio_mode
+    if args.output_audio_mode is not None:
+        config.OUTPUT_AUDIO_MODE = args.output_audio_mode
+        config.output_audio_config["mode"] = args.output_audio_mode
 
 # ABSENT_SECONDS = 30.0      # 对话进行时，连续多久没看到人脸就重启
 ABSENT_SECONDS = 100000.0    # 对话进行时，连续多久没看到人脸就重启
@@ -216,6 +251,12 @@ async def run_once():
 
 async def main():
     """外层自恢复循环。Ctrl+C 终止进程即可。"""
+    args = parse_args()
+    apply_args_to_config(args)
+
+    duplex_label = "全双工(支持打断)" if config.DUPLEX_MODE == "full" else "半双工"
+    print(f"[启动] 双工模式: {duplex_label}, 麦克风: {config.INPUT_AUDIO_MODE}, 扬声器: {config.OUTPUT_AUDIO_MODE}")
+
     while True:
         try:
             await run_once()

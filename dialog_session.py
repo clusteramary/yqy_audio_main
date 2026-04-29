@@ -28,6 +28,7 @@ from audio_constants import (
     AudioConfig,
 )
 from audio_device_manager import AudioDeviceManager
+from duplex_audio import BargeInDetector
 from realtime_dialog_client import RealtimeDialogClient
 
 # ---------- async to_thread 兼容 ----------
@@ -159,6 +160,21 @@ class DialogSession:
         self._last_play_ts = 0.0
         self.block_mic_while_playing = True
 
+        # --- Duplex mode ---
+        self.duplex_mode = getattr(config, "DUPLEX_MODE", "half")
+        self.block_mic_while_playing = (self.duplex_mode == "half")
+        self._current_utterance_id: str = ""
+        self._current_chunk_seq: int = 0
+        self._barge_in_triggered = False
+
+        # Barge-in detector (only used in full-duplex mode)
+        self._barge_in_detector: Optional[BargeInDetector] = None
+        if self.duplex_mode == "full" and getattr(config, "ENABLE_BARGE_IN", True):
+            self._barge_in_detector = BargeInDetector(
+                threshold=getattr(config, "BARGE_IN_THRESHOLD", 500.0),
+                min_duration_ms=getattr(config, "BARGE_IN_MIN_DURATION_MS", 300),
+            )
+
         self._last_silence_ts = 0.0
         self._silence_interval_sec = 0.20
 
@@ -258,9 +274,13 @@ class DialogSession:
         signal.signal(signal.SIGINT, self._keyboard_signal)
         self.audio_queue = queue.Queue()
         if not self.is_audio_file_input:
+            out_cfg = dict(config.output_audio_config)
+            out_cfg["duplex_mode"] = self.duplex_mode
+            out_cfg["ros1_control_topic"] = getattr(config, "ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
+            out_cfg["ros1_audio_frame_ms"] = getattr(config, "ROS_AUDIO_FRAME_MS", 20)
             self.audio_device = AudioDeviceManager(
                 AudioConfig(**input_cfg),
-                AudioConfig(**config.output_audio_config),
+                AudioConfig(**out_cfg),
             )
             # PyAudio 模式：同时打开输入流
             if input_mode == "pyaudio":
@@ -276,6 +296,8 @@ class DialogSession:
                 target=self._audio_player_thread, daemon=True
             )
             self.player_thread.start()
+            duplex_label = "全双工(支持打断)" if self.duplex_mode == "full" else "半双工"
+            print(f"[DUPLEX] 模式={duplex_label}, block_mic={self.block_mic_while_playing}")
 
     # ---------- ROS 麦克风回调 ----------
     def _ros_audio_callback(self, msg: RosAudioData):
@@ -352,6 +374,11 @@ class DialogSession:
         self.is_recording = False
         self.is_playing = False
         self.is_running = False
+
+        # Full-duplex: interrupt playback and send stop to downstream
+        if self.duplex_mode == "full":
+            self._interrupt_playback(reason="session_stop")
+
         try:
             if hasattr(self, "voice_udp_socket"):
                 self.voice_udp_socket.close()
@@ -409,6 +436,9 @@ class DialogSession:
             try:
                 audio_data = self.audio_queue.get(timeout=1.0)
                 if audio_data is not None:
+                    # Full-duplex: drop audio if barge-in was triggered
+                    if self.duplex_mode == "full" and self._barge_in_triggered:
+                        continue
                     self.output_stream.write(audio_data)
                     self._last_play_ts = time.time()
                     # 播放完成后 → 递话筒（独立 MIC 通道）
@@ -424,6 +454,50 @@ class DialogSession:
             time.time() - self._last_play_ts
         ) * 1000.0 < grace_ms or not self.audio_queue.empty()
         return local_playing or self.remote_playing
+
+    def _interrupt_playback(self, reason: str = "barge_in"):
+        """Stop all ongoing TTS playback (full-duplex only).
+
+        1) Clear audio_queue
+        2) For ROS output: publish stop control message
+        3) For PyAudio output: stop/reopen stream to flush buffer
+        4) Reset utterance tracking so stale chunks are dropped
+        """
+        if self.duplex_mode != "full":
+            return
+        print(f"[DUPLEX] 打断播放, 原因={reason}, utterance={self._current_utterance_id}")
+        self._barge_in_triggered = True
+
+        # 1. Clear queued audio
+        cleared = 0
+        while not self.audio_queue.empty():
+            try:
+                self.audio_queue.get_nowait()
+                cleared += 1
+            except queue.Empty:
+                break
+        if cleared:
+            print(f"[DUPLEX] 清空 audio_queue, 丢弃 {cleared} 包")
+
+        # 2. ROS output: publish stop control
+        if hasattr(self.output_stream, "publish_stop"):
+            self.output_stream.publish_stop(self._current_utterance_id, reason)
+
+        # 3. PyAudio output: flush by stopping/reopening
+        if hasattr(self.output_stream, "stop_stream") and hasattr(self.output_stream, "close"):
+            try:
+                self.output_stream.stop_stream()
+                # Don't close/reopen here - just stop to flush buffer
+            except Exception:
+                pass
+
+        # 4. Reset utterance tracking
+        self._current_utterance_id = ""
+        self._current_chunk_seq = 0
+
+    def _reset_barge_in_state(self):
+        """Reset barge-in state so new TTS can be accepted."""
+        self._barge_in_triggered = False
 
     def _emit_voice_keyword(self, keyword: str):
         try:
@@ -472,9 +546,16 @@ class DialogSession:
         ):
             if self.is_sending_chat_tts_text:
                 return
+            # Full-duplex: drop audio if barge-in was triggered
+            if self.duplex_mode == "full" and self._barge_in_triggered:
+                return
             audio_data = response["payload_msg"]
             if not self.is_audio_file_input:
                 self.audio_queue.put(audio_data)
+                # Track utterance for interrupt
+                if not self._current_utterance_id:
+                    self._current_utterance_id = str(uuid.uuid4())[:8]
+                self._current_chunk_seq += 1
             self.audio_buffer += audio_data
 
         elif response["message_type"] == "SERVER_FULL_RESPONSE":
@@ -486,6 +567,11 @@ class DialogSession:
             if event == 553:
                 self._llm_keyword_buffer = ""
                 self._llm_kws_fired.clear()
+                # Full-duplex: reset barge-in state for new utterance
+                if self.duplex_mode == "full":
+                    self._reset_barge_in_state()
+                    self._current_utterance_id = ""
+                    self._current_chunk_seq = 0
                 # 机器人开始回答时，固定上一轮用户文本（若未写过则写入一次）
                 try:
                     if (
@@ -561,11 +647,15 @@ class DialogSession:
 
             if event == 450:
                 print(f"清空缓存音频: {response['session_id']}")
-                while not self.audio_queue.empty():
-                    try:
-                        self.audio_queue.get_nowait()
-                    except queue.Empty:
-                        continue
+                # Full-duplex: server-side interruption (user started speaking)
+                if self.duplex_mode == "full":
+                    self._interrupt_playback(reason="server_450")
+                else:
+                    while not self.audio_queue.empty():
+                        try:
+                            self.audio_queue.get_nowait()
+                        except queue.Empty:
+                            continue
                 self.is_user_querying = True
                 # 用户新一轮开始：清理累积并标记未写
                 self._user_text_accum = ""
@@ -801,7 +891,15 @@ class DialogSession:
                     if self.block_mic_while_playing and self._is_tts_playing():
                         await self._send_silence_if_due()
                     else:
+                        # Full-duplex: always send real mic audio + barge-in detection
                         await self.client.task_request(chunk16k)
+                        if (self.duplex_mode == "full"
+                                and self._barge_in_detector is not None
+                                and self._is_tts_playing()
+                                and not self._barge_in_triggered):
+                            if self._barge_in_detector.feed(chunk16k):
+                                self._interrupt_playback(reason="barge_in")
+                                print("[DUPLEX] ROS-MIC: barge-in detected, interrupting playback")
 
                 # 处理完一批 ROS 音频块后 → 收话筒（独立 MIC 通道）
                 self.send_mic_command("release_microphone")
@@ -854,7 +952,15 @@ class DialogSession:
                     if self.block_mic_while_playing and self._is_tts_playing():
                         await self._send_silence_if_due()
                     else:
+                        # Full-duplex: always send real mic audio + barge-in detection
                         await self.client.task_request(chunk16k)
+                        if (self.duplex_mode == "full"
+                                and self._barge_in_detector is not None
+                                and self._is_tts_playing()
+                                and not self._barge_in_triggered):
+                            if self._barge_in_detector.feed(chunk16k):
+                                self._interrupt_playback(reason="barge_in")
+                                print("[DUPLEX] PyAudio-MIC: barge-in detected, interrupting playback")
 
                 await asyncio.sleep(0.005)
             except Exception as e:

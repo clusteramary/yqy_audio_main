@@ -6,6 +6,26 @@ import pyaudio
 
 runtime_control_path = "./yuying/a.txt"
 
+# ============ 全双工配置 ============
+# DUPLEX_MODE: "half" (半双工，默认行为) 或 "full" (全双工，支持打断)
+# 可通过 --duplex-mode 启动参数覆盖
+DUPLEX_MODE = os.getenv("DUPLEX_MODE", "half")
+
+# 全双工模式下是否启用 barge-in（用户说话打断机器人）
+ENABLE_BARGE_IN = os.getenv("ENABLE_BARGE_IN", "true").lower() == "true"
+
+# Barge-in RMS 能量阈值（16kHz 16bit 单声道 PCM）
+BARGE_IN_THRESHOLD = float(os.getenv("BARGE_IN_THRESHOLD", "500"))
+
+# 触发 barge-in 需要连续超过阈值的毫秒数
+BARGE_IN_MIN_DURATION_MS = int(os.getenv("BARGE_IN_MIN_DURATION_MS", "300"))
+
+# ROS 播放控制话题（全双工模式下主程序向此话题发送 stop 控制消息）
+ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
+
+# 全双工模式下 ROS 音频发布的小帧时长（毫秒）
+ROS_AUDIO_FRAME_MS = int(os.getenv("ROS_AUDIO_FRAME_MS", "20"))
+
 
 # ws_connect_config = {
 #     "base_url": "wss://openspeech.bytedance.com/api/v3/realtime/dialogue",
