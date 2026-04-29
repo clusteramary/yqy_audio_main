@@ -3,7 +3,6 @@
 
 import os
 import queue
-import signal
 import sys
 import threading
 import time
@@ -152,6 +151,8 @@ class AudioPlayer:
         return False
 
     def _loop(self):
+        """播放主循环：从队列取帧，不在持锁状态下执行 stream.write()，
+        确保 ROS 控制回调（cancel_utterance）可以快速抢占锁。"""
         last_warn = 0.0
         while not self._stop.is_set():
             try:
@@ -170,13 +171,13 @@ class AudioPlayer:
                 except Exception as e:
                     rospy.logwarn("Failed to open audio stream: %s", e)
                     continue
+                # 检查后立即释放锁，复制 stream 引用
+                safe_stream = self._stream
 
             self._publish_status(True)
             try:
-                with self._lock:
-                    if self._should_drop_locked(utterance_id):
-                        continue
-                    self._stream.write(pkt)
+                if safe_stream is not None:
+                    safe_stream.write(pkt)
             except Exception as e:
                 if time.time() - last_warn > 2.0:
                     rospy.logwarn("Playback failed: %s", e)
