@@ -96,8 +96,8 @@ output_audio_config = {
     "channels": 1,
     "sample_rate": 24000,  # 与 start_session_req.tts.audio_config 保持一致
     # 对于本地 PyAudio 播放：bit_size 要与下行位宽一致
-    # 你之前用的是 paFloat32，这里保持原样；若服务端确认为 s16le，建议改为 pyaudio.paInt16
-    "bit_size": pyaudio.paFloat32,
+    # 火山引擎端到端对话 API 的 "pcm" 格式 = s16le，已确认服务端返回 16-bit PCM
+    "bit_size": pyaudio.paInt16,
     # 当 mode="pyaudio" 时可用名称模糊匹配声卡输出；优先级高于 device_index。
     "device_name": None,  # 例如 "Realtek" / "Speakers"（大小写不敏感、子串匹配）
     "device_index": None,  # 仅在 mode='pyaudio' 时生效

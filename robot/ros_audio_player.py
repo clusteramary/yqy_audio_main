@@ -371,7 +371,7 @@ def main():
     control_topic = rospy.get_param("~control_topic", "/audio/control")
     rate = int(rospy.get_param("~sample_rate", 24000))
     ch = int(rospy.get_param("~channels", 1))
-    fmt = rospy.get_param("~sample_format", "f32le")
+    fmt = rospy.get_param("~sample_format", "s16le")
     dev = rospy.get_param("~device_index", None)
     status_topic = rospy.get_param("~status_topic", "/audio_playing_status")
     sub_type = rospy.get_param("~sub_type", "auto")

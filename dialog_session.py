@@ -360,7 +360,11 @@ class DialogSession:
     def _ros_frame_size(self) -> int:
         out_cfg = config.output_audio_config
         ms = getattr(config, "ROS_AUDIO_FRAME_MS", 20)
-        sample_width = pyaudio.get_sample_size(out_cfg.get("bit_size", pyaudio.paFloat32))
+        tts_fmt = config.start_session_req.get("tts", {}).get("audio_config", {}).get("format", "pcm")
+        if tts_fmt in ("pcm", "pcm_s16le"):
+            sample_width = 2
+        else:
+            sample_width = pyaudio.get_sample_size(out_cfg.get("bit_size", pyaudio.paInt16))
         return (out_cfg["sample_rate"] * out_cfg["channels"] * sample_width * ms) // 1000
 
     def _compute_rms_16bit(self, data: bytes) -> float:
