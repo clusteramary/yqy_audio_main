@@ -170,7 +170,8 @@ class DialogSession:
         )
 
         # ---------- 全双工 barge-in 跟踪 ----------
-        self._bot_utterance_id = 0
+        self._bot_utterance_id = int(time.time() * 1000) & 0x7FFFFFFF
+        self._last_sent_utterance_id = None
         self._utterance_chunk_seq = 0
         self._barge_in_counter = 0
         self._barge_in_start_ts = 0.0
@@ -395,6 +396,9 @@ class DialogSession:
             return 0.0
         return (sum(s * s for s in samples) / count) ** 0.5
 
+    def _advance_utterance_id(self):
+        self._bot_utterance_id = (int(self._bot_utterance_id) + 1) & 0x7FFFFFFF
+
     def _check_barge_in(self, chunk16k: bytes) -> bool:
         if self._duplex_mode != "full":
             return False
@@ -444,16 +448,31 @@ class DialogSession:
             except queue.Empty:
                 break
 
-        if self._is_ros_output():
-            try:
-                self.output_stream.interrupt(self._bot_utterance_id, reason)
-            except Exception as e:
-                print(f"[Barge-In] stop msg send failed: {e}")
+        should_send_remote_stop = self._is_ros_output() and (
+            self._duplex_mode == "full" or reason == "session_end"
+        )
+        if should_send_remote_stop:
+            ids_to_stop = [int(self._bot_utterance_id)]
+            if self._last_sent_utterance_id is not None:
+                ids_to_stop.append(int(self._last_sent_utterance_id))
+                if reason == "session_end":
+                    # 进程退出时把已在 ROS 管道中的后续残包窗口也一并清空。
+                    ids_to_stop.extend(
+                        [
+                            int(self._last_sent_utterance_id) + 1,
+                            int(self._last_sent_utterance_id) + 2,
+                        ]
+                    )
+            for uid in sorted(set(ids_to_stop)):
+                try:
+                    self.output_stream.interrupt(uid, reason)
+                except Exception as e:
+                    print(f"[Barge-In] stop msg send failed(uid={uid}): {e}")
 
         if not self._is_ros_output():
             self._reset_pyaudio_output()
 
-        self._bot_utterance_id += 1
+        self._advance_utterance_id()
         self._utterance_chunk_seq = 0
 
     def attach_stop_event(self, evt: asyncio.Event) -> None:
@@ -539,20 +558,17 @@ class DialogSession:
                 time.sleep(0.1)
 
     def _write_framed_to_ros(self, audio_data: bytes):
-        frame_bytes = self._ros_frame_size()
-        total_len = len(audio_data)
-        offset = 0
-        while offset < total_len:
-            chunk = audio_data[offset : offset + frame_bytes]
-            offset += frame_bytes
-            is_last = (offset >= total_len)
-            self.output_stream.write_framed(
-                self._bot_utterance_id,
-                self._utterance_chunk_seq,
-                is_last,
-                chunk,
-            )
-            self._utterance_chunk_seq += 1
+        if not audio_data:
+            return
+        # 不再把服务端下发块继续切得更碎，避免 full 模式 ROS 消息率过高导致丢包/跳播。
+        self._last_sent_utterance_id = int(self._bot_utterance_id)
+        self.output_stream.write_framed(
+            self._bot_utterance_id,
+            self._utterance_chunk_seq,
+            True,
+            audio_data,
+        )
+        self._utterance_chunk_seq += 1
 
     def _is_tts_playing(self, grace_ms: float = 300.0) -> bool:
         local_playing = (
@@ -621,7 +637,7 @@ class DialogSession:
             if event == 553:
                 self._llm_keyword_buffer = ""
                 self._llm_kws_fired.clear()
-                self._bot_utterance_id += 1
+                self._advance_utterance_id()
                 self._utterance_chunk_seq = 0
                 # 机器人开始回答时，固定上一轮用户文本（若未写过则写入一次）
                 try:
@@ -698,7 +714,11 @@ class DialogSession:
 
             if event == 450:
                 print(f"清空缓存音频: {response['session_id']}")
-                self._interrupt_playback("user_speech")
+                should_interrupt = self._duplex_mode != "full" or bool(
+                    getattr(config, "FULL_DUPLEX_INTERRUPT_ON_EVENT450", False)
+                )
+                if should_interrupt:
+                    self._interrupt_playback("user_speech")
                 self.is_user_querying = True
                 # 用户新一轮开始：清理累积并标记未写
                 self._user_text_accum = ""

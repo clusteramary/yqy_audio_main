@@ -45,6 +45,9 @@ class AudioPlayer:
         self._q = queue.Queue(maxsize=max_queue_packets)
         self._stop = threading.Event()
         self._lock = threading.Lock()
+        self._stream_io_lock = threading.Lock()
+        self._close_lock = threading.Lock()
+        self._closed = False
 
         self.status_pub = rospy.Publisher(status_topic, Bool, queue_size=10)
         self._last_status = False
@@ -124,19 +127,20 @@ class AudioPlayer:
                 break
 
     def _hard_reset_stream_locked(self):
-        try:
-            if self._stream is not None:
-                self._stream.stop_stream()
-        except Exception:
-            pass
+        with self._stream_io_lock:
+            try:
+                if self._stream is not None:
+                    self._stream.stop_stream()
+            except Exception:
+                pass
 
-        try:
-            if self._stream is not None:
-                self._stream.close()
-        except Exception:
-            pass
-        finally:
-            self._stream = None
+            try:
+                if self._stream is not None:
+                    self._stream.close()
+            except Exception:
+                pass
+            finally:
+                self._stream = None
 
         if not self._stop.is_set():
             try:
@@ -190,7 +194,11 @@ class AudioPlayer:
             self._publish_status(True)
             try:
                 if safe_stream is not None:
-                    safe_stream.write(pkt)
+                    with self._lock:
+                        if safe_stream is not self._stream:
+                            continue
+                        with self._stream_io_lock:
+                            safe_stream.write(pkt)
             except Exception as e:
                 if time.time() - last_warn > 2.0:
                     rospy.logwarn("Playback failed: %s", e)
@@ -243,6 +251,11 @@ class AudioPlayer:
         )
 
     def close(self):
+        with self._close_lock:
+            if self._closed:
+                return
+            self._closed = True
+
         self._stop.set()
         try:
             self._th.join(timeout=1.0)
@@ -284,6 +297,7 @@ class LocalAudioSink:
         self.sub_bytes = None
         self.auto_detect_format = bool(auto_detect_format)
         self._format_detect_locked = False
+        self._drop_audio_until = 0.0
         self.sub_control = rospy.Subscriber(
             control_topic,
             String,
@@ -446,6 +460,9 @@ class LocalAudioSink:
             )
 
     def _handle_audio_bytes(self, data: bytes):
+        if self._drop_audio_until > time.time():
+            return
+
         frame = try_unpack_audio_frame(data)
         if frame is None:
             self._maybe_adjust_sample_format(data)
@@ -487,6 +504,9 @@ class LocalAudioSink:
 
         if not control or control.cmd != "stop":
             return
+
+        if (control.reason or "").startswith("session_end"):
+            self._drop_audio_until = time.time() + 10.0
 
         self.player.cancel_utterance(control.utterance_id, reason=control.reason)
 
@@ -531,16 +551,25 @@ def main():
         auto_detect_format=auto_detect_format,
     )
 
+    closed = False
+
+    def _safe_close():
+        nonlocal closed
+        if closed:
+            return
+        closed = True
+        sink.close()
+
     def _on_shutdown():
         rospy.loginfo("[ros_audio_player] shutdown: closing audio player")
-        sink.close()
+        _safe_close()
 
     rospy.on_shutdown(_on_shutdown)
 
     try:
         rospy.spin()
     finally:
-        sink.close()
+        _safe_close()
 
 
 if __name__ == "__main__":

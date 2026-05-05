@@ -115,9 +115,14 @@ DUPLEX_MODE = os.getenv("DUPLEX_MODE", "half")
 # ENABLE_BARGE_IN: 是否启用本地能量检测打断（仅 full 模式生效）
 ENABLE_BARGE_IN = os.getenv("ENABLE_BARGE_IN", "True").lower() in ("1", "true", "yes")
 # BARGE_IN_THRESHOLD: RMS 能量阈值（16-bit PCM），超过此值视为语音
-BARGE_IN_THRESHOLD = int(os.getenv("BARGE_IN_THRESHOLD", "800"))
+BARGE_IN_THRESHOLD = int(os.getenv("BARGE_IN_THRESHOLD", "1000"))
 # BARGE_IN_MIN_DURATION_MS: 连续超过阈值的最小毫秒数，避免误触发
 BARGE_IN_MIN_DURATION_MS = int(os.getenv("BARGE_IN_MIN_DURATION_MS", "300"))
+# FULL_DUPLEX_INTERRUPT_ON_EVENT450: full 模式是否使用服务端 event=450 辅助打断（默认开启）
+FULL_DUPLEX_INTERRUPT_ON_EVENT450 = (
+    os.getenv("FULL_DUPLEX_INTERRUPT_ON_EVENT450", "True").lower()
+    in ("1", "true", "yes")
+)
 # ROS_AUDIO_CONTROL_TOPIC: 全双工时向此话题发送 stop 控制消息
 ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
 # ROS_AUDIO_FRAME_MS: 全双工时 ROS 音频按此毫秒小帧发布

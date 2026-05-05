@@ -234,7 +234,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--duplex-mode",
         choices=["half", "full"],
-        default=config.DUPLEX_MODE,
+        default="half",
         help="双工模式: half=半双工(默认), full=全双工(可打断)",
     )
     parser.add_argument(
