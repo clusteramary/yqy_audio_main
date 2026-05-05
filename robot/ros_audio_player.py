@@ -3,6 +3,8 @@
 
 import os
 import queue
+import math
+import struct
 import sys
 import threading
 import time
@@ -75,6 +77,17 @@ class AudioPlayer:
             return pyaudio.paFloat32
         rospy.logwarn("Unknown sample_format=%s, falling back to s16le", sample_format)
         return pyaudio.paInt16
+
+    def reconfigure_format(self, sample_format: str):
+        new_format = str(sample_format).lower()
+        if new_format == self.sample_format:
+            return
+        with self._lock:
+            self.sample_format = new_format
+            self._pa_format = self._resolve_format(self.sample_format)
+            self._clear_queue_locked()
+            self._hard_reset_stream_locked()
+        rospy.logwarn("[AudioPlayer] switched sample_format to %s", self.sample_format)
 
     def _open_stream_locked(self):
         if self._stream is not None:
@@ -256,6 +269,7 @@ class LocalAudioSink:
         sub_type="auto",
         max_queue_packets=200,
         status_topic="/audio_playing_status",
+        auto_detect_format=True,
     ):
         self.player = AudioPlayer(
             sample_rate=sample_rate,
@@ -268,6 +282,8 @@ class LocalAudioSink:
 
         self.sub_aud = None
         self.sub_bytes = None
+        self.auto_detect_format = bool(auto_detect_format)
+        self._format_detect_locked = False
         self.sub_control = rospy.Subscriber(
             control_topic,
             String,
@@ -317,12 +333,126 @@ class LocalAudioSink:
                     tcp_nodelay=True,
                 )
 
+    @staticmethod
+    def _probe_s16_stats(data: bytes):
+        n = min(len(data) // 2, 2048)
+        if n <= 0:
+            return None
+        try:
+            vals = struct.unpack("<{}h".format(n), data[: n * 2])
+        except Exception:
+            return None
+        if not vals:
+            return None
+        peak = max(abs(v) for v in vals)
+        rms = math.sqrt(sum(float(v) * float(v) for v in vals) / len(vals))
+        return {"rms": rms, "peak": peak}
+
+    @staticmethod
+    def _probe_f32_stats(data: bytes):
+        n = min(len(data) // 4, 2048)
+        if n <= 0:
+            return None
+        try:
+            vals = struct.unpack("<{}f".format(n), data[: n * 4])
+        except Exception:
+            return None
+        if not vals:
+            return None
+
+        finite = 0
+        in_unit = 0
+        sum_sq = 0.0
+        peak = 0.0
+        for v in vals:
+            if not math.isfinite(v):
+                continue
+            finite += 1
+            av = abs(v)
+            if av <= 1.2:
+                in_unit += 1
+            if av > peak:
+                peak = av
+            sum_sq += float(v) * float(v)
+
+        if finite == 0:
+            return None
+
+        return {
+            "finite_ratio": finite / len(vals),
+            "in_unit_ratio": in_unit / finite,
+            "rms": math.sqrt(sum_sq / finite),
+            "peak": peak,
+            "lsb_zero_ratio": data[: n * 4 : 4].count(0) / n,
+        }
+
+    def _guess_format(self, data: bytes):
+        if len(data) < 512:
+            return None
+
+        s16 = self._probe_s16_stats(data)
+        f32 = self._probe_f32_stats(data)
+
+        f32_strong = False
+        if f32:
+            f32_strong = (
+                f32["finite_ratio"] > 0.999
+                and f32["in_unit_ratio"] > 0.97
+                and 1e-4 < f32["rms"] < 0.9
+                and f32["peak"] < 1.5
+            )
+
+        s16_strong = False
+        if s16:
+            s16_strong = 200.0 < s16["rms"] < 12000.0 and 500 <= s16["peak"] <= 32767
+
+        if f32_strong and (
+            not s16_strong
+            or f32.get("lsb_zero_ratio", 0.0) > 0.25
+            or (s16 and s16["rms"] > 9000.0 and s16["peak"] > 14000)
+        ):
+            return "f32le"
+
+        f32_weak = (not f32) or (
+            f32["finite_ratio"] < 0.99
+            or f32["in_unit_ratio"] < 0.80
+            or f32["peak"] > 3.0
+        )
+        if s16_strong and f32_weak:
+            return "s16le"
+
+        return None
+
+    def _maybe_adjust_sample_format(self, payload: bytes):
+        if not self.auto_detect_format or self._format_detect_locked:
+            return
+
+        guessed = self._guess_format(payload)
+        if guessed is None:
+            return
+
+        self._format_detect_locked = True
+        if guessed != self.player.sample_format:
+            rospy.logwarn(
+                "[LocalAudioSink] auto-detected incoming format=%s, current=%s",
+                guessed,
+                self.player.sample_format,
+            )
+            self.player.reconfigure_format(guessed)
+        else:
+            rospy.loginfo(
+                "[LocalAudioSink] auto-detected incoming format=%s (already matched)",
+                guessed,
+            )
+
     def _handle_audio_bytes(self, data: bytes):
         frame = try_unpack_audio_frame(data)
         if frame is None:
+            self._maybe_adjust_sample_format(data)
             self.player.push(data)
             return
 
+        self._maybe_adjust_sample_format(frame.payload)
         self.player.push(frame.payload, utterance_id=frame.utterance_id)
 
     def _cb_audio(self, msg):
@@ -375,9 +505,10 @@ def main():
     dev = rospy.get_param("~device_index", None)
     status_topic = rospy.get_param("~status_topic", "/audio_playing_status")
     sub_type = rospy.get_param("~sub_type", "auto")
+    auto_detect_format = bool(rospy.get_param("~auto_detect_format", True))
 
     rospy.loginfo(
-        "LocalAudioSink: topic=%s, control=%s, rate=%d, ch=%d, fmt=%s, dev=%s, status=%s",
+        "LocalAudioSink: topic=%s, control=%s, rate=%d, ch=%d, fmt=%s, dev=%s, status=%s, auto_detect=%s",
         topic,
         control_topic,
         rate,
@@ -385,6 +516,7 @@ def main():
         fmt,
         str(dev),
         status_topic,
+        str(auto_detect_format),
     )
 
     sink = LocalAudioSink(
@@ -396,6 +528,7 @@ def main():
         device_index=dev,
         sub_type=sub_type,
         status_topic=status_topic,
+        auto_detect_format=auto_detect_format,
     )
 
     def _on_shutdown():
