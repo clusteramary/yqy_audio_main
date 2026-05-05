@@ -131,16 +131,47 @@ RAG_INJECT_EVENTS = [
 | -------------------------- | -------------- | --------------------------------- |
 | `DUPLEX_MODE`              | `half`         | 双工模式                          |
 | `ENABLE_BARGE_IN`          | `True`         | 启用本地能量检测打断               |
-| `BARGE_IN_THRESHOLD`       | `800`          | RMS 能量阈值（16-bit PCM）         |
+| `BARGE_IN_THRESHOLD`       | `1000`         | RMS 能量阈值（16-bit PCM）         |
 | `BARGE_IN_MIN_DURATION_MS` | `300`          | 连续超过阈值的最小毫秒数            |
+| `FULL_DUPLEX_INTERRUPT_ON_EVENT450` | `True` | 是否允许服务端 `event=450` 辅助打断 |
 | `ROS_AUDIO_CONTROL_TOPIC`  | `/audio/control` | 全双工时 stop 控制消息话题          |
 | `ROS_AUDIO_FRAME_MS`       | `20`           | 全双工时 ROS 音频小帧毫秒数         |
+
+### 4.7 ROS 扬声器发布参数（`output_audio_config`）
+
+| 参数 | 默认值 | 说明 |
+| ---- | ------ | ---- |
+| `mode` | `ros1` | 输出模式：`ros1` 发布到 ROS；`pyaudio` 本地扬声器播放 |
+| `ros1_topic` | `/audio` | 下行音频发布话题 |
+| `ros1_node_name` | `speaker_publisher` | 上位机发布节点名 |
+| `ros1_queue_size` | `10` | 发布队列大小，过小可能掉包，过大可能增延迟 |
+| `ros1_latch` | `False` | 音频流建议保持 `False`（避免新订阅者收到旧包） |
+| `sample_rate` | `24000` | 下行播放采样率（需与下位机一致） |
+| `channels` | `1` | 下行声道数（需与下位机一致） |
+| `bit_size` | `pyaudio.paInt16` | 本地扬声器模式位宽；ROS 模式下主要用于格式参考 |
+
+### 4.8 下位机 `ros_audio_player.py` 参数（ROS private params）
+
+| 参数 | 默认值 | 说明 |
+| ---- | ------ | ---- |
+| `~topic` | `/audio` | 接收上位机音频流的话题 |
+| `~control_topic` | `/audio/control` | 接收 stop 控制消息话题 |
+| `~sample_rate` | `24000` | 播放采样率 |
+| `~channels` | `1` | 播放声道 |
+| `~sample_format` | `s16le` | 初始播放格式（支持 `s16le`/`f32le`） |
+| `~auto_detect_format` | `True` | 自动探测输入格式并切换（建议开启） |
+| `~device_index` | `None` | 输出声卡索引，空为系统默认设备 |
+| `~sub_type` | `auto` | 订阅类型：`audio`(AudioData) / `bytes`(ByteMultiArray) / `auto` |
+| `~status_topic` | `/audio_playing_status` | 播放状态发布话题（`Bool`） |
 
 ## 5. 启动方式
 
 ### 5.1 命令行（推荐）
 
 ```bash
+# 直接启动（默认半双工）
+python main.py
+
 # 半双工（默认，机器人说话时麦克风静音）
 python main.py --duplex-mode half
 
@@ -177,7 +208,7 @@ python gui/gui_photo.py       # 拍照场景启动器
 在下位机机器人上运行：
 
 ```bash
-rosrun yqy_audio ros_audio_player.py _topic:=/audio _control_topic:=/audio/control _sample_format:=f32le
+rosrun yqy_audio ros_audio_player.py _topic:=/audio _control_topic:=/audio/control _auto_detect_format:=true
 ```
 
 ### 5.5 配套程序
