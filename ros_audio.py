@@ -64,13 +64,13 @@ class Ros1SpeakerStream:
                 topic, ByteMultiArray, queue_size=queue_size, latch=latched  # type: ignore[arg-type]
             )
 
-        if self.duplex_mode == "full":
-            self._control_pub = rospy.Publisher(  # type: ignore[attr-defined]
-                control_topic,
-                String,
-                queue_size=10,
-                latch=False,
-            )
+        # 控制通道始终可用：即使 half 模式，也允许在进程退出时发送 stop，清空下位机缓冲。
+        self._control_pub = rospy.Publisher(  # type: ignore[attr-defined]
+            control_topic,
+            String,
+            queue_size=10,
+            latch=False,
+        )
 
     def write(self, audio_bytes: bytes):
         if self._closed:
@@ -103,6 +103,8 @@ class Ros1SpeakerStream:
 
     def interrupt(self, utterance_id: int, reason: str = "barge_in"):
         if self._closed:
+            return
+        if self._control_pub is None:
             return
         stop_msg = build_stop_message(utterance_id, reason)
         self._control_pub.publish(String(data=stop_msg))

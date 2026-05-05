@@ -161,6 +161,13 @@ class DialogSession:
         self._last_play_ts = 0.0
         self._duplex_mode = duplex_mode
         self.block_mic_while_playing = (duplex_mode == "half")
+        config.output_audio_config["duplex_mode"] = duplex_mode
+        config.output_audio_config["ros1_control_topic"] = getattr(
+            config, "ROS_AUDIO_CONTROL_TOPIC", "/audio/control"
+        )
+        config.output_audio_config["ros1_audio_frame_ms"] = getattr(
+            config, "ROS_AUDIO_FRAME_MS", 20
+        )
 
         # ---------- 全双工 barge-in 跟踪 ----------
         self._bot_utterance_id = 0
@@ -265,6 +272,14 @@ class DialogSession:
 
         # ---------- 播放线程 ----------
         signal.signal(signal.SIGINT, self._keyboard_signal)
+        try:
+            signal.signal(signal.SIGTERM, self._keyboard_signal)
+        except Exception:
+            pass
+        try:
+            signal.signal(signal.SIGHUP, self._keyboard_signal)
+        except Exception:
+            pass
         self.audio_queue = queue.Queue()
         if not self.is_audio_file_input:
             self.audio_device = AudioDeviceManager(
@@ -429,7 +444,7 @@ class DialogSession:
             except queue.Empty:
                 break
 
-        if self._duplex_mode == "full" and self._is_ros_output():
+        if self._is_ros_output():
             try:
                 self.output_stream.interrupt(self._bot_utterance_id, reason)
             except Exception as e:
@@ -1013,6 +1028,10 @@ class DialogSession:
         except Exception as e:
             print(f"会话错误: {e}")
         finally:
+            try:
+                self.stop()
+            except Exception:
+                pass
             if not self.is_audio_file_input:
                 self.audio_device.cleanup()
 
