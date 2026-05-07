@@ -20,6 +20,7 @@ import config
 
 # AudioConfig 用于 AudioDeviceManager
 from audio_constants import (
+    ACTION_INDEX_BY_KEYWORD,
     ASR_KWS_PATTERNS,
     LLM_KWS_PATTERNS,
     TARGET_CHANNELS,
@@ -47,7 +48,7 @@ except AttributeError:
 # ---------- ROS 相关 ----------
 try:
     import rospy
-    from std_msgs.msg import Bool, ByteMultiArray
+    from std_msgs.msg import Bool, ByteMultiArray, Int32
 
     try:
         from audio_common_msgs.msg import AudioData as RosAudioData
@@ -61,6 +62,7 @@ except Exception:
     rospy = None
     Bool = None
     ByteMultiArray = None
+    Int32 = None
     RosAudioData = None
     _HAS_ROS1 = False
     _HAS_AUDIO_DATA_MSG = False
@@ -116,7 +118,7 @@ class DialogSession:
       - 管理和大模型的 WebSocket 会话
       - 管理音频的输入（现在走 ROS /audio/audio）和输出（PyAudio / ROS1 speaker）
       - 处理 ctrl.txt + SAUC 队列识别
-      - 处理 LLM / ASR 关键词，走 UDP 控制通道
+      - 处理 LLM / ASR 关键词，走 ROS 动作 index 话题
     """
 
     is_audio_file_input: bool
@@ -186,10 +188,10 @@ class DialogSession:
         self.remote_status_topic = "/audio_playing_status"
         self.remote_status_sub = None
 
-        # ---------- UDP 通道：语音关键词 & MIC 指令 ----------
-        self.voice_udp_host = "127.0.0.1"
-        self.voice_udp_port = 5557
-        self.voice_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # ---------- ROS 动作 index 话题 & UDP MIC 指令 ----------
+        self.action_index_topic = getattr(config, "ACTION_INDEX_TOPIC", "/action_index")
+        self.action_index_pub = None
+        self._init_action_index_publisher()
 
         self.mic_udp_host = "127.0.0.1"
         self.mic_udp_port = 5558
@@ -489,11 +491,6 @@ class DialogSession:
             pass
 
         try:
-            if hasattr(self, "voice_udp_socket"):
-                self.voice_udp_socket.close()
-        except Exception:
-            pass
-        try:
             if hasattr(self, "mic_udp_socket"):
                 self.mic_udp_socket.close()
         except Exception:
@@ -576,18 +573,52 @@ class DialogSession:
         ) * 1000.0 < grace_ms or not self.audio_queue.empty()
         return local_playing or self.remote_playing
 
-    def _emit_voice_keyword(self, keyword: str):
+    def _init_action_index_publisher(self):
+        if not _HAS_ROS1 or rospy is None or Int32 is None:
+            print("[KWS-ROS] 未检测到 ROS1，动作 index 话题不可用")
+            return
+
         try:
-            now = time.time()
-            msg = json.dumps(
-                {"type": "voice_keyword", "keyword": keyword, "timestamp": now}
+            if not rospy.core.is_initialized():
+                rospy.init_node(
+                    "action_index_publisher", anonymous=True, disable_signals=True
+                )
+            self.action_index_pub = rospy.Publisher(
+                self.action_index_topic,
+                Int32,
+                queue_size=10,
+                latch=False,
             )
-            self.voice_udp_socket.sendto(
-                msg.encode("utf-8"), (self.voice_udp_host, self.voice_udp_port)
-            )
-            print(f"[KWS] 发送语音关键词：{keyword}")
+            print(f"[KWS-ROS] 已准备发布动作 index 话题: {self.action_index_topic}")
         except Exception as e:
-            print(f"[KWS] 发送UDP失败: {e}")
+            self.action_index_pub = None
+            print(f"[KWS-ROS] 初始化动作 index 发布器失败: {e}")
+
+    def _emit_voice_keyword(self, keyword: str) -> bool:
+        index = ACTION_INDEX_BY_KEYWORD.get(keyword)
+        if index is None:
+            print(f"[KWS-ROS] 未映射关键词，跳过发布: {keyword}")
+            return False
+
+        pub = getattr(self, "action_index_pub", None)
+        if pub is None:
+            print(
+                f"[KWS-ROS] 动作 index 发布器不可用，无法发布: "
+                f"keyword={keyword}, index={index}"
+            )
+            return False
+
+        try:
+            msg = Int32(data=index) if Int32 is not None else index
+            pub.publish(msg)
+            print(
+                f"[KWS-ROS] 发布动作 index: "
+                f"keyword={keyword}, index={index}, topic={self.action_index_topic}"
+            )
+            return True
+        except Exception as e:
+            print(f"[KWS-ROS] 发布动作 index 失败: {e}")
+            return False
 
     def _maybe_emit_wave_from_asr(self, payload_msg: Dict[str, Any]):
         """
@@ -611,7 +642,7 @@ class DialogSession:
         for keyword, patterns in ASR_KWS_PATTERNS.items():
             if any(p in joined for p in patterns):
                 self._emit_voice_keyword(keyword)
-                print(f"[ASR-KWS] 检测到关键词 '{keyword}', 已发送 UDP 消息")
+                print(f"[ASR-KWS] 检测到关键词 '{keyword}', 已发布 ROS index")
                 break
 
     def handle_server_response(self, response: Dict[str, Any]) -> None:
@@ -680,7 +711,7 @@ class DialogSession:
 
                     if any(p in buf for p in patterns):
                         self._emit_voice_keyword(keyword)
-                        print(f"[LLM-KWS] 检测到关键词 '{keyword}', 已发送 UDP 消息")
+                        print(f"[LLM-KWS] 检测到关键词 '{keyword}', 已发布 ROS index")
                         self._llm_kws_fired.add(keyword)
 
                         # 如果是 end，可以选择清空缓冲，防止后续 content 再次触发

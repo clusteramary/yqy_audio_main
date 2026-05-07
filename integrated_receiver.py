@@ -6,6 +6,7 @@ import threading
 import time
 from typing import Optional
 
+from audio_constants import ACTION_INDEX_BY_KEYWORD
 from emotion_receiver import EmotionReceiver
 
 
@@ -54,29 +55,9 @@ class IntegratedReceiver:
 
     # 关键词到索引的映射
     def _keyword_to_index(self, kw: Optional[str]) -> Optional[int]:
-        if kw == "left":
-            return 4
-        if kw == "right":
-            return 5
-        if kw == "wave":
-            return 7
-        if kw == "nod":
-            return 8
-        if kw == "shake":
-            return 10  # 击掌指令
-        if kw == "start":
-            return 11
-        if kw == "end":
-            return 12
-        if kw == "woshou":
-            return 13
-        if kw == "good":
-            return 14
-        if kw == "photo1":
-            return 15
-        if kw == "photo2":
-            return 16
-        return None
+        if kw is None:
+            return None
+        return ACTION_INDEX_BY_KEYWORD.get(kw)
 
     def start(self):
         """启动接收线程（只绑定关键词端口 5557）"""

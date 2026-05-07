@@ -258,6 +258,22 @@ LLM_KWS_PATTERNS: Dict[str, List[str]] = {
     # "stop": ["停一下", "停止", "先到这里"],
 }
 
+# 语音关键词到动作 index 的映射。
+# 必须与旧 IntegratedReceiver._keyword_to_index() 保持一致，接收方按这些 index 执行动作。
+ACTION_INDEX_BY_KEYWORD: Dict[str, int] = {
+    "left": 4,
+    "right": 5,
+    "wave": 7,
+    "nod": 8,
+    "shake": 10,
+    "start": 11,
+    "end": 12,
+    "woshou": 13,
+    "good": 14,
+    "photo1": 15,
+    "photo2": 16,
+}
+
 
 @dataclass
 class AudioConfig:

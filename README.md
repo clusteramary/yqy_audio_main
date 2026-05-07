@@ -214,9 +214,10 @@ rosrun yqy_audio ros_audio_player.py _topic:=/audio _control_topic:=/audio/contr
 ### 5.5 配套程序
 
 ```bash
-python emotion.py       # 接受动作索引（UDP 5555）
+python emotion.py       # 接收表情索引（UDP 5555）
 python mic.py           # 接收麦克风收放指令（UDP 5558）
 python integrated_receiver.py  # 综合接收器（表情+麦克风）
+python ros_action_index_receiver.py  # ROS 动作 index 接收器
 python str_receiver.py  # 文本指令接收（UDP 8889）
 python keyListener.py   # 'p' 键监听
 ```
@@ -229,6 +230,7 @@ python keyListener.py   # 'p' 键监听
 | `/audio/control`         | 发布        | `std_msgs/String`        | 停止播放控制（JSON格式） |
 | `/audio/audio`           | 订阅        | `AudioData`              | 麦克风输入（来自 audio_capture） |
 | `/audio_playing_status`  | 订阅        | `std_msgs/Bool`          | 下位机播放状态反馈       |
+| `/action_index`          | 发布        | `std_msgs/Int32`         | 语音关键词动作 index     |
 | `/camera/color/image_raw`| 订阅        | `sensor_msgs/Image`      | 相机彩色图像             |
 
 ## 7. UDP 控制通道
@@ -236,9 +238,10 @@ python keyListener.py   # 'p' 键监听
 | 端口 | 方向 | 用途                         |
 | ---- | ---- | ---------------------------- |
 | 5555 | 发布 | 情绪/表情索引（emotion_receiver.py） |
-| 5557 | 发布 | 语音关键词触发（wave/nod/shake/start/end等） |
 | 5558 | 发布 | 麦克风收放指令（send_microphone/release_microphone） |
 | 8889 | 订阅 | 文本指令写入 ctrl.txt       |
+
+语音关键词动作不再通过 UDP 5557 发布，改为 ROS1 `/action_index` 话题发布 `std_msgs/Int32`。index 语义与旧 UDP 接收路径保持一致：`left=4`、`right=5`、`wave=7`、`nod=8`、`shake=10`、`start=11`、`end=12`、`woshou=13`、`good=14`、`photo1=15`、`photo2=16`。
 
 ## 8. 主要文件说明
 
@@ -259,6 +262,7 @@ python keyListener.py   # 'p' 键监听
 | `FacePromptDetector.py`    | 人脸检测 + 情绪推流（基于 DeepFace）             |
 | `emotion_receiver.py`      | UDP 5555 情绪数据接收                          |
 | `integrated_receiver.py`   | 综合 UDP 接收器（情绪 + 语音关键词）             |
+| `ros_action_index_receiver.py` | ROS `/action_index` 动作 index 接收器       |
 | `mic_receiver.py`          | UDP 5558 麦克风指令接收                        |
 | `str_receiver.py`          | UDP 8889 文本指令接收                          |
 | `gui/robot_launch.py`      | Tkinter 进程管理面板                           |
@@ -287,7 +291,7 @@ python keyListener.py   # 'p' 键监听
 5. **服务器响应**：
    - `SERVER_ACK`（bytes）：TTS 音频 → 入队播放
    - `event 553`（LLM开始）：重置关键词缓冲区
-   - `event 451`（ASR结果）：关键词检测 + 用户文本累积
+   - `event 451`（ASR结果）：关键词检测 + 发布 ROS 动作 index + 用户文本累积
    - `event 450`（用户插话）：触发打断
    - `event 459`（TTS结束）：写入对话日志
 6. **打断**（全双工）：

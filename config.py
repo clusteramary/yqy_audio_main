@@ -128,6 +128,9 @@ ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
 # ROS_AUDIO_FRAME_MS: 全双工时 ROS 音频按此毫秒小帧发布
 ROS_AUDIO_FRAME_MS = int(os.getenv("ROS_AUDIO_FRAME_MS", "20"))
 
+# ACTION_INDEX_TOPIC: 语音关键词触发动作时发布的 ROS1 index 话题
+ACTION_INDEX_TOPIC = os.getenv("ACTION_INDEX_TOPIC", "/action_index")
+
 # ============ 输入音频模式（麦克风来源） ============
 # "ros1"    -> 订阅 ROS /audio/audio 话题（需 audio_capture 节点运行）
 # "pyaudio" -> 直接用 PyAudio 打开本地麦克风
