@@ -115,7 +115,7 @@ DUPLEX_MODE = os.getenv("DUPLEX_MODE", "half")
 # ENABLE_BARGE_IN: 是否启用本地能量检测打断（仅 full 模式生效）
 ENABLE_BARGE_IN = os.getenv("ENABLE_BARGE_IN", "True").lower() in ("1", "true", "yes")
 # BARGE_IN_THRESHOLD: RMS 能量阈值（16-bit PCM），超过此值视为语音
-BARGE_IN_THRESHOLD = int(os.getenv("BARGE_IN_THRESHOLD", "1000"))
+BARGE_IN_THRESHOLD = int(os.getenv("BARGE_IN_THRESHOLD", "1500"))
 # BARGE_IN_MIN_DURATION_MS: 连续超过阈值的最小毫秒数，避免误触发
 BARGE_IN_MIN_DURATION_MS = int(os.getenv("BARGE_IN_MIN_DURATION_MS", "300"))
 # FULL_DUPLEX_INTERRUPT_ON_EVENT450: full 模式是否使用服务端 event=450 辅助打断（默认开启）
@@ -129,7 +129,7 @@ ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
 ROS_AUDIO_FRAME_MS = int(os.getenv("ROS_AUDIO_FRAME_MS", "20"))
 
 # HALF_DUPLEX_RESUME_DELAY_MS: 半双工播放结束后延迟恢复麦克风，避开扬声器尾音/混响
-HALF_DUPLEX_RESUME_DELAY_MS = int(os.getenv("HALF_DUPLEX_RESUME_DELAY_MS", "250"))
+HALF_DUPLEX_RESUME_DELAY_MS = int(os.getenv("HALF_DUPLEX_RESUME_DELAY_MS", "200"))
 
 # ACTION_INDEX_TOPIC: 语音关键词触发动作时发布的 ROS1 index 话题
 ACTION_INDEX_TOPIC = os.getenv("ACTION_INDEX_TOPIC", "/action_index")
