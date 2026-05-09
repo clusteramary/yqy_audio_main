@@ -133,6 +133,7 @@ RAG_INJECT_EVENTS = [
 | `ENABLE_BARGE_IN`          | `True`         | 启用本地能量检测打断               |
 | `BARGE_IN_THRESHOLD`       | `1000`         | RMS 能量阈值（16-bit PCM）         |
 | `BARGE_IN_MIN_DURATION_MS` | `300`          | 连续超过阈值的最小毫秒数            |
+| `HALF_DUPLEX_RESUME_DELAY_MS` | `250`       | 半双工播放结束后延迟恢复麦克风，避开尾音 |
 | `FULL_DUPLEX_INTERRUPT_ON_EVENT450` | `True` | 是否允许服务端 `event=450` 辅助打断 |
 | `ROS_AUDIO_CONTROL_TOPIC`  | `/audio/control` | 全双工时 stop 控制消息话题          |
 | `ROS_AUDIO_FRAME_MS`       | `20`           | 全双工时 ROS 音频小帧毫秒数         |

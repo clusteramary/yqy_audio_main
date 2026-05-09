@@ -180,6 +180,11 @@ class DialogSession:
 
         self._last_silence_ts = 0.0
         self._silence_interval_sec = 0.20
+        self._half_duplex_mic_paused = False
+        self._half_duplex_resume_after = 0.0
+        self._half_duplex_resume_delay_sec = (
+            getattr(config, "HALF_DUPLEX_RESUME_DELAY_MS", 250) / 1000.0
+        )
 
         self.external_stop_event: Optional[asyncio.Event] = None
 
@@ -237,12 +242,11 @@ class DialogSession:
         input_cfg = config.get_input_audio_config()
 
         if not self.is_audio_file_input:
-            if input_mode == "ros1" and _HAS_ROS1:
+            if _HAS_ROS1:
                 if not rospy.core.is_initialized():
                     rospy.init_node(
                         "audio_manager_client", anonymous=True, disable_signals=True
                     )
-                # 播放状态订阅（和原来一样）
                 self.remote_status_sub = rospy.Subscriber(
                     self.remote_status_topic,
                     Bool,
@@ -251,6 +255,7 @@ class DialogSession:
                 )
                 print(f"已订阅下位机播放状态话题: {self.remote_status_topic}")
 
+            if input_mode == "ros1" and _HAS_ROS1:
                 # === 订阅麦克风音频（别人已经用 audio_capture 打开设备并发布到 /audio/audio） ===
                 if _HAS_AUDIO_DATA_MSG and RosAudioData is not None:
                     self.ros_audio_queue = queue.Queue(maxsize=50)
@@ -375,6 +380,73 @@ class DialogSession:
     def _is_ros_output(self) -> bool:
         return hasattr(self, "output_stream") and hasattr(self.output_stream, "interrupt")
 
+    def _drain_ros_audio_queue(self) -> int:
+        q = self.ros_audio_queue
+        if q is None:
+            return 0
+        count = 0
+        while True:
+            try:
+                q.get_nowait()
+                count += 1
+            except queue.Empty:
+                break
+        return count
+
+    def _set_input_stream_active(self, active: bool) -> None:
+        stream = getattr(self, "input_stream", None)
+        if stream is None:
+            return
+        try:
+            is_active = stream.is_active() if hasattr(stream, "is_active") else active
+            if active and not is_active:
+                stream.start_stream()
+            elif not active and is_active:
+                stream.stop_stream()
+        except Exception as e:
+            action = "启动" if active else "暂停"
+            print(f"[Half-Duplex] {action}本地麦克风输入流失败: {e}")
+
+    def _pause_half_duplex_mic(self, reason: str) -> None:
+        if not self.block_mic_while_playing:
+            return
+        self._half_duplex_resume_after = (
+            time.time() + self._half_duplex_resume_delay_sec
+        )
+        self._drain_ros_audio_queue()
+        if self._half_duplex_mic_paused:
+            return
+        self._half_duplex_mic_paused = True
+        self._set_input_stream_active(False)
+        # 当前接收端约定：send_microphone -> 收话筒/关闭拾音，release_microphone -> 递话筒/恢复拾音。
+        self.send_mic_command("send_microphone", cooldown_sec=0.0)
+        print(f"[Half-Duplex] 暂停麦克风输入: {reason}")
+
+    def _resume_half_duplex_mic(self, reason: str) -> None:
+        if not self.block_mic_while_playing or not self._half_duplex_mic_paused:
+            return
+        self._drain_ros_audio_queue()
+        self._set_input_stream_active(True)
+        self._half_duplex_mic_paused = False
+        self.send_mic_command("release_microphone", cooldown_sec=0.0)
+        print(f"[Half-Duplex] 恢复麦克风输入: {reason}")
+
+    def _hold_half_duplex_mic_if_needed(self) -> bool:
+        if not self.block_mic_while_playing:
+            return False
+
+        if self._is_tts_playing():
+            self._pause_half_duplex_mic("tts_playing")
+            return True
+
+        if self._half_duplex_mic_paused:
+            if time.time() < self._half_duplex_resume_after:
+                self._drain_ros_audio_queue()
+                return True
+            self._resume_half_duplex_mic("tts_finished")
+
+        return False
+
     def _ros_frame_size(self) -> int:
         out_cfg = config.output_audio_config
         ms = getattr(config, "ROS_AUDIO_FRAME_MS", 20)
@@ -491,6 +563,11 @@ class DialogSession:
             pass
 
         try:
+            self._resume_half_duplex_mic("session_stop")
+        except Exception:
+            pass
+
+        try:
             if hasattr(self, "mic_udp_socket"):
                 self.mic_udp_socket.close()
         except Exception:
@@ -500,6 +577,11 @@ class DialogSession:
         try:
             if hasattr(self, "ros_audio_sub") and self.ros_audio_sub:
                 self.ros_audio_sub.unregister()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "remote_status_sub") and self.remote_status_sub:
+                self.remote_status_sub.unregister()
         except Exception:
             pass
 
@@ -547,7 +629,6 @@ class DialogSession:
                     else:
                         self.output_stream.write(audio_data)
                     self._last_play_ts = time.time()
-                    self.send_mic_command("send_microphone")
             except queue.Empty:
                 time.sleep(0.1)
             except Exception as e:
@@ -923,8 +1004,17 @@ class DialogSession:
           - "ros1": 从 ROS 话题 /audio/audio 读取
           - "pyaudio": 从本地 PyAudio 输入流读取
         """
+        if self.block_mic_while_playing:
+            self._pause_half_duplex_mic("say_hello")
         await self.client.say_hello()
         await self.say_hello_over_event.wait()
+        if self.block_mic_while_playing and self._half_duplex_mic_paused:
+            self._half_duplex_resume_after = (
+                time.time() + self._half_duplex_resume_delay_sec
+            )
+        while self._hold_half_duplex_mic_if_needed():
+            await self._send_silence_if_due()
+            await asyncio.sleep(0.02)
         await self.client.chat_text_query(self.start_prompt)
 
         input_cfg = config.get_input_audio_config()
@@ -961,6 +1051,11 @@ class DialogSession:
                     self.stop()
                     break
 
+                if self._hold_half_duplex_mic_if_needed():
+                    await self._send_silence_if_due()
+                    await asyncio.sleep(0.02)
+                    continue
+
                 if self.ros_audio_queue is None:
                     await asyncio.sleep(0.01)
                     continue
@@ -982,15 +1077,9 @@ class DialogSession:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
                     offset += frame_bytes
 
-                    if self.block_mic_while_playing and self._is_tts_playing():
-                        await self._send_silence_if_due()
-                    else:
-                        if self._duplex_mode == "full":
-                            self._check_barge_in(chunk16k)
-                        await self.client.task_request(chunk16k)
-
-                # 处理完一批 ROS 音频块后 → 收话筒（独立 MIC 通道）
-                self.send_mic_command("release_microphone")
+                    if self._duplex_mode == "full":
+                        self._check_barge_in(chunk16k)
+                    await self.client.task_request(chunk16k)
 
                 await asyncio.sleep(0.005)
             except Exception as e:
@@ -1021,6 +1110,11 @@ class DialogSession:
                     self.stop()
                     break
 
+                if self._hold_half_duplex_mic_if_needed():
+                    await self._send_silence_if_due()
+                    await asyncio.sleep(0.02)
+                    continue
+
                 # 非阻塞读取 PyAudio 流（通过 executor 避免阻塞事件循环）
                 audio_data = await _to_thread(
                     stream.read, chunk_size, False  # exception_on_overflow=False
@@ -1037,12 +1131,9 @@ class DialogSession:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
                     offset += frame_bytes
 
-                    if self.block_mic_while_playing and self._is_tts_playing():
-                        await self._send_silence_if_due()
-                    else:
-                        if self._duplex_mode == "full":
-                            self._check_barge_in(chunk16k)
-                        await self.client.task_request(chunk16k)
+                    if self._duplex_mode == "full":
+                        self._check_barge_in(chunk16k)
+                    await self.client.task_request(chunk16k)
 
                 await asyncio.sleep(0.005)
             except Exception as e:
