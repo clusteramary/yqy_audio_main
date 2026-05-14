@@ -7,6 +7,7 @@ import time
 import config
 from config import (
     BOT_ROLE,
+    DAOYI_CONTEXT_REFRESH_ITEMS,
     EXTRA_PROMPT,
     OPENING_LINE,
     RAG_INJECT_EVENTS,
@@ -103,6 +104,34 @@ async def inject_rag_knowledge(
         )
     except Exception as e:
         print(f"[RAG-INJECT] 注入 RAG 知识失败: {e}")
+
+
+async def refresh_daoyi_context(
+    session: DialogSession,
+    interval_sec: float,
+    stop_event: asyncio.Event,
+):
+    """周期性用 ConversationCreate 静默刷新导医路线上下文。"""
+    while not stop_event.is_set():
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval_sec)
+            return
+        except asyncio.TimeoutError:
+            pass
+
+        while not stop_event.is_set() and session.is_running:
+            if not session.is_user_querying and not session._is_tts_playing():
+                break
+            await asyncio.sleep(0.3)
+
+        if stop_event.is_set() or not session.is_running:
+            return
+
+        try:
+            await session.client.conversation_create(DAOYI_CONTEXT_REFRESH_ITEMS)
+            print("[CONTEXT-REFRESH] 已刷新导医路线/分诊上下文")
+        except Exception as e:
+            print(f"[CONTEXT-REFRESH] 刷新导医上下文失败: {e}")
 
 
 # =========================
@@ -206,6 +235,15 @@ async def run_once():
         )
         for delay, topics in RAG_INJECT_EVENTS
     ]
+    context_refresh_task = None
+    if getattr(config, "ENABLE_DAOYI_CONTEXT_REFRESH", False):
+        context_refresh_task = asyncio.create_task(
+            refresh_daoyi_context(
+                session,
+                float(getattr(config, "CONTEXT_REFRESH_INTERVAL_SEC", 600.0)),
+                stop_event,
+            )
+        )
 
     try:
         while not stop_event.is_set():
@@ -222,7 +260,11 @@ async def run_once():
         except Exception:
             pass
 
-        for t in (watchdog_task, dialog_task, *rag_inject_tasks):
+        tasks_to_cancel = [watchdog_task, dialog_task, *rag_inject_tasks]
+        if context_refresh_task:
+            tasks_to_cancel.append(context_refresh_task)
+
+        for t in tasks_to_cancel:
             if not t.done():
                 t.cancel()
                 try:

@@ -67,6 +67,20 @@ DAOYI_TRIAGE_CORE = """
 挂号缴费去一楼挂号收费室或自助服务区；未带校园卡可尝试身份证或电子医保码。退号退费通常去挂号室或指定门诊窗口；未完成检查项目退费要先打印单据找医生签字。医保/报销/转诊先问是否有转诊单、是否急诊外出、发票和费用明细是否带齐，主任签字后去三楼公费医疗办或医保相关窗口。导医台可提供轮椅、平车、体温计、血压测量、纸杯、口罩、饮水机和充电插座指引。
 """.strip()
 
+DAOYI_CONTEXT_REFRESH_ITEMS = [
+    {
+        "role": "user",
+        "text": (
+            "后台路线知识刷新：以下内容只用于校医院导医问路和分诊，"
+            "不要主动播报，不要告诉患者这是后台刷新。"
+        ),
+    },
+    {
+        "role": "assistant",
+        "text": DAOYI_ROUTE_CORE + "\n\n" + DAOYI_TRIAGE_CORE,
+    },
+]
+
 
 # ============ 会话启动参数（下行 TTS 配置） ============
 # 说明：这里声明了服务端 TTS 的输出格式，当前为 24k / pcm / 单声道
@@ -93,16 +107,7 @@ start_session_req = {
         # "system_role": "你使用活泼灵动的女声，性格开朗，热爱生活。",
         # "speaking_style": "你的说话风格简洁明了，语速适中，语调自然。",
         "location": {"city": "武汉"},
-        "dialog_context": [
-            {
-                "role": "user",
-                "text": "请记住校医院导医台路线和分诊知识，后续患者问路或分诊时只能按这些知识回答。",
-            },
-            {
-                "role": "assistant",
-                "text": DAOYI_ROUTE_CORE + "\n\n" + DAOYI_TRIAGE_CORE,
-            },
-        ],
+        "dialog_context": DAOYI_CONTEXT_REFRESH_ITEMS,
         "extra": {
             "strict_audit": False,
             "audit_response": "That's great!",
@@ -344,6 +349,12 @@ RAG_KNOWLEDGE_BASE: dict = {
 MAX_CHAT_RAG_TEXT_CHARS = 3800
 RAG_INJECT_EVENTS: list = [
 ]
+
+# --- 服务端上下文刷新配置 ---
+# ConversationCreate(event 510) 是上下文管理事件，可静默追加 QA 对。
+# 长对话时定期把路线知识重新放到最近上下文，避免服务端只保留最近 20 轮 QA 后遗忘路线。
+CONTEXT_REFRESH_INTERVAL_SEC = 600.0
+ENABLE_DAOYI_CONTEXT_REFRESH = True
 
 
 """

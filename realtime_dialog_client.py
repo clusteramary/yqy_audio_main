@@ -165,6 +165,22 @@ class RealtimeDialogClient:
         chat_rag_text_request.extend(payload_bytes)
         await self.ws.send(chat_rag_text_request)
 
+    async def conversation_create(self, items: list[dict]) -> None:
+        """发送 ConversationCreate 消息（event 510）：静默追加上下文 QA 对"""
+        payload = {
+            "items": items,
+        }
+        payload_bytes = str.encode(json.dumps(payload, ensure_ascii=False))
+        payload_bytes = gzip.compress(payload_bytes)
+
+        conversation_create_request = bytearray(protocol.generate_header())
+        conversation_create_request.extend(int(510).to_bytes(4, "big"))
+        conversation_create_request.extend((len(self.session_id)).to_bytes(4, "big"))
+        conversation_create_request.extend(str.encode(self.session_id))
+        conversation_create_request.extend((len(payload_bytes)).to_bytes(4, "big"))
+        conversation_create_request.extend(payload_bytes)
+        await self.ws.send(conversation_create_request)
+
     async def task_request(self, audio: bytes) -> None:
         task_request = bytearray(
             protocol.generate_header(
