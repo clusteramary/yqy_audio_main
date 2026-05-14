@@ -46,12 +46,23 @@ def build_start_prompt() -> str:
 # =========================
 
 def _build_rag_payload(topics: list) -> str:
-    """根据主题列表构建文档推荐的 JSON 数组格式 RAG payload"""
+    """根据主题列表构建 ChatRAGText 需要的 JSON 数组字符串。
+
+    火山引擎文档要求 external_rag 整体长度不超过 4K 字符；这里按配置留余量。
+    """
+    max_chars = int(getattr(config, "MAX_CHAT_RAG_TEXT_CHARS", 3800))
     rag_items = []
     for topic in topics:
         entry = RAG_KNOWLEDGE_BASE.get(topic)
         if entry:
-            rag_items.append({"title": entry["title"], "content": entry["content"]})
+            item = {"title": entry["title"], "content": entry["content"]}
+            candidate = json.dumps([*rag_items, item], ensure_ascii=False)
+            if len(candidate) <= max_chars:
+                rag_items.append(item)
+            else:
+                print(
+                    f"[RAG-INJECT] 跳过主题 {topic}，避免 external_rag 超过 {max_chars} 字"
+                )
     return json.dumps(rag_items, ensure_ascii=False)
 
 
@@ -61,7 +72,10 @@ async def inject_rag_knowledge(
     delay_sec: float,
     stop_event: asyncio.Event,
 ):
-    """延迟指定秒数后，等模型空闲再通过 ChatRAGText 注入 RAG 知识"""
+    """延迟指定秒数后，通过 ChatRAGText 触发外部 RAG 总结输出。
+
+    注意：ChatRAGText 不是静默记忆注入，启用定时任务会让模型生成语音回复。
+    """
     try:
         await asyncio.wait_for(stop_event.wait(), timeout=delay_sec)
         return  # 会话提前结束，跳过注入
@@ -78,6 +92,9 @@ async def inject_rag_knowledge(
         return
 
     rag_payload = _build_rag_payload(topics)
+    if not rag_payload or rag_payload == "[]":
+        print(f"[RAG-INJECT] 没有可注入的 RAG 内容，主题: {topics}")
+        return
     try:
         await session.client.chat_rag_text(rag_payload)
         print(
