@@ -104,16 +104,29 @@ start_session_req = {
 | `OPENING_LINE` | 开场白（可选，留空不强制）                     |
 | `EXTRA_PROMPT` | 场景化指令 / 对白剧本 / 节奏规则等             |
 
-### 4.4 RAG 知识库
+### 4.4 视觉迎宾配置
+
+机器人通过相机持续检测人脸，当有人稳定站在面前约 1 秒后自动播报迎宾话术。
 
 ```python
-RAG_KNOWLEDGE_BASE = {
-    "主题名": {"title": "...", "content": "..."},
-}
-RAG_INJECT_EVENTS = [
-    (延迟秒数, ["主题1", "主题2"]),  # 定时注入
-]
+VISUAL_GREETING_INTERVAL_SEC = 0.25       # 检测间隔
+VISUAL_GREETING_REQUIRED_CONSECUTIVE = 4   # 连续帧数（4 × 0.25s ≈ 1s）
+VISUAL_GREETING_IOU_THRESHOLD = 0.6        # 人脸框 IoU 阈值
+VISUAL_GREETING_TEXT = "您好我是导医小助手，需要帮忙吗。"
 ```
+
+**视觉图片来源**：`CameraAdapter(kind="ros1")` 订阅 ROS1 话题 `/camera/color/image_raw`（`sensor_msgs/Image`），回调中缓存最新帧，供 `FacePromptDetector` 按 `read_latest_frame()` 随时取用。不是从本地图片文件读取。
+
+**检测逻辑**（`FacePromptDetector.wait_for_stable_face`）：
+- 每 0.25s 用 `DeepFace.extract_faces` 取一帧做人脸检测
+- 维护一个"候选池"，池中每张脸有独立的连续命中计数
+- 每帧用 IoU 贪心匹配：匹配到 → 计数 +1；未匹配 → 新脸入池 / 旧候选衰减
+- **只要池中任何一张脸**连续命中 4 帧即触发迎宾
+- 旁边有人走动不影响，只要有一张脸持续存在就会触发
+
+**触发后行为**：通过 `ChatRAGText(event 502)` 发送迎宾 payload → 等待 TTS 播完 → 放开麦克风进入正常对话。每轮 `run_once` 只触发一次。
+
+**上下文承载**：导医角色、路线、分诊规则通过 `StartSession` 的 `dialog_context` 和 600 秒一次的 `ConversationCreate(event 510)` 静默刷新，不走 502 主动播报。
 
 ### 4.5 音频输入/输出模式
 
@@ -248,8 +261,8 @@ python keyListener.py   # 'p' 键监听
 
 | 文件                       | 说明                                          |
 | -------------------------- | --------------------------------------------- |
-| `main.py`                  | 主入口：人脸检测 → 对话循环 → 自恢复           |
-| `config.py`                | 全部配置（API、音频、Prompt、RAG、双工）        |
+| `main.py`                  | 主入口：相机启动 → 视觉迎宾 → 对话循环 → 自恢复 |
+| `config.py`                | 全部配置（API、音频、Prompt、视觉迎宾、双工）   |
 | `dialog_session.py`        | 核心会话管理：WS通信、音频输入输出、打断逻辑     |
 | `realtime_dialog_client.py`| 火山引擎 WebSocket 客户端封装                   |
 | `protocol.py`              | 二进制协议：header 生成 / response 解析         |
@@ -260,7 +273,7 @@ python keyListener.py   # 'p' 键监听
 | `audio_utils.py`           | PCM/WAV 文件保存工具                           |
 | `audio_manager.py`         | `DialogSession` 线程封装，外部调用入口           |
 | `CameraAdapter.py`         | 统一相机接口（RealSense/OpenCV/ROS1/ROS2）      |
-| `FacePromptDetector.py`    | 人脸检测 + 情绪推流（基于 DeepFace）             |
+| `FacePromptDetector.py`    | 人脸检测（稳定脸候选池）+ 情绪推流（基于 DeepFace）|
 | `emotion_receiver.py`      | UDP 5555 情绪数据接收                          |
 | `integrated_receiver.py`   | 综合 UDP 接收器（情绪 + 语音关键词）             |
 | `ros_action_index_receiver.py` | ROS `/action_index` 动作 index 接收器       |
@@ -285,10 +298,13 @@ python keyListener.py   # 'p' 键监听
 
 ## 10. 对话流程
 
-1. **建立连接**：WS 连接火山引擎 → StartConnection → StartSession
-2. **开场**：say_hello（发送"您好，我是导医助手小科"）→ TTS 播放 → event 359 → 等待完成
-3. **Prompt 注入**：发送 `chat_text_query(start_prompt)`
-4. **麦克风循环**：持续采集音频 → 20ms 帧 → 发送 `task_request`
+1. **启动相机**：`CameraAdapter(kind="ros1")` 订阅 `/camera/color/image_raw`，缓存最新帧
+2. **建立连接**：WS 连接火山引擎 → StartConnection → StartSession（携带 `dialog_context` 静默上下文）
+3. **视觉迎宾**：
+   - `FacePromptDetector.wait_for_stable_face()` 持续检测人脸候选池
+   - 有人稳定站立约 1 秒后 → 通过 `ChatRAGText(event 502)` 发送迎宾 payload
+   - 服务端生成 TTS → 播放迎宾话术 → 等待 TTS 播完
+4. **麦克风循环**：放开麦克风 → 持续采集音频 → 20ms 帧 → 发送 `task_request`
 5. **服务器响应**：
    - `SERVER_ACK`（bytes）：TTS 音频 → 入队播放
    - `event 553`（LLM开始）：重置关键词缓冲区

@@ -125,6 +125,111 @@ class FacePromptDetector:
         with self._ts_lock:
             self._last_face_ts = None
     # <<< 新增结束
+
+    # ---------------- 稳定人脸检测（支持多人脸） ----------------
+    @staticmethod
+    def _compute_iou(box1, box2):
+        """计算两个 (x, y, w, h) 矩形的 IoU。"""
+        x1, y1, w1, h1 = box1
+        x2, y2, w2, h2 = box2
+        ax1, ay1, ax2, ay2 = x1, y1, x1 + w1, y1 + h1
+        bx1, by1, bx2, by2 = x2, y2, x2 + w2, y2 + h2
+        ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+        ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+        iw, ih = max(0, ix2 - ix1), max(0, iy2 - iy1)
+        inter = iw * ih
+        union = w1 * h1 + w2 * h2 - inter
+        if union <= 0:
+            return 0.0
+        return inter / union
+
+    def wait_for_stable_face(
+        self,
+        interval_sec: float = 0.25,
+        required_consecutive: int = 4,
+        iou_threshold: float = 0.6,
+        stop_event: Optional[threading.Event] = None,
+    ) -> bool:
+        """
+        阻塞等待"稳定人脸"出现。
+
+        逻辑：跟踪一个"候选池"，池中的每张脸都有各自的连续命中计数。
+        每帧用 IoU 把当前检测到的脸匹配到池中已有的候选：
+          - 匹配到 → 该候选计数 +1，位置更新
+          - 池中未匹配到 → 该候选计数 -1（衰减）
+          - 当前帧中新出现的脸 → 加入池，计数 = 1
+        只要池中有任何候选的计数 >= required_consecutive 就返回 True。
+        """
+        # candidates: list of (box, count)
+        candidates: list = []
+
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                return False
+
+            time.sleep(interval_sec)
+
+            frame = self.camera.read_latest_frame()
+            if frame is None:
+                candidates.clear()
+                continue
+
+            try:
+                faces = DeepFace.extract_faces(
+                    img_path=frame,
+                    detector_backend=self.detector_backend,
+                    enforce_detection=False,
+                )
+            except Exception:
+                candidates.clear()
+                continue
+
+            curr_boxes = []
+            for f in faces:
+                region = f.get("facial_area", {})
+                conf = f.get("confidence", 0)
+                if conf >= 0.5 and region.get("w", 0) > 0 and region.get("h", 0) > 0:
+                    curr_boxes.append((region["x"], region["y"], region["w"], region["h"]))
+
+            if not curr_boxes:
+                # 没有人脸，所有候选衰减
+                candidates = [(b, c - 1) for b, c in candidates if c > 1]
+                continue
+
+            self._mark_face_seen()
+
+            # 贪心匹配：当前帧每个框找候选池中 IoU 最大的
+            matched_cand = set()
+            new_candidates = []
+
+            for cb in curr_boxes:
+                best_iou = 0.0
+                best_idx = -1
+                for i, (pb, _) in enumerate(candidates):
+                    if i in matched_cand:
+                        continue
+                    iou = self._compute_iou(pb, cb)
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_idx = i
+                if best_idx >= 0 and best_iou >= iou_threshold:
+                    matched_cand.add(best_idx)
+                    _, cnt = candidates[best_idx]
+                    new_candidates.append((cb, cnt + 1))
+                else:
+                    new_candidates.append((cb, 1))
+
+            # 未匹配到的旧候选衰减
+            for i, (pb, cnt) in enumerate(candidates):
+                if i not in matched_cand and cnt > 1:
+                    new_candidates.append((pb, cnt - 1))
+
+            candidates = new_candidates
+
+            # 检查是否有候选达到阈值
+            for _, cnt in candidates:
+                if cnt >= required_consecutive:
+                    return True
     
     
     # ---------------- 分析线程（一次性，生成 prompt） ----------------

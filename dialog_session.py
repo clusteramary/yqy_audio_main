@@ -132,6 +132,9 @@ class DialogSession:
         output_audio_format: str = "pcm",
         audio_file_path: str = "",
         duplex_mode: str = "half",
+        skip_hello: bool = False,
+        skip_start_prompt: bool = False,
+        mic_start_event: Optional[asyncio.Event] = None,
     ):
         self.start_prompt = start_prompt
         self.audio_file_path = audio_file_path
@@ -189,6 +192,10 @@ class DialogSession:
         )
 
         self.external_stop_event: Optional[asyncio.Event] = None
+
+        self.skip_hello = skip_hello
+        self.skip_start_prompt = skip_start_prompt
+        self.mic_start_event = mic_start_event
 
         # ---------- 下位机播放状态 ----------
         self.remote_playing = False
@@ -1006,18 +1013,32 @@ class DialogSession:
           - "ros1": 从 ROS 话题 /audio/audio 读取
           - "pyaudio": 从本地 PyAudio 输入流读取
         """
-        if self.block_mic_while_playing:
-            self._pause_half_duplex_mic("say_hello")
-        await self.client.say_hello()
-        await self.say_hello_over_event.wait()
-        if self.block_mic_while_playing and self._half_duplex_mic_paused:
-            self._half_duplex_resume_after = (
-                time.time() + self._half_duplex_resume_delay_sec
-            )
-        while self._hold_half_duplex_mic_if_needed():
-            await self._send_silence_if_due()
-            await asyncio.sleep(0.02)
-        await self.client.chat_text_query(self.start_prompt)
+        # 等待外部信号（视觉迎宾完成后才放行麦克风）
+        if self.mic_start_event is not None:
+            print("[MIC] 等待视觉迎宾信号...")
+            await self.mic_start_event.wait()
+            print("[MIC] 收到视觉迎宾信号，开始麦克风输入")
+            # 排空等待期间累积的旧音频
+            if self.ros_audio_queue is not None:
+                drained = self._drain_ros_audio_queue()
+                if drained > 0:
+                    print(f"[MIC] 已排空 {drained} 段等待期间的旧音频")
+
+        if not self.skip_hello:
+            if self.block_mic_while_playing:
+                self._pause_half_duplex_mic("say_hello")
+            await self.client.say_hello()
+            await self.say_hello_over_event.wait()
+            if self.block_mic_while_playing and self._half_duplex_mic_paused:
+                self._half_duplex_resume_after = (
+                    time.time() + self._half_duplex_resume_delay_sec
+                )
+            while self._hold_half_duplex_mic_if_needed():
+                await self._send_silence_if_due()
+                await asyncio.sleep(0.02)
+
+        if not self.skip_start_prompt:
+            await self.client.chat_text_query(self.start_prompt)
 
         input_cfg = config.get_input_audio_config()
         in_rate = input_cfg["sample_rate"]

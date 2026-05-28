@@ -2,17 +2,11 @@
 import argparse
 import asyncio
 import json
+import threading
 import time
 
 import config
-from config import (
-    BOT_ROLE,
-    DAOYI_CONTEXT_REFRESH_ITEMS,
-    EXTRA_PROMPT,
-    OPENING_LINE,
-    RAG_INJECT_EVENTS,
-    RAG_KNOWLEDGE_BASE,
-)
+from config import DAOYI_CONTEXT_REFRESH_ITEMS
 from audio_manager import DialogSession
 from CameraAdapter import CameraAdapter
 from FacePromptDetector import FacePromptDetector
@@ -20,7 +14,6 @@ from FacePromptDetector import FacePromptDetector
 # ABSENT_SECONDS = 30.0      # 对话进行时，连续多久没看到人脸就重启
 ABSENT_SECONDS = 100000.0    # 对话进行时，连续多久没看到人脸就重启
 EMOTION_INTERVAL = 5         # 情绪线程检测频率（越小越灵敏，代价是算力更高）
-INITIAL_DETECT_TIMEOUT = 1.0 # 首次做人脸特征引导的超时时间
 
 
 def build_start_prompt() -> str:
@@ -28,83 +21,100 @@ def build_start_prompt() -> str:
     parts = []
 
     # 角色定位
-    if BOT_ROLE:
-        parts.append(BOT_ROLE)
+    if config.BOT_ROLE:
+        parts.append(config.BOT_ROLE)
 
     # 开场白
-    if OPENING_LINE:
-        parts.append(f"【开场（必须执行一次）】\n你必须先说：\"{OPENING_LINE}\"")
+    if config.OPENING_LINE:
+        parts.append(f"【开场（必须执行一次）】\n你必须先说：\"{config.OPENING_LINE}\"")
 
     # 补充区块
-    if EXTRA_PROMPT:
-        parts.append(EXTRA_PROMPT)
+    if config.EXTRA_PROMPT:
+        parts.append(config.EXTRA_PROMPT)
 
     return "\n\n".join(parts)
 
 
 # =========================
-# RAG 注入
+# 视觉迎宾
 # =========================
 
-def _build_rag_payload(topics: list) -> str:
-    """根据主题列表构建 ChatRAGText 需要的 JSON 数组字符串。
-
-    火山引擎文档要求 external_rag 整体长度不超过 4K 字符；这里按配置留余量。
-    """
-    max_chars = int(getattr(config, "MAX_CHAT_RAG_TEXT_CHARS", 3800))
-    rag_items = []
-    for topic in topics:
-        entry = RAG_KNOWLEDGE_BASE.get(topic)
-        if entry:
-            item = {"title": entry["title"], "content": entry["content"]}
-            candidate = json.dumps([*rag_items, item], ensure_ascii=False)
-            if len(candidate) <= max_chars:
-                rag_items.append(item)
-            else:
-                print(
-                    f"[RAG-INJECT] 跳过主题 {topic}，避免 external_rag 超过 {max_chars} 字"
-                )
-    return json.dumps(rag_items, ensure_ascii=False)
-
-
-async def inject_rag_knowledge(
+async def visual_greeting(
+    detector: FacePromptDetector,
     session: DialogSession,
-    topics: list,
-    delay_sec: float,
+    mic_start_event: asyncio.Event,
     stop_event: asyncio.Event,
 ):
-    """延迟指定秒数后，通过 ChatRAGText 触发外部 RAG 总结输出。
-
-    注意：ChatRAGText 不是静默记忆注入，启用定时任务会让模型生成语音回复。
     """
+    等待稳定单人脸 → 发送 502 迎宾 payload → 等 TTS 播完 → 放开麦克风。
+
+    每轮 run_once 只触发一次迎宾。
+    """
+    # 用 threading.Event 把 asyncio stop_event 传递到线程
+    thread_stop = threading.Event()
+
+    async def propagate_stop():
+        if stop_event.is_set():
+            thread_stop.set()
+            return
+        await stop_event.wait()
+        thread_stop.set()
+
+    propagate_task = asyncio.create_task(propagate_stop())
+
+    loop = asyncio.get_running_loop()
     try:
-        await asyncio.wait_for(stop_event.wait(), timeout=delay_sec)
-        return  # 会话提前结束，跳过注入
-    except asyncio.TimeoutError:
-        pass
-
-    # 等待模型空闲：不在回复中 且 不在播放 TTS
-    while not stop_event.is_set() and session.is_running:
-        if not session.is_user_querying and not session._is_tts_playing():
-            break
-        await asyncio.sleep(0.3)
-
-    if stop_event.is_set() or not session.is_running:
-        return
-
-    rag_payload = _build_rag_payload(topics)
-    if not rag_payload or rag_payload == "[]":
-        print(f"[RAG-INJECT] 没有可注入的 RAG 内容，主题: {topics}")
-        return
-    try:
-        await session.client.chat_rag_text(rag_payload)
-        print(
-            f"[RAG-INJECT] 会话进行 {delay_sec:.0f}s 后注入 RAG 知识 "
-            f"(主题: {topics}, {len(rag_payload)} 字)"
+        stable = await loop.run_in_executor(
+            None,
+            lambda: detector.wait_for_stable_face(
+                interval_sec=config.VISUAL_GREETING_INTERVAL_SEC,
+                required_consecutive=config.VISUAL_GREETING_REQUIRED_CONSECUTIVE,
+                iou_threshold=config.VISUAL_GREETING_IOU_THRESHOLD,
+                stop_event=thread_stop,
+            ),
         )
     except Exception as e:
-        print(f"[RAG-INJECT] 注入 RAG 知识失败: {e}")
+        print(f"[VISUAL-GREETING] 人脸检测异常: {e}")
+        stable = False
+    finally:
+        propagate_task.cancel()
+        try:
+            await propagate_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
+    if stop_event.is_set() or not stable:
+        mic_start_event.set()
+        return
+
+    # 发送迎宾 502
+    greeting_payload = json.dumps(
+        [{"title": "迎宾问候", "content": f"请直接回复以下句子：{config.VISUAL_GREETING_TEXT}"}],
+        ensure_ascii=False,
+    )
+    try:
+        await session.client.chat_rag_text(greeting_payload)
+        print("[VISUAL-GREETING] 已发送迎宾 502")
+    except Exception as e:
+        print(f"[VISUAL-GREETING] 发送失败: {e}")
+        mic_start_event.set()
+        return
+
+    # 等待迎宾 TTS 播完
+    while not stop_event.is_set():
+        if not session._is_tts_playing():
+            await asyncio.sleep(0.3)
+            if not session._is_tts_playing():
+                break
+        await asyncio.sleep(0.1)
+
+    mic_start_event.set()
+    print("[VISUAL-GREETING] 迎宾播报结束，麦克风已放开")
+
+
+# =========================
+# 静默上下文刷新
+# =========================
 
 async def refresh_daoyi_context(
     session: DialogSession,
@@ -177,9 +187,9 @@ async def run_once():
     """
     单次完整流程：
       1) 启动相机
-      2) 一次性做人脸识别
-      3) 启动情绪/表情推送（同时刷新"最近看见人脸"时间）
-      4) 进入语音对话 + 并发"看门狗"
+      2) 启动情绪/表情推送（同时刷新"最近看见人脸"时间）
+      3) 建立 WebSocket 会话（跳过 say_hello 和 start_prompt）
+      4) 并发：视觉迎宾 / 看门狗 / 上下文刷新
       5) 看门狗触发或会话结束 → 清理 → 返回
     """
     # ========== 1) 初始化相机 ==========
@@ -190,51 +200,40 @@ async def run_once():
         ros_queue_size=5,
         ros_node_name="fpd_subscriber",
     )
+    camera.start()
 
-    # ========== 2) 初始化人脸检测器 & 一次性检测 ==========
+    # ========== 2) 初始化人脸检测器 & 启动情绪推送 ==========
     detector = FacePromptDetector(
         camera=camera,
         interval_sec=0.5,
         required_consecutive=2,
         detector_backend="opencv",
     )
-
-    print("等待人脸识别（首次引导）...")
-    face_prompt = detector.run(timeout=INITIAL_DETECT_TIMEOUT)
-
-    # ========== 3) 启动情绪推送 ==========
     detector.start_emotion_stream(
         host="127.0.0.1", port=5555, interval_sec=EMOTION_INTERVAL
     )
 
-    # ========== 4) 构建起始 prompt ==========
-    prompt = build_start_prompt()
-
-    if face_prompt:
-        print(f"[RESULT] face_prompt = {face_prompt}")
-    else:
-        print("[RESULT] 未得到 face_prompt（可能超时或未检测到稳定人脸）")
-    print(f"[PROMPT] start_prompt ({len(prompt)} 字)")
-
-    # ========== 5) 进入语音对话 + 看门狗 + RAG注入 ==========
+    # ========== 3) 建立会话（跳过 hello / start_prompt） ==========
     stop_event = asyncio.Event()
+    mic_start_event = asyncio.Event()
 
     session = DialogSession(
         config.ws_connect_config,
-        start_prompt=prompt,
+        start_prompt="",
         output_audio_format="pcm",
         duplex_mode=getattr(config, "DUPLEX_MODE", "half"),
+        skip_hello=True,
+        skip_start_prompt=True,
+        mic_start_event=mic_start_event,
     )
     session.attach_stop_event(stop_event)
 
+    # ========== 4) 并发任务 ==========
     dialog_task = asyncio.create_task(session.start())
+    greeting_task = asyncio.create_task(
+        visual_greeting(detector, session, mic_start_event, stop_event)
+    )
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
-    rag_inject_tasks = [
-        asyncio.create_task(
-            inject_rag_knowledge(session, topics, delay, stop_event)
-        )
-        for delay, topics in RAG_INJECT_EVENTS
-    ]
     context_refresh_task = None
     if getattr(config, "ENABLE_DAOYI_CONTEXT_REFRESH", False):
         context_refresh_task = asyncio.create_task(
@@ -249,7 +248,7 @@ async def run_once():
         while not stop_event.is_set():
             await asyncio.sleep(0.1)
     finally:
-        # ========== 6) 清理 ==========
+        # ========== 5) 清理 ==========
         try:
             detector.stop_emotion_stream()
         except Exception:
@@ -260,7 +259,7 @@ async def run_once():
         except Exception:
             pass
 
-        tasks_to_cancel = [watchdog_task, dialog_task, *rag_inject_tasks]
+        tasks_to_cancel = [watchdog_task, dialog_task, greeting_task]
         if context_refresh_task:
             tasks_to_cancel.append(context_refresh_task)
 
