@@ -36,24 +36,37 @@ def build_start_prompt() -> str:
 
 
 # =========================
-# 视觉迎宾
+# 视觉迎宾（首轮对话冷却后启动）
 # =========================
 
 async def visual_greeting(
     detector: FacePromptDetector,
     session: DialogSession,
-    mic_start_event: asyncio.Event,
     stop_event: asyncio.Event,
 ):
     """
     视觉迎宾循环：
-      1) 等待人脸 → 发 502 → 等 TTS 播完 → 首次放开麦克风
-      2) 进入冷却：等待用户无活动超过 VISUAL_GREETING_COOLDOWN_SEC
-      3) 冷却结束后回到 1)，可再次迎宾
+      0) 首先等待首轮对话完成 + 冷却（VISUAL_GREETING_COOLDOWN_SEC 内无用户活动）
+      1) 等待人脸 → 发 502 → 等 TTS 播完
+      2) 进入冷却 → 冷却结束后回到 1)
     """
     loop = asyncio.get_running_loop()
-    first_greeting = True
+    cooldown = config.VISUAL_GREETING_COOLDOWN_SEC
 
+    # ---- 首轮冷却：等首轮对话结束后再启动迎宾 ----
+    print(f"[VISUAL-GREETING] 等待首轮对话 + 冷却 {cooldown:.0f}s 后启动迎宾监控")
+    while not stop_event.is_set():
+        elapsed = time.time() - session.last_user_activity_ts
+        if elapsed >= cooldown:
+            break
+        await asyncio.sleep(min(cooldown - elapsed, 1.0))
+
+    if stop_event.is_set():
+        return
+
+    print("[VISUAL-GREETING] 冷却结束，开始视觉迎宾监控")
+
+    # ---- 视觉迎宾循环 ----
     while not stop_event.is_set():
         # ---- 等待人脸 ----
         thread_stop = threading.Event()
@@ -86,8 +99,6 @@ async def visual_greeting(
                 pass
 
         if stop_event.is_set() or not stable:
-            if first_greeting:
-                mic_start_event.set()
             break
 
         # ---- 发送迎宾 502 ----
@@ -100,8 +111,6 @@ async def visual_greeting(
             print("[VISUAL-GREETING] 已发送迎宾 502")
         except Exception as e:
             print(f"[VISUAL-GREETING] 发送失败: {e}")
-            if first_greeting:
-                mic_start_event.set()
             break
 
         # ---- 等待迎宾 TTS 播完 ----
@@ -112,14 +121,8 @@ async def visual_greeting(
                     break
             await asyncio.sleep(0.1)
 
-        if first_greeting:
-            mic_start_event.set()
-            first_greeting = False
-            print("[VISUAL-GREETING] 首次迎宾播报结束，麦克风已放开")
-
         # ---- 冷却：等待用户无活动 ----
-        cooldown = config.VISUAL_GREETING_COOLDOWN_SEC
-        print(f"[VISUAL-GREETING] 进入冷却 {cooldown:.0f}s，等待用户无活动后可再次迎宾")
+        print(f"[VISUAL-GREETING] 迎宾播报结束，进入冷却 {cooldown:.0f}s")
         while not stop_event.is_set():
             elapsed = time.time() - session.last_user_activity_ts
             if elapsed >= cooldown:
@@ -201,11 +204,10 @@ async def monitor_face_absence(
 async def run_once():
     """
     单次完整流程：
-      1) 启动相机
-      2) 启动情绪/表情推送（同时刷新"最近看见人脸"时间）
-      3) 建立 WebSocket 会话（跳过 say_hello 和 start_prompt）
-      4) 并发：视觉迎宾 / 看门狗 / 上下文刷新
-      5) 看门狗触发或会话结束 → 清理 → 返回
+      1) 启动相机 + 情绪推送
+      2) 建立 WebSocket 会话（走原始 say_hello + start_prompt 开场）
+      3) 并发：视觉迎宾（首轮冷却后启动）/ 看门狗 / 上下文刷新
+      4) 看门狗触发或会话结束 → 清理 → 返回
     """
     # ========== 1) 初始化相机 ==========
     camera = CameraAdapter(
@@ -228,25 +230,24 @@ async def run_once():
         host="127.0.0.1", port=5555, interval_sec=EMOTION_INTERVAL
     )
 
-    # ========== 3) 建立会话（跳过 hello / start_prompt） ==========
+    # ========== 3) 建立会话（原始开场逻辑） ==========
+    prompt = build_start_prompt()
+    print(f"[PROMPT] start_prompt ({len(prompt)} chars)")
+
     stop_event = asyncio.Event()
-    mic_start_event = asyncio.Event()
 
     session = DialogSession(
         config.ws_connect_config,
-        start_prompt="",
+        start_prompt=prompt,
         output_audio_format="pcm",
         duplex_mode=getattr(config, "DUPLEX_MODE", "half"),
-        skip_hello=True,
-        skip_start_prompt=True,
-        mic_start_event=mic_start_event,
     )
     session.attach_stop_event(stop_event)
 
     # ========== 4) 并发任务 ==========
     dialog_task = asyncio.create_task(session.start())
     greeting_task = asyncio.create_task(
-        visual_greeting(detector, session, mic_start_event, stop_event)
+        visual_greeting(detector, session, stop_event)
     )
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
     context_refresh_task = None
