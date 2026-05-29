@@ -70,8 +70,8 @@ DAOYI_TRIAGE_CORE = """
 # ============ 专家门诊排班配置 ============
 # 运行前请手动填写这两个字段，用来选择当前启动时段对应的专家门诊信息。
 # 例如：EXPERT_OUTPATIENT_WEEKDAY = "星期四"；EXPERT_OUTPATIENT_SESSION = "上午"
-EXPERT_OUTPATIENT_WEEKDAY = ""
-EXPERT_OUTPATIENT_SESSION = ""
+EXPERT_OUTPATIENT_WEEKDAY = "星期六"
+EXPERT_OUTPATIENT_SESSION = "上午"
 
 EXPERT_OUTPATIENT_SCHEDULE = {
     "星期一": {
@@ -345,7 +345,7 @@ BOT_ROLE = (
 )
 
 # --- 开场白（可选，留空则不强制开场。在 say_hello 之后发送） ---
-OPENING_LINE = "请问您哪里不舒服，或者您想去哪个科室？"
+OPENING_LINE = "请问您需要什么帮助？"
 
 # --- 自由补充区块（可选，追加到 prompt 末尾，适合放场景化指令） ---
 EXTRA_PROMPT = f"""
