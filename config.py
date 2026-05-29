@@ -229,7 +229,7 @@ BOT_ROLE = (
 )
 
 # --- 开场白（可选，留空则不强制开场。在 say_hello 之后发送） ---
-OPENING_LINE = "请问您哪里不舒服，或者您想去哪个科室？"
+OPENING_LINE = "需要帮忙吗？"
 
 # --- 自由补充区块（可选，追加到 prompt 末尾，适合放场景化指令） ---
 EXTRA_PROMPT = f"""
