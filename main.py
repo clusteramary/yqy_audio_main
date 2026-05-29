@@ -46,70 +46,85 @@ async def visual_greeting(
     stop_event: asyncio.Event,
 ):
     """
-    等待稳定单人脸 → 发送 502 迎宾 payload → 等 TTS 播完 → 放开麦克风。
-
-    每轮 run_once 只触发一次迎宾。
+    视觉迎宾循环：
+      1) 等待人脸 → 发 502 → 等 TTS 播完 → 首次放开麦克风
+      2) 进入冷却：等待用户无活动超过 VISUAL_GREETING_COOLDOWN_SEC
+      3) 冷却结束后回到 1)，可再次迎宾
     """
-    # 用 threading.Event 把 asyncio stop_event 传递到线程
-    thread_stop = threading.Event()
-
-    async def propagate_stop():
-        if stop_event.is_set():
-            thread_stop.set()
-            return
-        await stop_event.wait()
-        thread_stop.set()
-
-    propagate_task = asyncio.create_task(propagate_stop())
-
     loop = asyncio.get_running_loop()
-    try:
-        stable = await loop.run_in_executor(
-            None,
-            lambda: detector.wait_for_stable_face(
-                interval_sec=config.VISUAL_GREETING_INTERVAL_SEC,
-                required_consecutive=config.VISUAL_GREETING_REQUIRED_CONSECUTIVE,
-                iou_threshold=config.VISUAL_GREETING_IOU_THRESHOLD,
-                stop_event=thread_stop,
-            ),
-        )
-    except Exception as e:
-        print(f"[VISUAL-GREETING] 人脸检测异常: {e}")
-        stable = False
-    finally:
-        propagate_task.cancel()
-        try:
-            await propagate_task
-        except (asyncio.CancelledError, Exception):
-            pass
+    first_greeting = True
 
-    if stop_event.is_set() or not stable:
-        mic_start_event.set()
-        return
-
-    # 发送迎宾 502
-    greeting_payload = json.dumps(
-        [{"title": "迎宾问候", "content": f"请直接回复以下句子：{config.VISUAL_GREETING_TEXT}"}],
-        ensure_ascii=False,
-    )
-    try:
-        await session.client.chat_rag_text(greeting_payload)
-        print("[VISUAL-GREETING] 已发送迎宾 502")
-    except Exception as e:
-        print(f"[VISUAL-GREETING] 发送失败: {e}")
-        mic_start_event.set()
-        return
-
-    # 等待迎宾 TTS 播完
     while not stop_event.is_set():
-        if not session._is_tts_playing():
-            await asyncio.sleep(0.3)
-            if not session._is_tts_playing():
-                break
-        await asyncio.sleep(0.1)
+        # ---- 等待人脸 ----
+        thread_stop = threading.Event()
 
-    mic_start_event.set()
-    print("[VISUAL-GREETING] 迎宾播报结束，麦克风已放开")
+        async def propagate_stop():
+            if stop_event.is_set():
+                thread_stop.set()
+                return
+            await stop_event.wait()
+            thread_stop.set()
+
+        propagate_task = asyncio.create_task(propagate_stop())
+        try:
+            stable = await loop.run_in_executor(
+                None,
+                lambda: detector.wait_for_stable_face(
+                    interval_sec=config.VISUAL_GREETING_INTERVAL_SEC,
+                    required_consecutive=config.VISUAL_GREETING_REQUIRED_CONSECUTIVE,
+                    stop_event=thread_stop,
+                ),
+            )
+        except Exception as e:
+            print(f"[VISUAL-GREETING] 人脸检测异常: {e}")
+            stable = False
+        finally:
+            propagate_task.cancel()
+            try:
+                await propagate_task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+        if stop_event.is_set() or not stable:
+            if first_greeting:
+                mic_start_event.set()
+            break
+
+        # ---- 发送迎宾 502 ----
+        greeting_payload = json.dumps(
+            [{"title": "迎宾问候", "content": f"请直接回复以下句子：{config.VISUAL_GREETING_TEXT}"}],
+            ensure_ascii=False,
+        )
+        try:
+            await session.client.chat_rag_text(greeting_payload)
+            print("[VISUAL-GREETING] 已发送迎宾 502")
+        except Exception as e:
+            print(f"[VISUAL-GREETING] 发送失败: {e}")
+            if first_greeting:
+                mic_start_event.set()
+            break
+
+        # ---- 等待迎宾 TTS 播完 ----
+        while not stop_event.is_set():
+            if not session._is_tts_playing():
+                await asyncio.sleep(0.3)
+                if not session._is_tts_playing():
+                    break
+            await asyncio.sleep(0.1)
+
+        if first_greeting:
+            mic_start_event.set()
+            first_greeting = False
+            print("[VISUAL-GREETING] 首次迎宾播报结束，麦克风已放开")
+
+        # ---- 冷却：等待用户无活动 ----
+        cooldown = config.VISUAL_GREETING_COOLDOWN_SEC
+        print(f"[VISUAL-GREETING] 进入冷却 {cooldown:.0f}s，等待用户无活动后可再次迎宾")
+        while not stop_event.is_set():
+            elapsed = time.time() - session.last_user_activity_ts
+            if elapsed >= cooldown:
+                break
+            await asyncio.sleep(min(cooldown - elapsed, 1.0))
 
 
 # =========================

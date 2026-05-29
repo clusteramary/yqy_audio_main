@@ -126,42 +126,21 @@ class FacePromptDetector:
             self._last_face_ts = None
     # <<< 新增结束
 
-    # ---------------- 稳定人脸检测（支持多人脸） ----------------
-    @staticmethod
-    def _compute_iou(box1, box2):
-        """计算两个 (x, y, w, h) 矩形的 IoU。"""
-        x1, y1, w1, h1 = box1
-        x2, y2, w2, h2 = box2
-        ax1, ay1, ax2, ay2 = x1, y1, x1 + w1, y1 + h1
-        bx1, by1, bx2, by2 = x2, y2, x2 + w2, y2 + h2
-        ix1, iy1 = max(ax1, bx1), max(ay1, by1)
-        ix2, iy2 = min(ax2, bx2), min(ay2, by2)
-        iw, ih = max(0, ix2 - ix1), max(0, iy2 - iy1)
-        inter = iw * ih
-        union = w1 * h1 + w2 * h2 - inter
-        if union <= 0:
-            return 0.0
-        return inter / union
-
+    # ---------------- 稳定人脸检测 ----------------
     def wait_for_stable_face(
         self,
         interval_sec: float = 0.25,
-        required_consecutive: int = 4,
-        iou_threshold: float = 0.6,
+        required_consecutive: int = 2,
         stop_event: Optional[threading.Event] = None,
     ) -> bool:
         """
-        阻塞等待"稳定人脸"出现。
+        阻塞等待人脸出现。
 
-        逻辑：跟踪一个"候选池"，池中的每张脸都有各自的连续命中计数。
-        每帧用 IoU 把当前检测到的脸匹配到池中已有的候选：
-          - 匹配到 → 该候选计数 +1，位置更新
-          - 池中未匹配到 → 该候选计数 -1（衰减）
-          - 当前帧中新出现的脸 → 加入池，计数 = 1
-        只要池中有任何候选的计数 >= required_consecutive 就返回 True。
+        每 interval_sec 秒取一帧，用 DeepFace.extract_faces 检测；
+        连续 required_consecutive 帧有人脸即返回 True。
+        不做人脸框位置匹配，纯粹"连续几帧都看到了人脸"就触发。
         """
-        # candidates: list of (box, count)
-        candidates: list = []
+        consecutive = 0
 
         while True:
             if stop_event is not None and stop_event.is_set():
@@ -171,7 +150,7 @@ class FacePromptDetector:
 
             frame = self.camera.read_latest_frame()
             if frame is None:
-                candidates.clear()
+                consecutive = 0
                 continue
 
             try:
@@ -181,50 +160,24 @@ class FacePromptDetector:
                     enforce_detection=False,
                 )
             except Exception:
-                candidates.clear()
+                consecutive = 0
                 continue
 
-            curr_boxes = []
+            has_face = False
             for f in faces:
                 region = f.get("facial_area", {})
                 conf = f.get("confidence", 0)
                 if conf >= 0.5 and region.get("w", 0) > 0 and region.get("h", 0) > 0:
-                    curr_boxes.append((region["x"], region["y"], region["w"], region["h"]))
+                    has_face = True
+                    break
 
-            if not curr_boxes:
-                # 没有人脸，所有候选衰减
-                candidates = [(b, c - 1) for b, c in candidates if c > 1]
-                continue
-
-            self._mark_face_seen()
-
-            # 贪心匹配：当前帧每个框找候选池中 IoU 最大的
-            matched_cand = set()
-            new_candidates = []
-
-            for cb in curr_boxes:
-                best_iou = 0.0
-                best_idx = -1
-                for i, (pb, _) in enumerate(candidates):
-                    if i in matched_cand:
-                        continue
-                    iou = self._compute_iou(pb, cb)
-                    if iou > best_iou:
-                        best_iou = iou
-                        best_idx = i
-                if best_idx >= 0 and best_iou >= iou_threshold:
-                    matched_cand.add(best_idx)
-                    _, cnt = candidates[best_idx]
-                    new_candidates.append((cb, cnt + 1))
-                else:
-                    new_candidates.append((cb, 1))
-
-            # 未匹配到的旧候选衰减
-            for i, (pb, cnt) in enumerate(candidates):
-                if i not in matched_cand and cnt > 1:
-                    new_candidates.append((pb, cnt - 1))
-
-            candidates = new_candidates
+            if has_face:
+                consecutive += 1
+                self._mark_face_seen()
+                if consecutive >= required_consecutive:
+                    return True
+            else:
+                consecutive = 0
 
             # 检查是否有候选达到阈值
             for _, cnt in candidates:

@@ -197,6 +197,9 @@ class DialogSession:
         self.skip_start_prompt = skip_start_prompt
         self.mic_start_event = mic_start_event
 
+        # ---------- 用户活动时间戳（供视觉迎宾冷却判断） ----------
+        self.last_user_activity_ts: float = time.time()
+
         # ---------- 下位机播放状态 ----------
         self.remote_playing = False
         self.remote_status_topic = "/audio_playing_status"
@@ -811,6 +814,7 @@ class DialogSession:
                         # break
 
             if event == 451:
+                self.last_user_activity_ts = time.time()
                 try:
                     self._maybe_emit_wave_from_asr(payload_msg)
                 except Exception as e:
@@ -844,6 +848,7 @@ class DialogSession:
                 # 用户新一轮开始：清理累积并标记未写
                 self._user_text_accum = ""
                 self._user_text_round_written = False
+                self.last_user_activity_ts = time.time()
 
             if (
                 event == 350

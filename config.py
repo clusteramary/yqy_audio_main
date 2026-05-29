@@ -406,15 +406,16 @@ EXTRA_PROMPT_SAMPLE_DEEP_INTERVIEW = r"""
 
 # ============ 视觉迎宾配置 ============
 # 相机每 VISUAL_GREETING_INTERVAL_SEC 秒取一帧做人脸检测；
-# 连续 VISUAL_GREETING_REQUIRED_CONSECUTIVE 帧检测到单张且位置相近的人脸后触发迎宾。
-# “位置相近”由人脸框 IoU >= VISUAL_GREETING_IOU_THRESHOLD 判断。
+# 连续 VISUAL_GREETING_REQUIRED_CONSECUTIVE 帧检测到人脸即触发迎宾。
 VISUAL_GREETING_INTERVAL_SEC = 0.25
-VISUAL_GREETING_REQUIRED_CONSECUTIVE = 4      # 4 × 0.25s ≈ 1s
-VISUAL_GREETING_IOU_THRESHOLD = 0.6
+VISUAL_GREETING_REQUIRED_CONSECUTIVE = 2      # 2 × 0.25s ≈ 0.5s
 VISUAL_GREETING_TEXT = "您好我是导医小助手，需要帮忙吗。"
 
-# 说明：ChatRAGText(event 502) 现在只用于”视觉迎宾主动播报”这一种场景，
-# 每轮 run_once 最多触发一次；不作为长期静默记忆注入。
+# 迎宾冷却：首次迎宾后关闭迎宾逻辑，直到麦克风无用户输入超过此秒数才重新开启。
+VISUAL_GREETING_COOLDOWN_SEC = 20.0
+
+# 说明：ChatRAGText(event 502) 用于”视觉迎宾主动播报”；
+# 首次触发后进入冷却，冷却期内不重复迎宾。
 # 指路/分诊知识继续通过 StartSession 的 dialog_context 和
 # ConversationCreate(event 510) 静默刷新承载。
 
