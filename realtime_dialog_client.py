@@ -88,7 +88,7 @@ class RealtimeDialogClient:
             # "content": "I am a humanoid intelligent robot reporter from Huazhong University of Science and Technology.",
             # "content": "我是华中科技大学智能机器人记者助手小科。",
             # "content": "大家好呀！",
-            "content": "您好，我是华中科技大学导医助手小科",
+            "content": "你好，我是华科大导医助手小科",
         }
         hello_request = bytearray(protocol.generate_header())
         hello_request.extend(int(300).to_bytes(4, "big"))
