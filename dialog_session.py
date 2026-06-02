@@ -243,7 +243,11 @@ class DialogSession:
         self.ros_audio_queue: Optional["queue.Queue[bytes]"] = None
         self.ros_audio_sub = None
 
-        if not self.is_audio_file_input and _HAS_ROS1:
+        # PyAudio 本地麦克风输入线程
+        self._pyaudio_input_thread: Optional[threading.Thread] = None
+        self._pyaudio_input_stop = threading.Event()
+
+        if not self.is_audio_file_input and _HAS_ROS1 and config.INPUT_AUDIO_MODE == "ros1":
             if not rospy.core.is_initialized():
                 rospy.init_node(
                     "audio_manager_client", anonymous=True, disable_signals=True
@@ -278,11 +282,40 @@ class DialogSession:
         self.audio_queue = queue.Queue()
         if not self.is_audio_file_input:
             self.audio_device = AudioDeviceManager(
-                AudioConfig(**config.input_audio_config),
+                AudioConfig(**config.get_active_input_config()),
                 AudioConfig(**config.output_audio_config),
             )
-            # 只打开输出，不再打开 PyAudio 输入
+            # 只打开输出流
             self.output_stream = self.audio_device.open_output_stream()
+
+            # ---------- PyAudio 本地麦克风输入 ----------
+            if config.INPUT_AUDIO_MODE == "pyaudio":
+                # 创建与 ROS 模式相同的队列，process_microphone_input() 无需修改
+                self.ros_audio_queue = queue.Queue(maxsize=50)
+
+                pyaudio_cfg = config.get_active_input_config()
+
+                try:
+                    input_stream = self.audio_device.open_input_stream()
+                    dev_info = "默认设备"
+                    if pyaudio_cfg.get("device_index") is not None:
+                        dev_info = f"设备索引 {pyaudio_cfg['device_index']}"
+                    elif pyaudio_cfg.get("device_name"):
+                        dev_info = f"匹配 '{pyaudio_cfg['device_name']}'"
+                    print(
+                        f"[PYAUDIO-MIC] 已打开本地麦克风 ({dev_info}), "
+                        f"rate={pyaudio_cfg['sample_rate']}Hz, channels={pyaudio_cfg['channels']}"
+                    )
+                    self._pyaudio_input_thread = threading.Thread(
+                        target=self._pyaudio_input_worker,
+                        args=(input_stream, pyaudio_cfg["chunk"]),
+                        daemon=True,
+                        name="pyaudio-mic-reader",
+                    )
+                    self._pyaudio_input_thread.start()
+                except Exception as e:
+                    print(f"[PYAUDIO-MIC] 无法打开本地麦克风: {e}")
+                    print("[PYAUDIO-MIC] 提示: 检查设备连接，或在 config.py 中设置 device_name / device_index")
             self.is_recording = True
             self.is_playing = True
             self.player_thread = threading.Thread(
@@ -314,6 +347,39 @@ class DialogSession:
                     pass
         except Exception as e:
             print(f"[ROS-MIC] 回调处理失败: {e}")
+
+    # ---------- PyAudio 本地麦克风读取线程 ----------
+    def _pyaudio_input_worker(self, stream: "pyaudio.Stream", chunk_size: int) -> None:
+        """
+        后台线程：从 PyAudio 输入流读取原始 PCM 数据，推入 ros_audio_queue。
+        数据格式和推入策略与 _ros_audio_callback 完全一致，保证 process_microphone_input() 无需修改。
+        """
+        while not self._pyaudio_input_stop.is_set():
+            try:
+                audio_data = stream.read(chunk_size, exception_on_overflow=False)
+            except OSError:
+                # Linux ALSA 设备断开或 buffer xrun，短暂等待后重试
+                time.sleep(0.01)
+                continue
+            except Exception as e:
+                print(f"[PYAUDIO-MIC] stream.read() 异常: {e}")
+                time.sleep(0.01)
+                continue
+
+            if self.ros_audio_queue is None:
+                continue
+            try:
+                self.ros_audio_queue.put_nowait(audio_data)
+            except queue.Full:
+                # 队列满时丢弃最早数据，保持实时性
+                try:
+                    self.ros_audio_queue.get_nowait()
+                except queue.Empty:
+                    pass
+                try:
+                    self.ros_audio_queue.put_nowait(audio_data)
+                except Exception:
+                    pass
 
     # ---------- MIC 指令发送 ----------
     def send_mic_command(self, command: str, cooldown_sec: float = 0.2):
@@ -577,6 +643,19 @@ class DialogSession:
                 self.ros_audio_sub.unregister()
         except Exception:
             pass
+
+        # 停止 PyAudio 输入线程
+        if hasattr(self, "_pyaudio_input_stop"):
+            self._pyaudio_input_stop.set()
+        if (
+            hasattr(self, "_pyaudio_input_thread")
+            and self._pyaudio_input_thread
+            and self._pyaudio_input_thread.is_alive()
+        ):
+            try:
+                self._pyaudio_input_thread.join(timeout=2.0)
+            except Exception:
+                pass
 
         if self.is_audio_file_input:
             try:
@@ -953,9 +1032,9 @@ class DialogSession:
 
     async def process_microphone_input(self) -> None:
         """
-        麦克风输入改为从 ROS 话题 /audio/audio 读取：
-          - audio_capture 节点独占硬件采集 + 编码为 S16LE @ 48k / N 通道；
-          - 这里通过 ROS subscriber 收到 AudioData，作为原始 PCM；
+        麦克风输入从 ros_audio_queue 读取（ROS 模式或 PyAudio 模式共用）：
+          - ROS 模式：audio_capture 节点发布到 /audio/audio，回调推入队列；
+          - PyAudio 模式：后台线程从本地麦克风读取，推入同一队列；
           - 转成单声道，再重采样为 16k/s16le，切成 20ms 帧；
           - 和原来一样：支持 ctrl 捕获模式、播放期间静音上行等逻辑。
         """
@@ -963,12 +1042,14 @@ class DialogSession:
         await self.say_hello_over_event.wait()
         await self.client.chat_text_query(self.start_prompt)
 
-        in_rate = config.input_audio_config["sample_rate"]
-        in_channels = config.input_audio_config["channels"]
+        active_cfg = config.get_active_input_config()
+        in_rate = active_cfg["sample_rate"]
+        in_channels = active_cfg["channels"]
         in_width = 2
 
+        mode_label = "PyAudio 本地麦克风" if config.INPUT_AUDIO_MODE == "pyaudio" else "ROS /audio/audio"
         print(
-            f"使用 ROS /audio/audio 作为麦克风输入，采样率={in_rate}Hz, channels={in_channels}，开始讲话..."
+            f"使用 {mode_label} 作为麦克风输入，采样率={in_rate}Hz, channels={in_channels}，开始讲话..."
         )
 
         def to_mono(pcm_bytes: bytes) -> bytes:

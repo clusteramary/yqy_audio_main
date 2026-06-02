@@ -69,7 +69,7 @@ start_session_req = {
 
 # 你的设备是 48k，这里按 48k 配置；真正发给大模型前会重采样到 16k 单声道
 input_audio_config = {
-    # 这个 chunk 现在对我们来说只是一条“配置参考”，真正读数据是从 /audio/audio
+    # 这个 chunk 现在对我们来说只是一条"配置参考"，真正读数据是从 /audio/audio
     # 可以设成一帧 0.1s 的样本数：48000 * 0.1 = 4800
     "chunk": 4800,
     "format": "pcm",
@@ -81,8 +81,31 @@ input_audio_config = {
     "device_index": None,  # 现在不再用 PyAudio 采麦，可设 None
 }
 
+# ============ 输入模式选择（麦克风来源） ============
+# "ros1" → 从 ROS 话题 /audio/audio 获取音频（需 audio_capture 节点）
+# "pyaudio" → 使用本地 PyAudio 直接采集麦克风（适合无 ROS 环境的 Linux 机器）
+INPUT_AUDIO_MODE = os.getenv("INPUT_AUDIO_MODE", "ros1")
+
+# PyAudio 本地麦克风采集专用配置（INPUT_AUDIO_MODE="pyaudio" 时生效）
+pyaudio_input_audio_config = {
+    "chunk": 4800,  # 0.1s @ 48k
+    "format": "pcm",
+    "channels": 1,  # 本地麦克风通常为单声道（与 ROS 模式的 2 声道不同）
+    "sample_rate": 48000,  # 大多数设备支持 48k，下游会重采样到 16k
+    "bit_size": pyaudio.paInt16,
+    "device_name": None,  # None = Linux 系统默认麦克风（PulseAudio/ALSA）
+    "device_index": None,  # 可指定具体设备索引；None 时由 PyAudio 选默认设备
+}
+
+
+def get_active_input_config():
+    """根据 INPUT_AUDIO_MODE 返回对应的输入音频配置字典。"""
+    if INPUT_AUDIO_MODE == "pyaudio":
+        return pyaudio_input_audio_config
+    return input_audio_config
+
 # ============ 输出音频（扬声器，经 ROS1 发送到下位机） ============
-# 关键：mode = "ros1" -> 使用我们实现的 Ros1SpeakerStream，把“原始 PCM 字节”发布到话题
+# 关键：mode = "ros1" -> 使用我们实现的 Ros1SpeakerStream，把"原始 PCM 字节"发布到话题
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
 OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "ros1")
@@ -97,7 +120,7 @@ output_audio_config = {
     # 当 mode="pyaudio" 时可用名称模糊匹配声卡输出；优先级高于 device_index。
     "device_name": None,  # 例如 "Realtek" / "Speakers"（大小写不敏感、子串匹配）
     "device_index": None,  # 仅在 mode='pyaudio' 时生效
-    # === 下面这些是“ROS1 扬声器发布”相关的新增字段 ===
+    # === 下面这些是"ROS1 扬声器发布"相关的新增字段 ===
     "mode": OUTPUT_AUDIO_MODE,  # 'ros1' 经 ROS 发布；设为 'pyaudio' 切回本地扬声器
     "ros1_topic": "/audio",  # 发布的话题名
     "ros1_node_name": "speaker_publisher",  # 发布节点名（进程内自动 init）
