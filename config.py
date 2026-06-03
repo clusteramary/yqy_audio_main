@@ -84,7 +84,7 @@ input_audio_config = {
 # ============ 输入模式选择（麦克风来源） ============
 # "ros1" → 从 ROS 话题 /audio/audio 获取音频（需 audio_capture 节点）
 # "pyaudio" → 使用本地 PyAudio 直接采集麦克风（适合无 ROS 环境的 Linux 机器）
-INPUT_AUDIO_MODE = os.getenv("INPUT_AUDIO_MODE", "ros1")
+INPUT_AUDIO_MODE = os.getenv("INPUT_AUDIO_MODE", "pyaudio")
 
 # PyAudio 本地麦克风采集专用配置（INPUT_AUDIO_MODE="pyaudio" 时生效）
 pyaudio_input_audio_config = {
