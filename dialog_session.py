@@ -24,6 +24,7 @@ import config
 from audio_constants import (
     ACTION_INDEX_BY_KEYWORD,
     ASR_KWS_PATTERNS,
+    KWS_PRIORITY,
     LLM_KWS_PATTERNS,
     TARGET_CHANNELS,
     TARGET_CHUNK_SAMPLES,
@@ -724,12 +725,20 @@ class DialogSession:
         if not joined:
             return
 
-        # 统一用配置表做“包含匹配”，方便后续扩展
-        for keyword, patterns in ASR_KWS_PATTERNS.items():
+        # 统一用配置表做”包含匹配”，按 KWS_PRIORITY 顺序检测
+        # 复合方位优先（left_front > left），允许复合+简单方位同时触发
+        asr_fired: set = set()
+        for keyword in KWS_PRIORITY:
+            patterns = ASR_KWS_PATTERNS.get(keyword)
+            if patterns is None:
+                continue
             if any(p in joined for p in patterns):
                 self._emit_voice_keyword(keyword)
-                print(f"[ASR-KWS] 检测到关键词 '{keyword}', 已发布 ROS index")
-                break
+                print(f”[ASR-KWS] 检测到关键词 '{keyword}', 已发布 ROS index”)
+                asr_fired.add(keyword)
+        # 如果没有任何关键词命中，可在此扩展逻辑
+        if not asr_fired:
+            pass
 
     def handle_server_response(self, response: Dict[str, Any]) -> None:
         # 已移除：静默控制窗口（丢弃确认回包/文本回包）
@@ -789,8 +798,12 @@ class DialogSession:
 
                 buf = self._llm_keyword_buffer
 
-                # 2. 遍历 LLM_KWS_PATTERNS，检测关键短语
-                for keyword, patterns in LLM_KWS_PATTERNS.items():
+                # 2. 按 KWS_PRIORITY 顺序遍历 LLM_KWS_PATTERNS，检测关键短语
+                #    复合方位优先（left_front > left），允许复合+简单方位同时触发
+                for keyword in KWS_PRIORITY:
+                    patterns = LLM_KWS_PATTERNS.get(keyword)
+                    if patterns is None:
+                        continue
                     # 本轮已经触发过的 keyword 不再重复触发
                     if keyword in self._llm_kws_fired:
                         continue

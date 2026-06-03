@@ -29,7 +29,11 @@ class RosActionIndexReceiver:
 
     The index values intentionally match the old UDP voice-keyword path:
     left=4, right=5, wave=7, nod=8, shake=10, start=11, end=12,
-    woshou=13, good=14, photo1=15, photo2=16.
+    woshou=13, good=14, photo1=15, photo2=16,
+    left_front=17, right_front=18, right_back=19.
+
+    When compound direction keywords overlap (e.g. "往左前方走"),
+    both left_front(17) and left(4) are published, with compound first.
     """
 
     def __init__(self, topic: Optional[str] = None):

@@ -14,22 +14,21 @@ ASR_KWS_PATTERNS: Dict[str, List[str]] = {
     "shake": ["击掌", "击一下", "机长", "击个掌"],
     "woshou": ["握手", "握一下", "握个手", "握一个", "shake"],
     "end": ["再见", "拜拜"],
+    # 方位关键词（复合方向优先，简单方向在后，由 KWS_PRIORITY 控制检测顺序）
+    "left_front": ["左前"],
+    "right_front": ["右前"],
+    "right_back": ["右后"],
+    "left": ["往左", "向左", "左手边"],
+    "right": ["向右", "往右", "右手边"],
     "good": [
         "太好",
         "真棒",
         "不错",
-        "厉害",
+        "太厉害",
         "棒",
         "赞"
         "点赞",
         "真开心",
-        "太高兴了",
-        "愉快极了",
-        "心情真好",
-        "太愉悦了",
-        "让人开心",
-        "令人愉悦",
-        "超开心的",
         "没错",
         "正确",
         "对的",
@@ -37,7 +36,6 @@ ASR_KWS_PATTERNS: Dict[str, List[str]] = {
         "一点没错",
         "非常对",
         "确实如此",
-        "厉害",
         "全力支持",
         "坚决赞同",
         "太惊喜了",
@@ -57,8 +55,12 @@ LLM_KWS_PATTERNS: Dict[str, List[str]] = {
     "wave": ["挥手", "挥一挥", "挥一下", "摆个手", "wave"],
     "nod": ["点头", "点一下", "点个头", "nod"],
     "shake": ["击一下", "准备击掌", "准备机长"],
-    "left": ["往左", "向左", "左", "左手边"],
-    "right": ["向右", "往右", "右","右手边"],
+    # 方位关键词（复合方向优先，简单方向在后，由 KWS_PRIORITY 控制检测顺序）
+    "left_front": ["左前"],
+    "right_front": ["右前"],
+    "right_back": ["右后"],
+    "left": ["往左", "向左", "左手边"],
+    "right": ["向右", "往右", "右手边"],
     # 结束访谈/结束控制，由 LLM 说出
     "photo1": ["我们开拍啦", "我举起手啦"],
     "photo2": ["三二一茄子", "咔嚓"],
@@ -202,7 +204,32 @@ ACTION_INDEX_BY_KEYWORD: Dict[str, int] = {
     "good": 14,
     "photo1": 15,
     "photo2": 16,
+    "left_front": 17,
+    "right_front": 18,
+    "right_back": 19,
 }
+
+# 关键词检测优先级列表：复合方位优先于简单方位。
+# 当"往左前方走"出现时，先触发 left_front(17)，再触发 left(4)。
+KWS_PRIORITY: List[str] = [
+    # 复合方位（优先检测）
+    "left_front",
+    "right_front",
+    "right_back",
+    # 简单方位
+    "left",
+    "right",
+    # 其他动作
+    "wave",
+    "nod",
+    "shake",
+    "woshou",
+    "start",
+    "end",
+    "good",
+    "photo1",
+    "photo2",
+]
 
 
 @dataclass
