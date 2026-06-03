@@ -77,7 +77,7 @@ except Exception:
 # TARGET_CHUNK_SAMPLES = 320  # 16k * 20ms = 320 样本 → 每帧约 20ms
 
 # # ---------- ASR / LLM 关键词配置 ----------
-# # ASR 关键词配置：标签 -> 若干“包含匹配”的短语（用于语音识别结果）
+# # ASR 关键词配置：标签 -> 若干"包含匹配"的短语（用于语音识别结果）
 # ASR_KWS_PATTERNS: Dict[str, list] = {
 #     "wave": ["挥手", "挥一挥", "挥一下", "wave"],
 #     "nod": ["点头", "点一下", "nod"],
@@ -86,7 +86,7 @@ except Exception:
 #     "end": ["再见", "拜拜", "bye"],
 # }
 
-# # LLM 文本关键词配置：标签 -> 若干“包含匹配”的短语（用于大模型文本 content）
+# # LLM 文本关键词配置：标签 -> 若干"包含匹配"的短语（用于大模型文本 content）
 # LLM_KWS_PATTERNS: Dict[str, list] = {
 #     "left": ["向左转", "左"],
 #     "right": ["右", "测试成功啦"],
@@ -208,7 +208,7 @@ class DialogSession:
         self.mic_udp_port = 5558
         self.mic_udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-        # 关键词“挥手” 及去抖（当前 _wave_re 未直接使用，只保留字段）
+        # 关键词"挥手" 及去抖（当前 _wave_re 未直接使用，只保留字段）
         self._wave_re = re.compile(r"(挥手|揮手|招手|挥个手|挥下手)")
         self._kws_wave_cooldown = 1.5
         self._kws_wave_last_ts = 0.0
@@ -725,7 +725,7 @@ class DialogSession:
         if not joined:
             return
 
-        # 统一用配置表做”包含匹配”，按 KWS_PRIORITY 顺序检测
+        # 统一用配置表做"包含匹配"，按 KWS_PRIORITY 顺序检测
         # 复合方位优先（left_front > left），允许复合+简单方位同时触发
         asr_fired: set = set()
         for keyword in KWS_PRIORITY:
@@ -734,7 +734,7 @@ class DialogSession:
                 continue
             if any(p in joined for p in patterns):
                 self._emit_voice_keyword(keyword)
-                print(f”[ASR-KWS] 检测到关键词 '{keyword}', 已发布 ROS index”)
+                print(f"[ASR-KWS] 检测到关键词 '{keyword}', 已发布 ROS index")
                 asr_fired.add(keyword)
         # 如果没有任何关键词命中，可在此扩展逻辑
         if not asr_fired:
@@ -816,7 +816,7 @@ class DialogSession:
                         # 如果是 end，可以选择清空缓冲，防止后续 content 再次触发
                         if keyword == "end":
                             self._llm_keyword_buffer = ""
-                        # 如果希望“一次 content 只触发一个关键词”，可以在这里 break
+                        # 如果希望"一次 content 只触发一个关键词"，可以在这里 break
                         # break
 
             if event == 451:
@@ -903,7 +903,7 @@ class DialogSession:
                     self._llm_text_accum.clear()
                 except Exception as e:
                     print(f"[DIALOG] 写入机器人文本失败: {e}")
-                # 一轮回答彻底结束，也可以顺便清空关键词状态（可选，如果你感觉“左”偶尔不触发，可以用这句）
+                # 一轮回答彻底结束，也可以顺便清空关键词状态（可选，如果你感觉"左"偶尔不触发，可以用这句）
                 # self._llm_keyword_buffer = ""
                 # self._llm_kws_fired.clear()
                 if random.randint(0, 10000) == 0:
