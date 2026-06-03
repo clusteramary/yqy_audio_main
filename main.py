@@ -1,7 +1,6 @@
 # main.py
 import argparse
 import asyncio
-import json
 import threading
 import time
 
@@ -102,14 +101,15 @@ async def visual_greeting(
         if stop_event.is_set() or not stable:
             break
 
-        # ---- 发送迎宾 502 ----
-        greeting_payload = json.dumps(
-            [{"title": "迎宾问候", "content": f"请直接回复以下句子：{config.VISUAL_GREETING_TEXT}"}],
-            ensure_ascii=False,
-        )
+        # ---- 发送迎宾：直接 TTS 播报，绕过 LLM ----
         try:
-            await session.client.chat_rag_text(greeting_payload)
-            print("[VISUAL-GREETING] 已发送迎宾 502")
+            await session.client.chat_tts_text(
+                is_user_querying=False,
+                start=True,
+                end=True,
+                content=config.VISUAL_GREETING_TEXT,
+            )
+            print("[VISUAL-GREETING] 已发送迎宾 TTS")
         except Exception as e:
             print(f"[VISUAL-GREETING] 发送失败: {e}")
             break
@@ -122,11 +122,10 @@ async def visual_greeting(
                     break
             await asyncio.sleep(0.1)
 
-        # ---- 冷却：从播报结束时刻起至少等 cooldown 秒 ----
-        greeting_done_ts = time.time()
-        print(f"[VISUAL-GREETING] 迎宾播报结束，进入冷却 {cooldown:.0f}s")
+        # ---- 冷却：等用户静默 cooldown 秒后才重新开启迎宾 ----
+        print(f"[VISUAL-GREETING] 迎宾播报结束，等待用户静默 {cooldown:.0f}s 后重新开启")
         while not stop_event.is_set():
-            elapsed = time.time() - greeting_done_ts
+            elapsed = time.time() - session.last_user_activity_ts
             if elapsed >= cooldown:
                 break
             await asyncio.sleep(min(cooldown - elapsed, 1.0))

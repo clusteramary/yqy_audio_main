@@ -393,8 +393,8 @@ EXTRA_PROMPT_SAMPLE_DEEP_INTERVIEW = r"""
 # 相机每 VISUAL_GREETING_INTERVAL_SEC 秒取一帧做人脸检测；
 # 连续 VISUAL_GREETING_REQUIRED_CONSECUTIVE 帧检测到人脸即触发迎宾。
 VISUAL_GREETING_INTERVAL_SEC = 0.25
-VISUAL_GREETING_REQUIRED_CONSECUTIVE = 3      # 3 × 0.25s ≈ 0.75s
-VISUAL_GREETING_MIN_FACE_WIDTH = 50           # 人脸框最小宽度（像素），约对应 3 米内距离
+VISUAL_GREETING_REQUIRED_CONSECUTIVE = 5      # 5 × 0.25s ≈ 1.25s（远处人脸增加帧数防误触发）
+VISUAL_GREETING_MIN_FACE_WIDTH = 30           # 人脸框最小宽度（像素），约对应 5 米内距离
 VISUAL_GREETING_TEXT = "需要我帮忙吗"
 
 # 迎宾冷却：首次迎宾后关闭迎宾逻辑，直到麦克风无用户输入超过此秒数才重新开启。
