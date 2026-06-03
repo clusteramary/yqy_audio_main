@@ -101,15 +101,14 @@ async def visual_greeting(
         if stop_event.is_set() or not stable:
             break
 
-        # ---- 发送迎宾：直接 TTS 播报，绕过 LLM ----
+        # ---- 发送迎宾 501（ChatTextQuery 模拟用户文本输入，触发完整回复链路） ----
+        # 根据 API 文档，ChatTextQuery(501) 不需要前置 ASREnded，会触发"用户输入→模型回复→TTS"的完整链路
+        # ChatRAGText(502) 和 ChatTTSText(500) 都要求必须在 ASREnded 之后发送，不能独立触发
         try:
-            await session.client.chat_tts_text(
-                is_user_querying=False,
-                start=True,
-                end=True,
-                content=config.VISUAL_GREETING_TEXT,
+            await session.client.chat_text_query(
+                f"请你现在立即说出这句话（只允许说这句话，不允许添加任何其他文字）：{config.VISUAL_GREETING_TEXT}"
             )
-            print("[VISUAL-GREETING] 已发送迎宾 TTS")
+            print("[VISUAL-GREETING] 已发送迎宾 501")
         except Exception as e:
             print(f"[VISUAL-GREETING] 发送失败: {e}")
             break
@@ -122,13 +121,17 @@ async def visual_greeting(
                     break
             await asyncio.sleep(0.1)
 
-        # ---- 冷却：等用户静默 cooldown 秒后才重新开启迎宾 ----
-        print(f"[VISUAL-GREETING] 迎宾播报结束，等待用户静默 {cooldown:.0f}s 后重新开启")
+        # ---- 冷却：需同时满足两个条件才重新开启迎宾 ----
+        # 1) 距迎宾播报结束至少 cooldown 秒
+        # 2) 用户已持续静默至少 cooldown 秒
+        greeting_done_ts = time.time()
+        print(f"[VISUAL-GREETING] 迎宾播报结束，进入冷却（需迎宾后≥{cooldown:.0f}s 且用户静默≥{cooldown:.0f}s）")
         while not stop_event.is_set():
-            elapsed = time.time() - session.last_user_activity_ts
-            if elapsed >= cooldown:
+            elapsed_greeting = time.time() - greeting_done_ts
+            elapsed_user = time.time() - session.last_user_activity_ts
+            if elapsed_greeting >= cooldown and elapsed_user >= cooldown:
                 break
-            await asyncio.sleep(min(cooldown - elapsed, 1.0))
+            await asyncio.sleep(0.5)
 
 
 # =========================
