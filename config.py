@@ -398,7 +398,7 @@ VISUAL_GREETING_MIN_FACE_WIDTH = 50           # 人脸框最小宽度（像素�
 VISUAL_GREETING_TEXT = "需要我帮忙吗"
 
 # 迎宾冷却：首次迎宾后关闭迎宾逻辑，直到麦克风无用户输入超过此秒数才重新开启。
-VISUAL_GREETING_COOLDOWN_SEC = 30.0
+VISUAL_GREETING_COOLDOWN_SEC = 20.0
 
 # 说明：ChatRAGText(event 502) 用于”视觉迎宾主动播报”；
 # 首次触发后进入冷却，冷却期内不重复迎宾。

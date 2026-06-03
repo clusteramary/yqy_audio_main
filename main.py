@@ -122,10 +122,11 @@ async def visual_greeting(
                     break
             await asyncio.sleep(0.1)
 
-        # ---- 冷却：等待用户无活动 ----
+        # ---- 冷却：从播报结束时刻起至少等 cooldown 秒 ----
+        greeting_done_ts = time.time()
         print(f"[VISUAL-GREETING] 迎宾播报结束，进入冷却 {cooldown:.0f}s")
         while not stop_event.is_set():
-            elapsed = time.time() - session.last_user_activity_ts
+            elapsed = time.time() - greeting_done_ts
             if elapsed >= cooldown:
                 break
             await asyncio.sleep(min(cooldown - elapsed, 1.0))
