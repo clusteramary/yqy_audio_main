@@ -130,8 +130,9 @@ class FacePromptDetector:
     def wait_for_stable_face(
         self,
         interval_sec: float = 0.25,
-        required_consecutive: int = 2,
+        required_consecutive: int = 3,
         stop_event: Optional[threading.Event] = None,
+        min_face_width: int = 0,
     ) -> bool:
         """
         阻塞等待人脸出现。
@@ -139,6 +140,9 @@ class FacePromptDetector:
         每 interval_sec 秒取一帧，用 DeepFace.extract_faces 检测；
         连续 required_consecutive 帧有人脸即返回 True。
         不做人脸框位置匹配，纯粹"连续几帧都看到了人脸"就触发。
+
+        min_face_width: 人脸框最小宽度（像素），小于此宽度的人脸（远处的人）将被忽略。
+                        设为 0 则不过滤。约 50 像素对应 3 米以内距离。
         """
         consecutive = 0
 
@@ -167,7 +171,12 @@ class FacePromptDetector:
             for f in faces:
                 region = f.get("facial_area", {})
                 conf = f.get("confidence", 0)
-                if conf >= 0.5 and region.get("w", 0) > 0 and region.get("h", 0) > 0:
+                w = region.get("w", 0)
+                h = region.get("h", 0)
+                if conf >= 0.5 and w > 0 and h > 0:
+                    # 过滤远处小人脸：宽度低于阈值则忽略
+                    if min_face_width > 0 and w < min_face_width:
+                        continue
                     has_face = True
                     break
 

@@ -322,7 +322,7 @@ BOT_ROLE = (
     "你是华中科技大学校医院门诊大厅的智能导医机器人，名字叫”小科导医”。"
     "你的位置固定在一楼导医台，手可以动，用户要求互动的动作时必须互动语音"
     "你的核心职责是分诊、指路、挂号缴费流程说明、医保/报销/转诊流程答疑、提供专家门诊信息。"
-    "当患者要去的科室或者病症适合当天或者其他时候的专家门诊时，可以主动提示另外一天有专家门诊"
+    "当患者要去的科室或者病症适合当天或者其他时候的专家门诊时，可以主动提示有专家门诊"
 )
 
 # --- 开场白（可选，留空则不强制开场。在 say_hello 之后发送） ---
@@ -393,11 +393,12 @@ EXTRA_PROMPT_SAMPLE_DEEP_INTERVIEW = r"""
 # 相机每 VISUAL_GREETING_INTERVAL_SEC 秒取一帧做人脸检测；
 # 连续 VISUAL_GREETING_REQUIRED_CONSECUTIVE 帧检测到人脸即触发迎宾。
 VISUAL_GREETING_INTERVAL_SEC = 0.25
-VISUAL_GREETING_REQUIRED_CONSECUTIVE = 2      # 2 × 0.25s ≈ 0.5s
-VISUAL_GREETING_TEXT = "您好我是导医小助手，需要帮忙吗。"
+VISUAL_GREETING_REQUIRED_CONSECUTIVE = 3      # 3 × 0.25s ≈ 0.75s
+VISUAL_GREETING_MIN_FACE_WIDTH = 50           # 人脸框最小宽度（像素），约对应 3 米内距离
+VISUAL_GREETING_TEXT = "需要我帮忙吗"
 
 # 迎宾冷却：首次迎宾后关闭迎宾逻辑，直到麦克风无用户输入超过此秒数才重新开启。
-VISUAL_GREETING_COOLDOWN_SEC = 20.0
+VISUAL_GREETING_COOLDOWN_SEC = 30.0
 
 # 说明：ChatRAGText(event 502) 用于”视觉迎宾主动播报”；
 # 首次触发后进入冷却，冷却期内不重复迎宾。

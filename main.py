@@ -85,6 +85,7 @@ async def visual_greeting(
                 lambda: detector.wait_for_stable_face(
                     interval_sec=config.VISUAL_GREETING_INTERVAL_SEC,
                     required_consecutive=config.VISUAL_GREETING_REQUIRED_CONSECUTIVE,
+                    min_face_width=config.VISUAL_GREETING_MIN_FACE_WIDTH,
                     stop_event=thread_stop,
                 ),
             )
