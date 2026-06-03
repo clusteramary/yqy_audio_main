@@ -179,11 +179,6 @@ class FacePromptDetector:
             else:
                 consecutive = 0
 
-            # 检查是否有候选达到阈值
-            for _, cnt in candidates:
-                if cnt >= required_consecutive:
-                    return True
-    
     
     # ---------------- 分析线程（一次性，生成 prompt） ----------------
     # def _periodic_analysis(self):
