@@ -64,62 +64,105 @@ DAOYI_TRIAGE_CORE = """
 
 # ============ 专家门诊排班配置 ============
 
+# 专家门诊排班：每个条目为 {"doctor": "医生姓名+职称", "specialty": "科室名称"}
+# 注：部分外院专家无具体姓名，以"XX医院专家"标注；多医生科室用"/"分隔
 EXPERT_OUTPATIENT_SCHEDULE = {
     "星期一": {
-        "上午": ["心血管内科", "药学咨询", "免疫接种", "正畸专科", "心理门诊"],
-        "下午": ["消化内科", "疼痛专科", "免疫接种", "肾内风湿", "心理门诊"],
+        "上午": [
+            {"doctor": "詹继东副主任医师", "specialty": "心血管内科"},
+            {"doctor": "黄芳副主任药师", "specialty": "药学咨询"},
+            {"doctor": "杨斯怡主治医师", "specialty": "免疫接种"},
+            {"doctor": "杨媛妮主治医师", "specialty": "正畸专科"},
+            {"doctor": "梨园医院专家", "specialty": "心理门诊"},
+        ],
+        "下午": [
+            {"doctor": "谢民主治医师", "specialty": "消化内科"},
+            {"doctor": "汪翰主治医师", "specialty": "疼痛专科"},
+            {"doctor": "罗西贝主治医师", "specialty": "免疫接种"},
+            {"doctor": "三医院专家", "specialty": "肾内风湿"},
+            {"doctor": "梨园医院专家", "specialty": "心理门诊"},
+        ],
     },
     "星期二": {
-        "上午": ["中医消化", "内分泌", "老年病", "正畸专科", "两腺外科"],
-        "下午": ["体检咨询", "甲病专科", "牙体牙髓", "睡眠门诊", "肛肠外科"],
+        "上午": [
+            {"doctor": "胡则林副主任医师", "specialty": "中医消化"},
+            {"doctor": "肖婷主治医师", "specialty": "内分泌"},
+            {"doctor": "桂彬杉主治医师", "specialty": "老年病"},
+            {"doctor": "丁丽芳主治医师", "specialty": "正畸专科"},
+            {"doctor": "省人民医院专家", "specialty": "两腺外科"},
+        ],
+        "下午": [
+            {"doctor": "李晓南主任医师", "specialty": "体检咨询"},
+            {"doctor": "郝洲华副主任医师", "specialty": "甲病专科"},
+            {"doctor": "郝鸿主治医师", "specialty": "牙体牙髓"},
+            {"doctor": "张昊媛主治医师", "specialty": "睡眠门诊"},
+            {"doctor": "华润武钢医院专家", "specialty": "肛肠外科"},
+        ],
     },
     "星期三": {
         "上午": [
-            "肾内科",
-            "健康管理",
-            "胃肠甲乳外科",
-            "综合口腔",
-            "骨外科",
-            "心血管内科",
-            "体重管理",
-            "痤疮专科",
-            "免疫接种",
-            "老年病",
+            {"doctor": "倪小玲主任医师", "specialty": "肾内科"},
+            {"doctor": "姓名未清晰标注", "specialty": "健康管理"},
+            {"doctor": "李盛主任医师", "specialty": "胃肠甲乳外科"},
+            {"doctor": "薛万林主任医师", "specialty": "综合口腔"},
+            {"doctor": "郝杰副主任医师", "specialty": "骨外科"},
+            {"doctor": "桂元副主任医师", "specialty": "心血管内科"},
+            {"doctor": "马铭主治医师", "specialty": "体重管理"},
+            {"doctor": "葛玮主治医师", "specialty": "痤疮专科"},
+            {"doctor": "罗西贝主治医师", "specialty": "免疫接种"},
+            {"doctor": "周飞鹏主任医师", "specialty": "东区老年病"},
         ],
         "下午": [
-            "胃肠甲乳外科",
-            "免疫接种",
-            "消化内科",
-            "泌尿外科",
-            "体检咨询",
-            "儿童口腔",
-            "儿童发育行为",
-            "心理门诊",
+            {"doctor": "杨帆副主任医师", "specialty": "胃肠甲乳外科"},
+            {"doctor": "王伍姣副主任医师", "specialty": "免疫接种"},
+            {"doctor": "谢民主治医师", "specialty": "消化内科"},
+            {"doctor": "刘庆主治医师", "specialty": "泌尿外科"},
+            {"doctor": "李玲/杜彬彬主治医师", "specialty": "体检咨询"},
+            {"doctor": "张谨娜主治医师", "specialty": "儿童口腔"},
+            {"doctor": "钟严艳副主任医师", "specialty": "东区儿童发育行为"},
+            {"doctor": "省人民医院专家", "specialty": "心理门诊"},
         ],
     },
     "星期四": {
-        "上午": ["综合口腔", "骨伤康复", "针灸专科", "内分泌", "免疫接种", "心血管内科", "心理门诊/神经内科（同一个医生）"],
+        "上午": [
+            {"doctor": "项国华副主任医师", "specialty": "综合口腔"},
+            {"doctor": "魏朝霞副主任医师", "specialty": "骨伤康复"},
+            {"doctor": "杜娟副主任医师", "specialty": "针灸专科"},
+            {"doctor": "李焕主治医师", "specialty": "内分泌"},
+            {"doctor": "叶坤妃主治医师", "specialty": "免疫接种"},
+            {"doctor": "王硕主任医师", "specialty": "东区心血管内科"},
+            {"doctor": "协和医院专家", "specialty": "心理门诊"},
+            {"doctor": "协和医院专家", "specialty": "神经内科"},
+            {"doctor": "梨园医院专家", "specialty": "心理门诊"},
+        ],
         "下午": [
-            "呼吸内科及新冠综合征",
-            "心血管内科",
-            "体检咨询",
-            "免疫接种",
-            "药学咨询",
-            "肛肠外科",
-            "心理门诊",
+            {"doctor": "李晓南主任医师", "specialty": "呼吸内科及新冠综合征"},
+            {"doctor": "王硕主任医师", "specialty": "心血管内科"},
+            {"doctor": "倪小玲主任医师", "specialty": "体检咨询"},
+            {"doctor": "王伍姣副主任医师", "specialty": "免疫接种"},
+            {"doctor": "黄芳副主任药师", "specialty": "药学咨询"},
+            {"doctor": "八医院专家", "specialty": "肛肠外科"},
+            {"doctor": "梨园医院专家", "specialty": "心理门诊"},
         ],
     },
     "星期五": {
         "上午": [
-            "内分泌",
-            "免疫接种",
-            "正畸专科",
-            "糖尿病护理门诊",
-            "儿童发育行为",
-            "泌尿外科",
-            "心理门诊",
+            {"doctor": "卢菱副主任医师", "specialty": "内分泌"},
+            {"doctor": "叶坤妃主治医师", "specialty": "免疫接种"},
+            {"doctor": "包竹萱主治医师", "specialty": "正畸专科"},
+            {"doctor": "李雪主管护师", "specialty": "糖尿病护理门诊"},
+            {"doctor": "钟严艳副主任医师", "specialty": "东区儿童发育行为"},
+            {"doctor": "三医院专家", "specialty": "泌尿外科"},
+            {"doctor": "梨园医院专家", "specialty": "心理门诊"},
         ],
-        "下午": ["心血管内科", "体检咨询", "免疫接种", "儿童发育行为", "皮肤外科", "心理门诊"],
+        "下午": [
+            {"doctor": "王伍姣副主任医师", "specialty": "心血管内科"},
+            {"doctor": "谢琼/杜彬彬主治医师", "specialty": "体检咨询"},
+            {"doctor": "杨斯怡主治医师", "specialty": "免疫接种"},
+            {"doctor": "钟严艳副主任医师", "specialty": "东区儿童发育行为"},
+            {"doctor": "三医院专家", "specialty": "皮肤外科"},
+            {"doctor": "梨园医院专家", "specialty": "心理门诊"},
+        ],
     },
 }
 
@@ -131,10 +174,25 @@ EXPERT_OUTPATIENT_NOTES = {
 def build_expert_outpatient_prompt():
     lines = ["【专家门诊周排班】"]
     for weekday, sessions in EXPERT_OUTPATIENT_SCHEDULE.items():
-        for session_name, specialties in sessions.items():
-            if not specialties:
+        for session_name, entries in sessions.items():
+            if not entries:
                 continue
-            lines.append(f"{weekday}{session_name}：{'、'.join(specialties)}")
+            # 格式：医生姓名+职称（科室名称）
+            items = []
+            for entry in entries:
+                if isinstance(entry, dict):
+                    doctor = entry.get("doctor", "")
+                    specialty = entry.get("specialty", "")
+                    if doctor and specialty:
+                        items.append(f"{doctor}（{specialty}）")
+                    elif specialty:
+                        items.append(specialty)
+                    else:
+                        items.append(doctor)
+                else:
+                    # 兼容旧格式（纯字符串）
+                    items.append(entry)
+            lines.append(f"{weekday}{session_name}：{'、'.join(items)}")
 
     if EXPERT_OUTPATIENT_NOTES:
         lines.append("")
@@ -146,8 +204,8 @@ def build_expert_outpatient_prompt():
         [
             "",
             "使用规则：",
-            "1. 当患者要去的科室或症状匹配某天专家门诊时，主动提醒患者该天有对应专家门诊，专家门诊的路线让患者去问导医台护士。",
-            "2. 回答时先说哪天有专家门诊，再给出建议。",
+            "1. 当患者要去的科室或症状匹配某天专家门诊时，主动提醒患者该天有对应专家门诊，并告知出诊医生姓名，专家门诊的路线让患者去问导医台护士。",
+            "2. 回答时先说哪天有专家门诊、哪位医生出诊，再给出建议。",
             "3. 若未排班，不要编造专家门诊，仍按普通导医/分诊规则回答。",
         ]
     )
@@ -283,7 +341,7 @@ ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
 ROS_AUDIO_FRAME_MS = int(os.getenv("ROS_AUDIO_FRAME_MS", "20"))
 
 # HALF_DUPLEX_RESUME_DELAY_MS: 半双工播放结束后延迟恢复麦克风，避开扬声器尾音/混响
-HALF_DUPLEX_RESUME_DELAY_MS = int(os.getenv("HALF_DUPLEX_RESUME_DELAY_MS", "200"))
+HALF_DUPLEX_RESUME_DELAY_MS = int(os.getenv("HALF_DUPLEX_RESUME_DELAY_MS", "50"))
 
 # ACTION_INDEX_TOPIC: 语音关键词触发动作时发布的 ROS1 index 话题
 ACTION_INDEX_TOPIC = os.getenv("ACTION_INDEX_TOPIC", "/action_index")
@@ -395,7 +453,7 @@ EXTRA_PROMPT_SAMPLE_DEEP_INTERVIEW = r"""
 # 连续 VISUAL_GREETING_REQUIRED_CONSECUTIVE 帧检测到人脸即触发迎宾。
 VISUAL_GREETING_INTERVAL_SEC = 0.25
 VISUAL_GREETING_REQUIRED_CONSECUTIVE = 5      # 5 × 0.25s ≈ 1.25s（远处人脸增加帧数防误触发）
-VISUAL_GREETING_MIN_FACE_WIDTH = 40           # 人脸框最小宽度（像素），约对应 5 米内距离
+VISUAL_GREETING_MIN_FACE_WIDTH = 50           # 人脸框最小宽度（像素，小于该值会被忽略），约对应 5 米内距离
 VISUAL_GREETING_TEXT = "需要我帮忙吗"
 
 # 迎宾冷却：首次迎宾后关闭迎宾逻辑，直到麦克风无用户输入超过此秒数才重新开启。
