@@ -204,8 +204,12 @@ ACTION_INDEX_BY_KEYWORD: Dict[str, int] = {
     "good": 14,
     "photo1": 15,
     "photo2": 16,
-    "left_front": 17,
-    "right_front": 18,
+    # 左前/右前动作尚未完成：检测到左/右（含左前、右前）时，统一发送对应的左/右动作信号
+    # （等左前/右前动作实现后，把下面两行改回 17/18 即可恢复）
+    "left_front": 4,  # 左前 → 向左
+    "right_front": 5,  # 右前 → 向右
+    # "left_front": 17,
+    # "right_front": 18,
     "right_back": 19,
 }
 
