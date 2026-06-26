@@ -59,8 +59,8 @@ LLM_KWS_PATTERNS: Dict[str, List[str]] = {
     "left_front": ["左前"],
     "right_front": ["右前"],
     "right_back": ["右后"],
-    "left": ["往左", "向左", "左手边"],
-    "right": ["向右", "往右", "右手边"],
+    "left": ["往左", "向左", "左手边", "左"],
+    "right": ["向右", "往右", "右手边", "右"],
     # 结束访谈/结束控制，由 LLM 说出
     "photo1": ["我们开拍啦", "我举起手啦"],
     "photo2": ["三二一茄子", "咔嚓"],
@@ -193,8 +193,8 @@ LLM_KWS_PATTERNS: Dict[str, List[str]] = {
 # 语音关键词到动作 index 的映射。
 # 必须与旧 IntegratedReceiver._keyword_to_index() 保持一致，接收方按这些 index 执行动作。
 ACTION_INDEX_BY_KEYWORD: Dict[str, int] = {
-    "left": 4,
-    "right": 5,
+    "left": 5, #向右（说话人方向）
+    "right": 4,#向左（说话人方向）
     "wave": 7,
     "nod": 8,
     "shake": 10,
@@ -206,8 +206,8 @@ ACTION_INDEX_BY_KEYWORD: Dict[str, int] = {
     "photo2": 16,
     # 左前/右前动作尚未完成：检测到左/右（含左前、右前）时，统一发送对应的左/右动作信号
     # （等左前/右前动作实现后，把下面两行改回 17/18 即可恢复）
-    "left_front": 4,  # 左前 → 向左
-    "right_front": 5,  # 右前 → 向右
+    "left_front": 5,  # 左前 → 向右（说话人方向）
+    "right_front": 4,  # 右前 → 向左（说话人方向）
     # "left_front": 17,
     # "right_front": 18,
     "right_back": 19,
