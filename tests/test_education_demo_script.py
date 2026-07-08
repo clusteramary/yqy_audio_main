@@ -51,9 +51,9 @@ class TestEducationDemoScript(unittest.TestCase):
             for step in config.EDUCATION_DEMO_SCRIPT
             if step.get("type") == "say"
         ]
-        self.assertIn("项目制学习的机器人导师", robot_lines[0])
-        self.assertTrue(any("需求是否真实" in line for line in robot_lines))
-        self.assertTrue(any("功能多不一定代表项目好" in line for line in robot_lines))
+        self.assertIn("Agent 第一版到底服务谁", robot_lines[0])
+        self.assertTrue(any("大一新生" in line for line in robot_lines))
+        self.assertTrue(any("输入层包括课表" in line for line in robot_lines))
 
     def test_script_player_order(self):
         events = []
