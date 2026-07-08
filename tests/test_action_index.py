@@ -7,8 +7,8 @@ from integrated_receiver import IntegratedReceiver
 
 
 EXPECTED_ACTION_INDEX = {
-    "left": 4,
-    "right": 5,
+    "left": 5,
+    "right": 4,
     "wave": 7,
     "nod": 8,
     "shake": 10,
@@ -18,6 +18,9 @@ EXPECTED_ACTION_INDEX = {
     "good": 14,
     "photo1": 15,
     "photo2": 16,
+    "left_front": 5,
+    "right_front": 4,
+    "right_back": 19,
 }
 
 
@@ -80,7 +83,15 @@ class TestDialogSessionActionPublisher(unittest.TestCase):
         session = self._session_stub()
         published = dialog_session.DialogSession._emit_voice_keyword(session, "left")
         self.assertTrue(published)
-        self.assertEqual(session.action_index_pub.messages[0].data, 4)
+        self.assertEqual(session.action_index_pub.messages[0].data, 5)
+
+    def test_publish_compound_direction_index(self):
+        session = self._session_stub()
+        published = dialog_session.DialogSession._emit_voice_keyword(
+            session, "right_back"
+        )
+        self.assertTrue(published)
+        self.assertEqual(session.action_index_pub.messages[0].data, 19)
 
     def test_unknown_keyword_does_not_publish(self):
         session = self._session_stub()

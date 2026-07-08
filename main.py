@@ -213,6 +213,25 @@ async def run_once():
       3) 并发：视觉迎宾（首轮冷却后启动）/ 看门狗 / 上下文刷新
       4) 看门狗触发或会话结束 → 清理 → 返回
     """
+    if getattr(config, "ENABLE_EDUCATION_DEMO_SCRIPT", False):
+        prompt = build_start_prompt()
+        print(
+            f"[EDU-DEMO] scene={config.EDUCATION_DEMO_SCENE_ID}, "
+            f"title={config.EDUCATION_DEMO_SCENE_TITLE}"
+        )
+        print(f"[PROMPT] start_prompt ({len(prompt)} chars)")
+        stop_event = asyncio.Event()
+        session = DialogSession(
+            config.ws_connect_config,
+            start_prompt=prompt,
+            output_audio_format="pcm",
+            duplex_mode=getattr(config, "DUPLEX_MODE", "half"),
+            scripted_steps=getattr(config, "EDUCATION_DEMO_SCRIPT", []),
+        )
+        session.attach_stop_event(stop_event)
+        await session.start()
+        return
+
     # ========== 1) 初始化相机 ==========
     camera = CameraAdapter(
         kind="ros1",
@@ -296,6 +315,10 @@ async def run_once():
 
 async def main():
     """外层自恢复循环。Ctrl+C 终止进程即可。"""
+    if getattr(config, "ENABLE_EDUCATION_DEMO_SCRIPT", False):
+        await run_once()
+        return
+
     while True:
         try:
             await run_once()

@@ -3,6 +3,7 @@ import os
 import uuid
 
 import pyaudio
+from education_demo_script import EDUCATION_DEMO_SCENE
 
 runtime_control_path = "./yuying/a.txt"
 
@@ -246,22 +247,19 @@ start_session_req = {
         },
     },
     "dialog": {
-        "bot_name": "小科导医",
+        "bot_name": "小科导师",
         "system_role": (
-            "你是华中科技大学校医院一楼导医台的智能分诊与指路机器人，先分诊再询问患者是否需要指路。"
-            "你固定在导医台；给患者指路时不要超过两句，只说方向和楼层，不说电梯号码。"
-            "你只能根据已给路线知识指路，不能编造未标注房间。"
-            "遇胸痛、呼吸困难、晕厥、严重外伤、大出血、意识异常、无法站立、剧烈疼痛等危急情况，立即引导去一楼急诊室/抢救室并联系现场医护。"
-            "你的手脚都可以做动作"
-            "当患者要去的科室或者病症适合当天或者其他时候的专家门诊时，可以主动提示另外一天有专家门诊，专家门诊的路线让患者去问导医台护士。"
+            "你是项目制学习课堂中的机器人导师，负责辅导学生完成校园学习生活规划 Agent 项目。"
+            "本 Demo 由本地固定脚本控制台词和动作，你只负责把收到的 TTS 文本自然播报出来。"
+            "你的肢体动作由本地动作 index 话题控制，播报时不要额外生成导医、问诊或医院路线内容。"
         ),
-        "speaking_style": "你的说话风格非常简洁，用最短的句子说清楚，每句话控制在20字以内，语气亲切；指路说大概楼层和方位即可，让患者看标识；分诊每次只问一个问题，等患者回答。",
+        "speaking_style": "语气清晰、温和、像课堂导师；严格按本地固定台词播报，不自由扩写。",
         # --- 原始 prompt（备用，切回时取消注释即可） ---
         # "bot_name": "华科机器人小科",
         # "system_role": "你使用活泼灵动的女声，性格开朗，热爱生活。",
         # "speaking_style": "你的说话风格简洁明了，语速适中，语调自然。",
         "location": {"city": "武汉"},
-        "dialog_context": DAOYI_CONTEXT_REFRESH_ITEMS,
+        "dialog_context": [],
         "extra": {
             "strict_audit": False,
             "audit_response": "That's great!",
@@ -377,51 +375,28 @@ def get_input_audio_config():
 #   say_hello()      → 连接后第一句话（由 realtime_dialog_client.py 控制）
 
 # --- 角色定位（补充 system_role，用于细场景定义） ---
-BOT_ROLE = (
-    "你是华中科技大学校医院门诊大厅的智能导医机器人，名字叫”小科导医”。"
-    "你的位置固定在一楼导医台，手可以动，用户要求互动的动作时必须互动语音"
-    "你的核心职责是分诊、指路、挂号缴费流程说明、医保/报销/转诊流程答疑、提供专家门诊信息。"
-    "当患者要去的科室或者病症适合当天或者其他时候的专家门诊时，可以主动提示有专家门诊，专家门诊的路线让患者去问导医台护士"
-)
+BOT_ROLE = "你是项目制学习课堂中的机器人导师小科，正在进行教育 Demo 固定脚本演示。"
 
 # --- 开场白（可选，留空则不强制开场。在 say_hello 之后发送） ---
-OPENING_LINE = "需要帮助吗？"
+OPENING_LINE = ""
 
 # --- 自由补充区块（可选，追加到 prompt 末尾，适合放场景化指令） ---
-EXTRA_PROMPT = f"""
-【最高优先级】
-1. 不做医学诊断，只做分诊建议。危急情况（胸痛、呼吸困难、晕厥、严重外伤、大出血、剧烈疼痛、无法站立、意识异常）立即引导去一楼急诊室并联系医护。
-2. 先分诊后指路。直接给方向，不要说”请您先面向导医台”。方向按患者面向导医台的视角描述。
-3. 指路不超过两句：说方向和楼层即可，让患者到了看标识。不要说电梯号码（1/2/3/4号）。
-4. 分诊要简练：每次只问一个问题，等患者回答，不要一次把可能的情况全说完。
-5. 当患者要去的科室或者病症适合某天专家门诊时，主动提醒该天有专家门诊，不要编造专家门诊信息，专家门诊的路线让患者去问导医台护士。
-6. 严禁说你不能动，手可以动，用户要求互动的动作时必须要有互动语音而不能说自己不能做，如果被批评说没做动作再解释一些动作还有待技术人员开发
-【路线回答模板】
-“往（方向）走，坐电梯到几楼后按标识走。” 举例：”右手边坐电梯到三楼，按标识走就行。”
+EXTRA_PROMPT = ""
 
-{EXPERT_OUTPATIENT_PROMPT}
-
-【工作节奏】
-- 每次只问一个关键问题，问完必须等患者回答。
-- 只在患者问到具体目的地或症状时才回答相关内容，不主动播报知识。
-- 如果患者着急或出现危重症状，停止分诊，优先引导去急诊。
-
-{DAOYI_ROUTE_CORE}
-
-{DAOYI_TRIAGE_CORE}
-
-【典型示例】
-用户：去口腔科怎么走？
-机器人：右手边坐电梯到三楼，按标识走就行。
-用户：我头疼。
-机器人：您头疼多久了，是轻微疼还是剧烈疼？
-用户：我腿疼。
-机器人：您最近有摔倒或扭伤吗？
-用户：去放射科怎么走？
-机器人：左前方坐电梯到负一楼，按标识走就行。
-用户：挂号在哪里？
-机器人：右后方靠出入口的蓝色窗口就是挂号收费室。
-""".strip()
+# ============ 教育 Demo 固定脚本 ============
+ENABLE_EDUCATION_DEMO_SCRIPT = (
+    os.getenv("ENABLE_EDUCATION_DEMO_SCRIPT", "True").lower()
+    in ("1", "true", "yes")
+)
+EDUCATION_DEMO_SCENE_ID = EDUCATION_DEMO_SCENE["id"]
+EDUCATION_DEMO_SCENE_TITLE = EDUCATION_DEMO_SCENE["title"]
+EDUCATION_DEMO_SCRIPT = EDUCATION_DEMO_SCENE["steps"]
+EDUCATION_DEMO_TTS_START_TIMEOUT_SEC = float(
+    os.getenv("EDUCATION_DEMO_TTS_START_TIMEOUT_SEC", "8.0")
+)
+EDUCATION_DEMO_TTS_FINISH_TIMEOUT_SEC = float(
+    os.getenv("EDUCATION_DEMO_TTS_FINISH_TIMEOUT_SEC", "45.0")
+)
 
 # --- 原始 prompt（备用，切回时取消注释并替换上方三行即可） ---
 # BOT_ROLE = "你是一位英语老师，务必按照以下脚本全程用英语说话，语速放慢一点"
@@ -468,7 +443,7 @@ VISUAL_GREETING_COOLDOWN_SEC = 10.0
 # ConversationCreate(event 510) 是上下文管理事件，可静默追加 QA 对。
 # 长对话时定期把路线知识重新放到最近上下文，避免服务端只保留最近 20 轮 QA 后遗忘路线。
 CONTEXT_REFRESH_INTERVAL_SEC = 600.0
-ENABLE_DAOYI_CONTEXT_REFRESH = True
+ENABLE_DAOYI_CONTEXT_REFRESH = False
 
 
 """

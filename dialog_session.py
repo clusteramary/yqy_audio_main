@@ -14,7 +14,7 @@ import threading
 import time
 import uuid
 import wave
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional, Sequence, Set
 
 import pyaudio
 
@@ -133,8 +133,11 @@ class DialogSession:
         output_audio_format: str = "pcm",
         audio_file_path: str = "",
         duplex_mode: str = "half",
+        scripted_steps: Optional[Sequence[Dict[str, Any]]] = None,
     ):
         self.start_prompt = start_prompt
+        self.scripted_steps = list(scripted_steps or [])
+        self.is_scripted_demo = bool(self.scripted_steps)
         self.audio_file_path = audio_file_path
         self.is_audio_file_input = self.audio_file_path != ""
         if self.is_audio_file_input:
@@ -261,7 +264,9 @@ class DialogSession:
                 )
                 print(f"已订阅下位机播放状态话题: {self.remote_status_topic}")
 
-            if input_mode == "ros1" and _HAS_ROS1:
+            if self.is_scripted_demo:
+                print("[EDU-DEMO] 固定脚本模式：跳过麦克风输入订阅")
+            elif input_mode == "ros1" and _HAS_ROS1:
                 # === 订阅麦克风音频（别人已经用 audio_capture 打开设备并发布到 /audio/audio） ===
                 if _HAS_AUDIO_DATA_MSG and RosAudioData is not None:
                     self.ros_audio_queue = queue.Queue(maxsize=50)
@@ -301,7 +306,7 @@ class DialogSession:
                 AudioConfig(**config.output_audio_config),
             )
             # PyAudio 模式：同时打开输入流
-            if input_mode == "pyaudio":
+            if input_mode == "pyaudio" and not self.is_scripted_demo:
                 self.input_stream = self.audio_device.open_input_stream()
                 dev_info = input_cfg.get("device_index") or input_cfg.get("device_name") or "默认"
                 print(f"[PyAudio-MIC] 已打开本地麦克风（设备: {dev_info}, "
@@ -706,6 +711,94 @@ class DialogSession:
         except Exception as e:
             print(f"[KWS-ROS] 发布动作 index 失败: {e}")
             return False
+
+    def publish_action_keyword(self, keyword: str) -> bool:
+        """Publish an action keyword through the same ROS index path as KWS."""
+        return self._emit_voice_keyword(keyword)
+
+    async def _sleep_or_stop(self, seconds: float) -> None:
+        if seconds <= 0:
+            return
+        stop_event = self.external_stop_event
+        if stop_event is None:
+            await asyncio.sleep(seconds)
+            return
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=seconds)
+        except asyncio.TimeoutError:
+            pass
+
+    async def _wait_for_tts_idle(self) -> None:
+        start_timeout = float(
+            getattr(config, "EDUCATION_DEMO_TTS_START_TIMEOUT_SEC", 8.0)
+        )
+        finish_timeout = float(
+            getattr(config, "EDUCATION_DEMO_TTS_FINISH_TIMEOUT_SEC", 45.0)
+        )
+
+        started = False
+        deadline = time.time() + start_timeout
+        while self.is_running and time.time() < deadline:
+            if self.external_stop_event and self.external_stop_event.is_set():
+                return
+            if self._is_tts_playing():
+                started = True
+                break
+            await asyncio.sleep(0.05)
+
+        if not started:
+            print("[EDU-DEMO] 未在超时内检测到 TTS 播放开始，继续下一步")
+            return
+
+        deadline = time.time() + finish_timeout
+        while self.is_running and time.time() < deadline:
+            if self.external_stop_event and self.external_stop_event.is_set():
+                return
+            if not self._is_tts_playing():
+                await asyncio.sleep(0.25)
+                if not self._is_tts_playing():
+                    return
+            await asyncio.sleep(0.05)
+        print("[EDU-DEMO] 等待 TTS 播放结束超时，继续下一步")
+
+    async def play_scripted_demo(self) -> None:
+        print(f"[EDU-DEMO] 开始固定脚本，共 {len(self.scripted_steps)} 步")
+        for index, step in enumerate(self.scripted_steps, 1):
+            if self.external_stop_event and self.external_stop_event.is_set():
+                print("[EDU-DEMO] 收到停止信号，结束脚本")
+                return
+
+            step_type = step.get("type", "say")
+            if step_type == "say":
+                text = str(step.get("text", "")).strip()
+                if not text:
+                    continue
+                for keyword in step.get("actions_before", []) or []:
+                    self.publish_action_keyword(str(keyword))
+                print(f"[EDU-DEMO] {index}/{len(self.scripted_steps)} 机器人: {text}")
+                try:
+                    self.dialog_write_queue.put_nowait(f"机器人: {text}")
+                except Exception:
+                    pass
+                await self.client.chat_tts_text(False, True, True, text)
+                await self._wait_for_tts_idle()
+                for keyword in step.get("actions_after", []) or []:
+                    self.publish_action_keyword(str(keyword))
+                await self._sleep_or_stop(float(step.get("wait_after", 0.0) or 0.0))
+            elif step_type == "pause":
+                speaker = str(step.get("speaker", "演员")).strip() or "演员"
+                text = str(step.get("text", "")).strip()
+                duration = float(step.get("duration", 0.0) or 0.0)
+                print(f"[EDU-DEMO] {index}/{len(self.scripted_steps)} {speaker}: {text} ({duration:.1f}s)")
+                if text:
+                    try:
+                        self.dialog_write_queue.put_nowait(f"{speaker}: {text}")
+                    except Exception:
+                        pass
+                await self._sleep_or_stop(duration)
+            else:
+                print(f"[EDU-DEMO] 跳过未知脚本步骤类型: {step_type}")
+        print("[EDU-DEMO] 固定脚本播放完成")
 
     def _maybe_emit_wave_from_asr(self, payload_msg: Dict[str, Any]):
         """
@@ -1170,6 +1263,10 @@ class DialogSession:
                 await self.receive_loop()
                 self.quit_event.set()
                 await asyncio.sleep(0.1)
+            elif self.is_scripted_demo:
+                asyncio.create_task(self.receive_loop())
+                await self.play_scripted_demo()
+                self.is_running = False
             else:
                 asyncio.create_task(self.process_microphone_input())
                 asyncio.create_task(self.receive_loop())

@@ -255,7 +255,7 @@ python keyListener.py   # 'p' 键监听
 | 5558 | 发布 | 麦克风收放指令（send_microphone/release_microphone） |
 | 8889 | 订阅 | 文本指令写入 ctrl.txt       |
 
-语音关键词动作不再通过 UDP 5557 发布，改为 ROS1 `/action_index` 话题发布 `std_msgs/Int32`。index 语义与旧 UDP 接收路径保持一致：`left=4`、`right=5`、`wave=7`、`nod=8`、`shake=10`、`start=11`、`end=12`、`woshou=13`、`good=14`、`photo1=15`、`photo2=16`。
+语音关键词动作不再通过 UDP 5557 发布，改为 ROS1 `/action_index` 话题发布 `std_msgs/Int32`。当前 index 语义为：`left=5`、`right=4`、`wave=7`、`nod=8`、`shake=10`、`start=11`、`end=12`、`woshou=13`、`good=14`、`photo1=15`、`photo2=16`、`left_front=5`、`right_front=4`、`right_back=19`。
 
 ## 8. 主要文件说明
 
