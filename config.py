@@ -397,6 +397,26 @@ EDUCATION_DEMO_TTS_START_TIMEOUT_SEC = float(
 EDUCATION_DEMO_TTS_FINISH_TIMEOUT_SEC = float(
     os.getenv("EDUCATION_DEMO_TTS_FINISH_TIMEOUT_SEC", "45.0")
 )
+# 学生发言由本地 VAD 判断，不把原始麦克风音频交给对话模型，避免生成脚本外回复。
+EDUCATION_DEMO_VAD_THRESHOLD = int(
+    os.getenv("EDUCATION_DEMO_VAD_THRESHOLD", "800")
+)
+EDUCATION_DEMO_VAD_START_MS = int(
+    os.getenv("EDUCATION_DEMO_VAD_START_MS", "200")
+)
+EDUCATION_DEMO_VAD_END_SILENCE_MS = int(
+    os.getenv("EDUCATION_DEMO_VAD_END_SILENCE_MS", "1200")
+)
+EDUCATION_DEMO_USER_START_TIMEOUT_SEC = float(
+    os.getenv("EDUCATION_DEMO_USER_START_TIMEOUT_SEC", "30.0")
+)
+EDUCATION_DEMO_USER_FINISH_TIMEOUT_SEC = float(
+    os.getenv("EDUCATION_DEMO_USER_FINISH_TIMEOUT_SEC", "45.0")
+)
+# 在确认学生说完后再额外等待，避免机器人紧贴尾音抢话。
+EDUCATION_DEMO_RESPONSE_DELAY_SEC = float(
+    os.getenv("EDUCATION_DEMO_RESPONSE_DELAY_SEC", "2.0")
+)
 
 # --- 原始 prompt（备用，切回时取消注释并替换上方三行即可） ---
 # BOT_ROLE = "你是一位英语老师，务必按照以下脚本全程用英语说话，语速放慢一点"

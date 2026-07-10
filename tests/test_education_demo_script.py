@@ -55,6 +55,10 @@ class ScriptSession(SimpleNamespace):
     async def _sleep_or_stop(self, seconds):
         self.events.append(("sleep", seconds))
 
+    async def _wait_for_script_user_turn(self, speaker, response_delay):
+        self.events.append(("wait_user", speaker, response_delay))
+        return True
+
 
 class TestEducationDemoScript(unittest.TestCase):
     def test_all_script_actions_are_mapped(self):
@@ -110,6 +114,7 @@ class TestEducationDemoScript(unittest.TestCase):
         self.assertEqual(events[2], ("wait_tts",))
         self.assertEqual(events[3], ("action", "nod"))
         self.assertIn(("sleep", 0.0), events)
+        self.assertIn(("wait_user", "学生 A", 0.0), events)
 
     def test_scripted_mode_ignores_content_keyword_detection(self):
         old_int32 = dialog_session.Int32
@@ -163,6 +168,28 @@ class TestEducationDemoScript(unittest.TestCase):
     def test_missing_message_type_is_ignored(self):
         dialog_session.DialogSession.handle_server_response(
             SimpleNamespace(), {"code": 1234, "payload_msg": "bad response"}
+        )
+
+    def test_pause_adds_reaction_delay_before_robot_reply(self):
+        events = []
+        session = ScriptSession(
+            events=events,
+            scripted_steps=[
+                {"type": "pause", "speaker": "学生 A", "text": "回答"},
+                {"type": "say", "text": "机器人回应"},
+            ],
+            external_stop_event=None,
+            is_running=True,
+            receive_error=None,
+            client=FakeClient(events),
+            dialog_write_queue=FakeQueue(),
+        )
+
+        asyncio.run(dialog_session.DialogSession.play_scripted_demo(session))
+
+        self.assertIn(
+            ("wait_user", "学生 A", config.EDUCATION_DEMO_RESPONSE_DELAY_SEC),
+            events,
         )
 
 
