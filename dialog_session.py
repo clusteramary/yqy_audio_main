@@ -161,6 +161,7 @@ class DialogSession:
 
         self.is_running = True
         self.is_session_finished = False
+        self.receive_error: Optional[Exception] = None
         self.is_user_querying = False
         self.is_sending_chat_tts_text = False
         self.audio_buffer = b""
@@ -728,7 +729,7 @@ class DialogSession:
         except asyncio.TimeoutError:
             pass
 
-    async def _wait_for_tts_idle(self) -> None:
+    async def _wait_for_tts_idle(self) -> bool:
         start_timeout = float(
             getattr(config, "EDUCATION_DEMO_TTS_START_TIMEOUT_SEC", 8.0)
         )
@@ -740,30 +741,45 @@ class DialogSession:
         deadline = time.time() + start_timeout
         while self.is_running and time.time() < deadline:
             if self.external_stop_event and self.external_stop_event.is_set():
-                return
+                return False
             if self._is_tts_playing():
                 started = True
                 break
             await asyncio.sleep(0.05)
 
         if not started:
-            print("[EDU-DEMO] 未在超时内检测到 TTS 播放开始，继续下一步")
-            return
+            print("[EDU-DEMO] 未在超时内检测到 TTS 播放开始")
+            return False
 
         deadline = time.time() + finish_timeout
         while self.is_running and time.time() < deadline:
             if self.external_stop_event and self.external_stop_event.is_set():
-                return
+                return False
             if not self._is_tts_playing():
                 await asyncio.sleep(0.25)
                 if not self._is_tts_playing():
-                    return
+                    return True
             await asyncio.sleep(0.05)
-        print("[EDU-DEMO] 等待 TTS 播放结束超时，继续下一步")
+        print("[EDU-DEMO] 等待 TTS 播放结束超时")
+        return False
+
+    @staticmethod
+    def _build_scripted_line_query(text: str) -> str:
+        return (
+            "这是教育演示的固定台词播报指令。请严格逐字复述【台词开始】和"
+            "【台词结束】之间的正文，不要解释，不要添加、删减或改写任何内容，"
+            "也不要读出边界标记。\n"
+            f"【台词开始】{text}【台词结束】"
+        )
+
+    def _raise_receive_error(self) -> None:
+        if self.receive_error is not None:
+            raise RuntimeError("教育 Demo 接收服务端消息失败") from self.receive_error
 
     async def play_scripted_demo(self) -> None:
         print(f"[EDU-DEMO] 开始固定脚本，共 {len(self.scripted_steps)} 步")
         for index, step in enumerate(self.scripted_steps, 1):
+            self._raise_receive_error()
             if self.external_stop_event and self.external_stop_event.is_set():
                 print("[EDU-DEMO] 收到停止信号，结束脚本")
                 return
@@ -780,8 +796,14 @@ class DialogSession:
                     self.dialog_write_queue.put_nowait(f"机器人: {text}")
                 except Exception:
                     pass
-                await self.client.chat_tts_text(False, True, True, text)
-                await self._wait_for_tts_idle()
+                query = self._build_scripted_line_query(text)
+                await self.client.chat_text_query(query)
+                played = await self._wait_for_tts_idle()
+                self._raise_receive_error()
+                if not played:
+                    if self.external_stop_event and self.external_stop_event.is_set():
+                        return
+                    raise RuntimeError("教育 Demo 固定台词未能正常播放")
                 for keyword in step.get("actions_after", []) or []:
                     self.publish_action_keyword(str(keyword))
                 await self._sleep_or_stop(float(step.get("wait_after", 0.0) or 0.0))
@@ -835,9 +857,13 @@ class DialogSession:
 
     def handle_server_response(self, response: Dict[str, Any]) -> None:
         # 已移除：静默控制窗口（丢弃确认回包/文本回包）
-        if response == {}:
+        if not response:
             return
-        if response["message_type"] == "SERVER_ACK" and isinstance(
+        message_type = response.get("message_type")
+        if message_type is None:
+            print(f"[PROTOCOL] 忽略缺少 message_type 的服务端响应: {response}")
+            return
+        if message_type == "SERVER_ACK" and isinstance(
             response.get("payload_msg"), bytes
         ):
             if self.is_sending_chat_tts_text:
@@ -847,7 +873,7 @@ class DialogSession:
                 self.audio_queue.put(audio_data)
             self.audio_buffer += audio_data
 
-        elif response["message_type"] == "SERVER_FULL_RESPONSE":
+        elif message_type == "SERVER_FULL_RESPONSE":
             print(f"服务器响应: {response}")
             event = response.get("event")
             payload_msg = response.get("payload_msg", {})
@@ -1005,9 +1031,12 @@ class DialogSession:
                     self.is_sending_chat_tts_text = True
                     asyncio.create_task(self.trigger_chat_tts_text())
 
-        elif response["message_type"] == "SERVER_ERROR":
-            print(f"服务器错误: {response['payload_msg']}")
-            raise Exception("服务器错误")
+        elif message_type == "SERVER_ERROR":
+            code = response.get("code")
+            payload = response.get("payload_msg")
+            raise RuntimeError(f"服务器错误: code={code}, payload={payload}")
+        else:
+            print(f"[PROTOCOL] 忽略未知服务端消息类型: {response}")
 
     async def _send_silence_if_due(self):
         now = time.time()
@@ -1071,6 +1100,8 @@ class DialogSession:
         except asyncio.CancelledError:
             print("接收任务已取消")
         except Exception as e:
+            self.receive_error = e
+            self.is_running = False
             print(f"接收消息错误: {e}")
 
     async def process_audio_file(self) -> None:
