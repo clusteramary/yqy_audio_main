@@ -80,6 +80,34 @@ class TestEducationDemoScript(unittest.TestCase):
         self.assertTrue(any("学生 A 在需求理解方面" in line for line in robot_lines))
         self.assertTrue(any("数据来源和评价指标" in line for line in robot_lines))
 
+    def test_scene_three_has_delays_before_student_profile_names(self):
+        preface = next(
+            step
+            for step in config.EDUCATION_DEMO_SCRIPT
+            if step.get("text") == "从过程表现看，"
+        )
+        profile_steps = [
+            step
+            for step in config.EDUCATION_DEMO_SCRIPT
+            if step.get("type") == "say"
+            and any(name in step.get("text", "") for name in ("学生 A", "学生 B", "学生 C"))
+        ]
+
+        self.assertEqual(
+            [step["text"] for step in profile_steps],
+            [
+                "学生 A 在需求理解方面贡献较多，",
+                "学生 B 在系统决策设计方面表现突出，",
+                "学生 C 提出了反馈调整机制。建议教师后续重点关注小组对数据来源和评价指标的完善。",
+            ],
+        )
+        self.assertEqual(
+            [step["wait_after"] for step in profile_steps[:2]], [1.5, 1.5]
+        )
+        self.assertEqual(preface["wait_after"], 1.5)
+        self.assertEqual(preface["actions_before"], ["right_front"])
+        self.assertEqual(profile_steps[-1]["actions_after"], ["good"])
+
     def test_script_player_order(self):
         events = []
         session = ScriptSession(

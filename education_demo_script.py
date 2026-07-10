@@ -21,8 +21,26 @@ EDUCATION_DEMO_SCENE = {
         {
             "type": "say",
             "speaker": "机器人",
-            "text": "从过程表现看，学生 A 在需求理解方面贡献较多，学生 B 在系统决策设计方面表现突出，学生 C 提出了反馈调整机制。建议教师后续重点关注小组对数据来源和评价指标的完善。",
+            "text": "从过程表现看，",
             "actions_before": ["right_front"],
+            "wait_after": 1.5,
+        },
+        {
+            "type": "say",
+            "speaker": "机器人",
+            "text": "学生 A 在需求理解方面贡献较多，",
+            "wait_after": 1.5,
+        },
+        {
+            "type": "say",
+            "speaker": "机器人",
+            "text": "学生 B 在系统决策设计方面表现突出，",
+            "wait_after": 1.5,
+        },
+        {
+            "type": "say",
+            "speaker": "机器人",
+            "text": "学生 C 提出了反馈调整机制。建议教师后续重点关注小组对数据来源和评价指标的完善。",
             "actions_after": ["good"],
             "wait_after": 0.4,
         },
