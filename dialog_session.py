@@ -874,8 +874,10 @@ class DialogSession:
                 except Exception as e:
                     print(f"[DIALOG] 固定用户文本失败: {e}")
 
-            # 在 LLM 文本里做统一关键词检测（使用缓冲区 + 字典配置）
-            if "content" in payload_msg:
+            # 在 LLM 文本里做统一关键词检测（使用缓冲区 + 字典配置）。
+            # 固定脚本模式的动作由 script actions_before/actions_after 显式发布，
+            # 不再根据 TTS/content 回包做关键词触发，避免重复或误触发动作。
+            if "content" in payload_msg and not self.is_scripted_demo:
                 content = payload_msg["content"]
 
                 # 1) 累积机器人整段文本（避免逐 token 写入导致频繁换行）
@@ -912,7 +914,7 @@ class DialogSession:
                         # 如果希望"一次 content 只触发一个关键词"，可以在这里 break
                         # break
 
-            if event == 451:
+            if event == 451 and not self.is_scripted_demo:
                 self.last_user_activity_ts = time.time()
                 try:
                     self._maybe_emit_wave_from_asr(payload_msg)
