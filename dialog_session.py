@@ -26,6 +26,7 @@ from audio_constants import (
     ASR_KWS_PATTERNS,
     KWS_PRIORITY,
     LLM_KWS_PATTERNS,
+    REPEAT_ACTION_COUNT,
     TARGET_CHANNELS,
     TARGET_CHUNK_SAMPLES,
     TARGET_SAMPLE_RATE,
@@ -695,12 +696,18 @@ class DialogSession:
             )
             return False
 
+        # 左/右等方向关键词可配置重复发送，确保下位机可靠接收并执行多次
+        repeat_count = REPEAT_ACTION_COUNT.get(keyword, 1)
+
         try:
-            msg = Int32(data=index) if Int32 is not None else index
-            pub.publish(msg)
+            for i in range(repeat_count):
+                msg = Int32(data=index) if Int32 is not None else index
+                pub.publish(msg)
+                if i < repeat_count - 1:
+                    time.sleep(0.1)  # 间隔 100ms，避免下位机来不及处理
             print(
                 f"[KWS-ROS] 发布动作 index: "
-                f"keyword={keyword}, index={index}, topic={self.action_index_topic}"
+                f"keyword={keyword}, index={index}, repeat={repeat_count}, topic={self.action_index_topic}"
             )
             return True
         except Exception as e:

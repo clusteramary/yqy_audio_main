@@ -213,6 +213,15 @@ ACTION_INDEX_BY_KEYWORD: Dict[str, int] = {
     "right_back": 19,
 }
 
+# 需要重复发送动作信号的关键词及重复次数（用于确保下位机可靠接收）
+REPEAT_ACTION_COUNT: Dict[str, int] = {
+    "left": 5,
+    "right": 5,
+    "left_front": 5,
+    "right_front": 5,
+    "right_back": 5,
+}
+
 # 关键词检测优先级列表：复合方位优先于简单方位。
 # 当"往左前方走"出现时，先触发 left_front(17)，再触发 left(4)。
 KWS_PRIORITY: List[str] = [
