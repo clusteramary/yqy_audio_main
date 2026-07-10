@@ -193,6 +193,24 @@ class DialogSession:
             getattr(config, "HALF_DUPLEX_RESUME_DELAY_MS", 250) / 1000.0
         )
 
+        # ---------- 教育 Demo 本地轮次检测 ----------
+        self._script_waiting_for_user = False
+        self._script_voice_active = False
+        self._script_voice_candidate_since: Optional[float] = None
+        self._script_last_voice_ts = 0.0
+        self._script_user_started_event = asyncio.Event()
+        self._script_user_finished_event = asyncio.Event()
+        self._script_vad_threshold = int(
+            getattr(config, "EDUCATION_DEMO_VAD_THRESHOLD", 800)
+        )
+        self._script_vad_start_sec = (
+            float(getattr(config, "EDUCATION_DEMO_VAD_START_MS", 200)) / 1000.0
+        )
+        self._script_vad_end_silence_sec = (
+            float(getattr(config, "EDUCATION_DEMO_VAD_END_SILENCE_MS", 1200))
+            / 1000.0
+        )
+
         self.external_stop_event: Optional[asyncio.Event] = None
 
         # ---------- 用户活动时间戳（供视觉迎宾冷却判断） ----------
@@ -265,9 +283,7 @@ class DialogSession:
                 )
                 print(f"已订阅下位机播放状态话题: {self.remote_status_topic}")
 
-            if self.is_scripted_demo:
-                print("[EDU-DEMO] 固定脚本模式：跳过麦克风输入订阅")
-            elif input_mode == "ros1" and _HAS_ROS1:
+            if input_mode == "ros1" and _HAS_ROS1:
                 # === 订阅麦克风音频（别人已经用 audio_capture 打开设备并发布到 /audio/audio） ===
                 if _HAS_AUDIO_DATA_MSG and RosAudioData is not None:
                     self.ros_audio_queue = queue.Queue(maxsize=50)
@@ -289,6 +305,8 @@ class DialogSession:
                     "[WARN] INPUT_AUDIO_MODE='ros1' 但未检测到 ROS 环境，"
                     "请在 config.py 中设置 INPUT_AUDIO_MODE='pyaudio' 或设置环境变量 INPUT_AUDIO_MODE=pyaudio"
                 )
+            if self.is_scripted_demo:
+                print("[EDU-DEMO] 已启用麦克风本地 VAD，服务端仅接收静音保活音频")
 
         # ---------- 播放线程 ----------
         signal.signal(signal.SIGINT, self._keyboard_signal)
@@ -307,7 +325,7 @@ class DialogSession:
                 AudioConfig(**config.output_audio_config),
             )
             # PyAudio 模式：同时打开输入流
-            if input_mode == "pyaudio" and not self.is_scripted_demo:
+            if input_mode == "pyaudio":
                 self.input_stream = self.audio_device.open_input_stream()
                 dev_info = input_cfg.get("device_index") or input_cfg.get("device_name") or "默认"
                 print(f"[PyAudio-MIC] 已打开本地麦克风（设备: {dev_info}, "
@@ -776,6 +794,97 @@ class DialogSession:
         if self.receive_error is not None:
             raise RuntimeError("教育 Demo 接收服务端消息失败") from self.receive_error
 
+    def _prepare_script_user_turn(self) -> None:
+        self._script_waiting_for_user = True
+        self._script_voice_active = False
+        self._script_voice_candidate_since = None
+        self._script_last_voice_ts = 0.0
+        self._script_user_started_event.clear()
+        self._script_user_finished_event.clear()
+
+    def _process_script_vad_frame(
+        self, pcm16_16k: bytes, now: Optional[float] = None
+    ) -> None:
+        if not self._script_waiting_for_user or not pcm16_16k:
+            return
+
+        current = time.monotonic() if now is None else now
+        rms = audioop.rms(pcm16_16k, TARGET_SAMPLE_WIDTH)
+        if rms >= self._script_vad_threshold:
+            self._script_last_voice_ts = current
+            if self._script_voice_active:
+                return
+            if self._script_voice_candidate_since is None:
+                self._script_voice_candidate_since = current
+                return
+            if current - self._script_voice_candidate_since >= self._script_vad_start_sec:
+                self._script_voice_active = True
+                self._script_user_started_event.set()
+                print(f"[EDU-DEMO] 检测到学生开始说话，RMS={rms}")
+            return
+
+        if not self._script_voice_active:
+            self._script_voice_candidate_since = None
+            return
+        if current - self._script_last_voice_ts >= self._script_vad_end_silence_sec:
+            self._script_waiting_for_user = False
+            self._script_user_finished_event.set()
+            print("[EDU-DEMO] 检测到学生说完")
+
+    async def _wait_for_script_event(
+        self, event: asyncio.Event, timeout: float
+    ) -> bool:
+        deadline = time.monotonic() + timeout
+        while self.is_running and time.monotonic() < deadline:
+            self._raise_receive_error()
+            if self.external_stop_event and self.external_stop_event.is_set():
+                return False
+            if event.is_set():
+                return True
+            await asyncio.sleep(0.05)
+        return event.is_set()
+
+    async def _wait_for_script_user_turn(
+        self, speaker: str, response_delay: float
+    ) -> bool:
+        self._prepare_script_user_turn()
+        print(f"[EDU-DEMO] 等待 {speaker} 开始说话")
+        started = await self._wait_for_script_event(
+            self._script_user_started_event,
+            float(getattr(config, "EDUCATION_DEMO_USER_START_TIMEOUT_SEC", 30.0)),
+        )
+        if not started:
+            self._script_waiting_for_user = False
+            print(f"[EDU-DEMO] 等待 {speaker} 说话超时，继续脚本")
+            return False
+
+        finished = await self._wait_for_script_event(
+            self._script_user_finished_event,
+            float(getattr(config, "EDUCATION_DEMO_USER_FINISH_TIMEOUT_SEC", 45.0)),
+        )
+        self._script_waiting_for_user = False
+        if not finished:
+            print(f"[EDU-DEMO] 等待 {speaker} 说完超时，继续脚本")
+            return False
+
+        if response_delay > 0:
+            print(f"[EDU-DEMO] 学生已说完，等待 {response_delay:.1f}s 后回应")
+            await self._sleep_or_stop(response_delay)
+        return True
+
+    async def _script_audio_keepalive_loop(self) -> None:
+        while self.is_running:
+            try:
+                await self._send_silence_if_due()
+                await asyncio.sleep(0.05)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                self.receive_error = e
+                self.is_running = False
+                print(f"[EDU-DEMO] 静音保活失败: {e}")
+                return
+
     async def play_scripted_demo(self) -> None:
         print(f"[EDU-DEMO] 开始固定脚本，共 {len(self.scripted_steps)} 步")
         for index, step in enumerate(self.scripted_steps, 1):
@@ -810,14 +919,24 @@ class DialogSession:
             elif step_type == "pause":
                 speaker = str(step.get("speaker", "演员")).strip() or "演员"
                 text = str(step.get("text", "")).strip()
-                duration = float(step.get("duration", 0.0) or 0.0)
-                print(f"[EDU-DEMO] {index}/{len(self.scripted_steps)} {speaker}: {text} ({duration:.1f}s)")
+                print(f"[EDU-DEMO] {index}/{len(self.scripted_steps)} {speaker}: {text}")
                 if text:
                     try:
                         self.dialog_write_queue.put_nowait(f"{speaker}: {text}")
                     except Exception:
                         pass
-                await self._sleep_or_stop(duration)
+                next_is_robot = (
+                    index < len(self.scripted_steps)
+                    and self.scripted_steps[index].get("type", "say") == "say"
+                )
+                response_delay = (
+                    float(
+                        getattr(config, "EDUCATION_DEMO_RESPONSE_DELAY_SEC", 2.0)
+                    )
+                    if next_is_robot
+                    else 0.0
+                )
+                await self._wait_for_script_user_turn(speaker, response_delay)
             else:
                 print(f"[EDU-DEMO] 跳过未知脚本步骤类型: {step_type}")
         print("[EDU-DEMO] 固定脚本播放完成")
@@ -1180,6 +1299,19 @@ class DialogSession:
             )
             await self._mic_loop_ros(in_rate, in_channels, in_width)
 
+    async def process_script_microphone_input(self) -> None:
+        input_cfg = config.get_input_audio_config()
+        in_rate = input_cfg["sample_rate"]
+        in_channels = input_cfg["channels"]
+        in_width = 2
+        input_mode = getattr(config, "INPUT_AUDIO_MODE", "ros1")
+        if input_mode == "pyaudio":
+            print("[EDU-DEMO] 使用本地麦克风检测学生发言")
+            await self._mic_loop_pyaudio(in_rate, in_channels, in_width)
+        else:
+            print("[EDU-DEMO] 使用 ROS /audio/audio 检测学生发言")
+            await self._mic_loop_ros(in_rate, in_channels, in_width)
+
     async def _mic_loop_ros(self, in_rate: int, in_channels: int, in_width: int):
         """ROS 模式：从 ros_audio_queue 读取麦克风数据。"""
         def to_mono(pcm_bytes: bytes) -> bytes:
@@ -1223,9 +1355,12 @@ class DialogSession:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
                     offset += frame_bytes
 
-                    if self._duplex_mode == "full":
-                        self._check_barge_in(chunk16k)
-                    await self.client.task_request(chunk16k)
+                    if self.is_scripted_demo:
+                        self._process_script_vad_frame(chunk16k)
+                    else:
+                        if self._duplex_mode == "full":
+                            self._check_barge_in(chunk16k)
+                        await self.client.task_request(chunk16k)
 
                 await asyncio.sleep(0.005)
             except Exception as e:
@@ -1277,9 +1412,12 @@ class DialogSession:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
                     offset += frame_bytes
 
-                    if self._duplex_mode == "full":
-                        self._check_barge_in(chunk16k)
-                    await self.client.task_request(chunk16k)
+                    if self.is_scripted_demo:
+                        self._process_script_vad_frame(chunk16k)
+                    else:
+                        if self._duplex_mode == "full":
+                            self._check_barge_in(chunk16k)
+                        await self.client.task_request(chunk16k)
 
                 await asyncio.sleep(0.005)
             except Exception as e:
@@ -1298,8 +1436,19 @@ class DialogSession:
                 await asyncio.sleep(0.1)
             elif self.is_scripted_demo:
                 asyncio.create_task(self.receive_loop())
-                await self.play_scripted_demo()
-                self.is_running = False
+                mic_task = asyncio.create_task(self.process_script_microphone_input())
+                keepalive_task = asyncio.create_task(
+                    self._script_audio_keepalive_loop()
+                )
+                try:
+                    await self.play_scripted_demo()
+                finally:
+                    self.is_running = False
+                    for task in (mic_task, keepalive_task):
+                        task.cancel()
+                    await asyncio.gather(
+                        mic_task, keepalive_task, return_exceptions=True
+                    )
             else:
                 asyncio.create_task(self.process_microphone_input())
                 asyncio.create_task(self.receive_loop())
