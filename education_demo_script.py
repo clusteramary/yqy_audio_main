@@ -22,7 +22,7 @@ EDUCATION_DEMO_SCENE = {
             "speaker": "机器人",
             "text": "本项目分为三个阶段：第一，明确用户和需求；第二，设计 Agent 的输入、决策和交互方式；第三，完成方案展示和评审。",
             "actions_before": ["left"],
-            "wait_after": 0.4,
+            "wait_after": 1,
         },
         {
             "type": "say",
@@ -30,7 +30,7 @@ EDUCATION_DEMO_SCENE = {
             "text": "评审时，我会重点关注四点：用户是否具体、需求是否真实、架构是否清晰、方案是否能够持续优化。",
             "actions_before": ["right"],
             "actions_after": ["nod"],
-            "wait_after": 0.4,
+            "wait_after": 1.4,
         },
         {
             "type": "say",
