@@ -23,6 +23,19 @@ class FakeQueue:
         self.items.append(item)
 
 
+class FakeInt32:
+    def __init__(self, data=0):
+        self.data = data
+
+
+class FakePublisher:
+    def __init__(self):
+        self.messages = []
+
+    def publish(self, msg):
+        self.messages.append(msg)
+
+
 class ScriptSession(SimpleNamespace):
     def publish_action_keyword(self, keyword):
         self.events.append(("action", keyword))
@@ -87,6 +100,28 @@ class TestEducationDemoScript(unittest.TestCase):
         self.assertEqual(events[2], ("wait_tts",))
         self.assertEqual(events[3], ("action", "nod"))
         self.assertIn(("sleep", 0.0), events)
+
+    def test_scripted_mode_ignores_content_keyword_detection(self):
+        old_int32 = dialog_session.Int32
+        dialog_session.Int32 = FakeInt32
+        try:
+            session = SimpleNamespace(
+                is_scripted_demo=True,
+                is_sending_chat_tts_text=False,
+                action_index_pub=FakePublisher(),
+                action_index_topic="/action_index",
+            )
+            dialog_session.DialogSession.handle_server_response(
+                session,
+                {
+                    "message_type": "SERVER_FULL_RESPONSE",
+                    "event": 999,
+                    "payload_msg": {"content": "请看右手边。"},
+                },
+            )
+            self.assertEqual(session.action_index_pub.messages, [])
+        finally:
+            dialog_session.Int32 = old_int32
 
 
 if __name__ == "__main__":
