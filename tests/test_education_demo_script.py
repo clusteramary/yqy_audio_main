@@ -11,8 +11,8 @@ class FakeClient:
     def __init__(self, events):
         self.events = events
 
-    async def chat_tts_text(self, is_user_querying, start, end, content):
-        self.events.append(("tts", start, end, content))
+    async def chat_text_query(self, content):
+        self.events.append(("query", content))
 
 
 class FakeQueue:
@@ -43,6 +43,14 @@ class ScriptSession(SimpleNamespace):
 
     async def _wait_for_tts_idle(self):
         self.events.append(("wait_tts",))
+        return True
+
+    def _raise_receive_error(self):
+        if getattr(self, "receive_error", None) is not None:
+            raise self.receive_error
+
+    def _build_scripted_line_query(self, text):
+        return dialog_session.DialogSession._build_scripted_line_query(text)
 
     async def _sleep_or_stop(self, seconds):
         self.events.append(("sleep", seconds))
@@ -89,6 +97,7 @@ class TestEducationDemoScript(unittest.TestCase):
             ],
             external_stop_event=None,
             is_running=True,
+            receive_error=None,
             client=FakeClient(events),
             dialog_write_queue=FakeQueue(),
         )
@@ -96,7 +105,8 @@ class TestEducationDemoScript(unittest.TestCase):
         asyncio.run(dialog_session.DialogSession.play_scripted_demo(session))
 
         self.assertEqual(events[0], ("action", "wave"))
-        self.assertEqual(events[1], ("tts", True, True, "第一句"))
+        self.assertEqual(events[1][0], "query")
+        self.assertIn("第一句", events[1][1])
         self.assertEqual(events[2], ("wait_tts",))
         self.assertEqual(events[3], ("action", "nod"))
         self.assertIn(("sleep", 0.0), events)
@@ -122,6 +132,38 @@ class TestEducationDemoScript(unittest.TestCase):
             self.assertEqual(session.action_index_pub.messages, [])
         finally:
             dialog_session.Int32 = old_int32
+
+    def test_script_stops_when_tts_does_not_start(self):
+        events = []
+        session = ScriptSession(
+            events=events,
+            scripted_steps=[
+                {"type": "say", "text": "第一句"},
+                {"type": "say", "text": "第二句", "actions_before": ["nod"]},
+            ],
+            external_stop_event=None,
+            is_running=True,
+            receive_error=None,
+            client=FakeClient(events),
+            dialog_write_queue=FakeQueue(),
+        )
+
+        async def tts_timeout():
+            events.append(("wait_tts",))
+            return False
+
+        session._wait_for_tts_idle = tts_timeout
+
+        with self.assertRaisesRegex(RuntimeError, "固定台词未能正常播放"):
+            asyncio.run(dialog_session.DialogSession.play_scripted_demo(session))
+
+        self.assertNotIn(("action", "nod"), events)
+        self.assertEqual(sum(event[0] == "query" for event in events), 1)
+
+    def test_missing_message_type_is_ignored(self):
+        dialog_session.DialogSession.handle_server_response(
+            SimpleNamespace(), {"code": 1234, "payload_msg": "bad response"}
+        )
 
 
 if __name__ == "__main__":

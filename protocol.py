@@ -118,6 +118,7 @@ def parse_response(res):
         payload_size = int.from_bytes(payload[:4], "big", signed=False)
         payload_msg = payload[4:]
     elif message_type == SERVER_ERROR_RESPONSE:
+        result['message_type'] = 'SERVER_ERROR'
         code = int.from_bytes(payload[:4], "big", signed=False)
         result['code'] = code
         payload_size = int.from_bytes(payload[4:8], "big", signed=False)
