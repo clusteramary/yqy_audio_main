@@ -126,6 +126,27 @@ class RealtimeDialogClient:
         chat_text_query_request.extend(payload_bytes)
         await self.ws.send(chat_text_query_request)
 
+    async def conversation_create(self, items: list[dict]) -> None:
+        """发送 ConversationCreate 消息（event 510）：静默追加 QA 对到对话历史。
+
+        官方定义为"静默追加功能"：只把内容追加进对话上下文（服务端返回 ack
+        567 ConversationCreated），不会触发模型回复/TTS 播报。适合定时注入
+        "时间快到/结束采访"这类控制指令，替代写 ctrl.txt 的旧方式。
+        """
+        payload = {
+            "items": items,
+        }
+        payload_bytes = str.encode(json.dumps(payload, ensure_ascii=False))
+        payload_bytes = gzip.compress(payload_bytes)
+
+        conversation_create_request = bytearray(protocol.generate_header())
+        conversation_create_request.extend(int(510).to_bytes(4, "big"))
+        conversation_create_request.extend((len(self.session_id)).to_bytes(4, "big"))
+        conversation_create_request.extend(str.encode(self.session_id))
+        conversation_create_request.extend((len(payload_bytes)).to_bytes(4, "big"))
+        conversation_create_request.extend(payload_bytes)
+        await self.ws.send(conversation_create_request)
+
     async def chat_tts_text(
         self, is_user_querying: bool, start: bool, end: bool, content: str
     ) -> None:

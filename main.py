@@ -175,17 +175,24 @@ async def run_once():
 
     dialog_task = asyncio.create_task(session.start())
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
-    ctrl_inject_tasks = [
-        asyncio.create_task(
-            inject_ctrl_instruction(
-                config.CTRL_FILE_PATH,
-                message,
-                delay,
-                stop_event,
+    # ctrl 定时注入：
+    #   conversation 模式（默认）→ ConversationCreate(510) 静默追加对话历史，模型不回复注入文本；
+    #   file 模式 → 沿用旧方式，定时写 ctrl.txt，由 dialog_session 绑定下一轮语音后发送。
+    if config.CTRL_INJECT_MODE == "conversation":
+        session.start_ctrl_injection()
+        ctrl_inject_tasks = []
+    else:
+        ctrl_inject_tasks = [
+            asyncio.create_task(
+                inject_ctrl_instruction(
+                    config.CTRL_FILE_PATH,
+                    message,
+                    delay,
+                    stop_event,
+                )
             )
-        )
-        for delay, message in config.CTRL_INJECT_EVENTS
-    ]
+            for delay, message in config.CTRL_INJECT_EVENTS
+        ]
 
     # 等待停止信号（来自看门狗或会话自然结束）
     try:

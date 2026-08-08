@@ -235,9 +235,27 @@ class DialogSession:
         self._ctrl_worker_task: Optional[asyncio.Task] = None
 
         self.ctrl_monitor_task: Optional[asyncio.Task] = None
+        self._ctrl_inject_tasks: list[asyncio.Task] = []
+        # ConversationCreate(510) 注入相关状态：
+        #   - _ctrl_inject_lock：串行化所有注入（定时任务 / ctrl.txt / 外部调用共用）
+        #   - _conversation_ack：待确认的 567 回执 Future（handle_server_response 里 set_result/set_exception）
+        #   - _model_replying：模型是否正在生成回复（553 置位 / 559 清除），用于注入前的空闲判断
+        self._ctrl_inject_lock = asyncio.Lock()
+        self._conversation_ack: Optional[asyncio.Future] = None
+        self._model_replying = False
         if not self.is_audio_file_input:
-            # 只在麦克风模式下监控 ctrl
-            self.ctrl_monitor_task = asyncio.create_task(self._monitor_ctrl_file())
+            if config.CTRL_INJECT_MODE == "conversation":
+                # 新方式：ctrl.txt 内容变化 → 直接静默注入（不走 SAUC 语音捕获），
+                # 这样运行中的任意外部程序（含 UDP 接收器）写 ctrl.txt 仍然生效。
+                print(
+                    "[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入"
+                )
+                self.ctrl_monitor_task = asyncio.create_task(
+                    self._monitor_ctrl_file_conversation()
+                )
+            else:
+                # 旧方式：只在麦克风模式下监控 ctrl
+                self.ctrl_monitor_task = asyncio.create_task(self._monitor_ctrl_file())
 
         # ---------- ROS 下位机播放状态 + ROS 麦克风输入 ----------
         self.ros_audio_queue: Optional["queue.Queue[bytes]"] = None
@@ -420,6 +438,204 @@ class DialogSession:
         self._last_promote_ts = time.time()
         print("推销内容播放完毕")
         self._promote_playing = False
+
+    # ---------- ConversationCreate(510) 静默注入（替代 ctrl.txt 定时写入） ----------
+    def start_ctrl_injection(self) -> None:
+        """启动 ConversationCreate(510) 静默定时注入。
+
+        按 config.CTRL_INJECT_EVENTS 的时间表，到点后等模型空闲，
+        把控制文本作为 QA 对静默追加到对话历史；模型不会回复/播报注入文本，
+        只会在后续对话中遵循其中的控制指令。
+
+        注意：每个定时点都从“本轮会话开始”独立计时（与旧 ctrl_inject_tasks
+        同时启动的行为一致），150/180/210 分别在其各自时刻触发，不累计等待。
+        """
+        if config.CTRL_INJECT_MODE != "conversation":
+            print(
+                "[CTRL-INJECT] CTRL_INJECT_MODE != conversation，跳过 ConversationCreate 注入（沿用 ctrl.txt 旧方式）。"
+            )
+            return
+        if any(not t.done() for t in self._ctrl_inject_tasks):
+            return
+        # 每个事件独立创建定时任务，各自以会话开始时刻为基准计时
+        self._ctrl_inject_tasks = [
+            asyncio.create_task(self._ctrl_conversation_injector(delay_sec, ctrl_text))
+            for delay_sec, ctrl_text in config.CTRL_INJECT_EVENTS
+        ]
+        print(
+            f"[CTRL-INJECT] 已启动 {len(self._ctrl_inject_tasks)} 个独立定时注入任务："
+            + ", ".join(f"{d:.0f}s" for d, _ in config.CTRL_INJECT_EVENTS)
+        )
+
+    def _build_ctrl_items(self, ctrl_text: str) -> list[dict]:
+        """把控制文本构造成静默追加的 QA 对（文本模板见 config.CTRL_INJECT_ITEM_*）。"""
+        return [
+            {"role": "user", "text": config.CTRL_INJECT_ITEM_USER.format(ctrl_text=ctrl_text)},
+            {"role": "assistant", "text": config.CTRL_INJECT_ITEM_ASSISTANT},
+        ]
+
+    async def _wait_session_stop(self) -> None:
+        """等待外部 stop_event 或会话结束（供定时等待中断用）。"""
+        while self.is_running:
+            if self.external_stop_event is not None and self.external_stop_event.is_set():
+                return
+            await asyncio.sleep(0.1)
+
+    async def _wait_model_idle(self) -> bool:
+        """等待“完整一轮对话结束”：用户说完(ASREnded) + 模型生成完(ChatEnded) + TTS 播完。
+
+        不能只看 is_user_querying：459 之后模型可能刚开始生成、第一段 TTS 还没入队，
+        此时 _is_tts_playing() 暂时为 False，会误判为空闲。因此显式跟踪
+        _model_replying（553 ChatTextQueryConfirmed 置位 / 559 ChatEnded 清除）。
+        """
+        while self.is_running:
+            if (
+                (not self.is_user_querying)
+                and (not self._model_replying)
+                and (not self._is_tts_playing())
+            ):
+                return True
+            await asyncio.sleep(0.1)
+        return False
+
+    async def _ctrl_conversation_injector(self, delay_sec: float, ctrl_text: str) -> None:
+        """单个定时点的静默注入协程（delay_sec 以会话开始为基准）。"""
+        try:
+            # 1) 等待 delay_sec（会话提前结束则跳过本次注入）
+            try:
+                await asyncio.wait_for(self._wait_session_stop(), timeout=delay_sec)
+                print(f"[CTRL-INJECT] 会话已结束，跳过 {delay_sec:.0f}s 的注入。")
+                return
+            except asyncio.TimeoutError:
+                pass
+
+            if not self.is_running:
+                return
+
+            # 2) 等完整一轮对话结束（ASR + 模型生成 + TTS 均空闲）
+            await self._wait_model_idle()
+            if not self.is_running:
+                return
+
+            # 3) 静默追加 QA 对并等待 567 确认（模型不回复、不播报）
+            await self.inject_control_text(ctrl_text, source=f"定时({delay_sec:.0f}s)")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[CTRL-INJECT] 定时注入任务异常: {e}")
+
+    async def inject_control_text(
+        self,
+        ctrl_text: str,
+        source: str = "外部",
+        ack_timeout: float = 5.0,
+        retries: Optional[int] = None,
+    ) -> bool:
+        """通用静默注入入口：构造 QA 对 → ConversationCreate(510) → 等待并校验 567 回执。
+
+        定时任务 / ctrl.txt 监控 / UDP 等所有外部控制文本统一走这里。
+        只有收到 567 ConversationCreated 且 item 校验通过才算成功；
+        599 拒绝、超时、连接异常都会打印原因并返回 False，可按
+        config.CTRL_INJECT_RETRY_TIMES 配置重试。
+        """
+        if not self.is_running or not ctrl_text:
+            return False
+        if retries is None:
+            retries = config.CTRL_INJECT_RETRY_TIMES
+
+        for attempt in range(retries + 1):
+            ok = await self._inject_control_text_once(ctrl_text, source, ack_timeout)
+            if ok:
+                return True
+            if attempt < retries:
+                print(
+                    f"[CTRL-INJECT] 注入失败，{config.CTRL_INJECT_RETRY_DELAY_SEC}s 后重试（{attempt + 1}/{retries} 次，{source}）"
+                )
+                await asyncio.sleep(config.CTRL_INJECT_RETRY_DELAY_SEC)
+        return False
+
+    async def _inject_control_text_once(
+        self, ctrl_text: str, source: str, ack_timeout: float
+    ) -> bool:
+        """单次静默注入：发送 510 并等待 567 确认（串行化，一次只等一个回执）。"""
+        items = self._build_ctrl_items(ctrl_text)
+
+        async with self._ctrl_inject_lock:
+            self._conversation_ack = asyncio.get_running_loop().create_future()
+            try:
+                await self.client.conversation_create(items)
+            except Exception as e:
+                print(f"[CTRL-INJECT] 发送 510 失败（{source}）: {e}")
+                self._conversation_ack = None
+                return False
+
+            # 等待 567 / 599 回执（handle_server_response 里 set_result / set_exception）
+            try:
+                ack_items = await asyncio.wait_for(
+                    asyncio.shield(self._conversation_ack), timeout=ack_timeout
+                )
+            except asyncio.TimeoutError:
+                print(
+                    f"[CTRL-INJECT] 等待 567 回执超时（{ack_timeout}s），服务端未确认（{source}）：{ctrl_text!r}"
+                )
+                return False
+            except Exception as e:
+                print(f"[CTRL-INJECT] 注入被服务端拒绝（{source}）: {e}")
+                return False
+            finally:
+                self._conversation_ack = None
+
+            # 校验回执：应返回成功创建的 item 列表（含 item_id）
+            ok = (
+                isinstance(ack_items, list)
+                and len(ack_items) >= 2
+                and all(isinstance(it, dict) and it.get("item_id") for it in ack_items)
+            )
+            if ok:
+                print(
+                    f"[CTRL-INJECT] 已静默注入（{source}）：{ctrl_text!r}，567 确认 {len(ack_items)} 条 item"
+                )
+            else:
+                print(f"[CTRL-INJECT] 567 回执内容异常（{source}）：{ack_items!r}")
+            return ok
+
+    async def _monitor_ctrl_file_conversation(self) -> None:
+        """conversation 模式下的 ctrl.txt 监控：内容变化 → 静默注入（不走 SAUC 语音捕获）。
+
+        保证运行中的任意外部程序（含 main.py 的 UDP 接收器写 ctrl.txt）
+        依然能实时把控制文本注入模型，且不产生模型回复。
+        """
+        if not os.path.isdir(self.sauc_dir):
+            print(f"[CTRL-MONITOR] 未找到目录: {self.sauc_dir}，跳过 ctrl 监控。")
+            return
+        print(
+            "[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。"
+        )
+        while self.is_running:
+            try:
+                try:
+                    with open(self.ctrl_file_path, "r", encoding="utf-8") as f:
+                        current_ctrl = f.read().strip()
+                except FileNotFoundError:
+                    await asyncio.sleep(0.5)
+                    continue
+
+                if self._last_ctrl_text is None:
+                    self._last_ctrl_text = current_ctrl
+                elif current_ctrl != self._last_ctrl_text and current_ctrl:
+                    self._last_ctrl_text = current_ctrl
+                    print(f"[CTRL-MONITOR] 检测到 ctrl.txt 内容变化: {current_ctrl!r}")
+                    await self.inject_control_text(current_ctrl, source="ctrl.txt")
+
+                await asyncio.sleep(0.3)
+            except asyncio.CancelledError:
+                print("[CTRL-MONITOR] 监控任务被取消")
+                break
+            except Exception as e:
+                print(f"[CTRL-MONITOR] 监控异常: {e}")
+                await asyncio.sleep(0.5)
+
+    # ---------- 监控 ctrl.txt ----------
 
     # ---------- 监控 ctrl.txt ----------
     async def _monitor_ctrl_file(self):
@@ -677,6 +893,14 @@ class DialogSession:
         except Exception:
             pass
 
+        # 取消 ConversationCreate 静默注入任务（每个定时点一个独立任务）
+        try:
+            for t in getattr(self, "_ctrl_inject_tasks", []) or []:
+                if not t.done():
+                    t.cancel()
+        except Exception:
+            pass
+
         # 取消 ctrl worker 任务
         try:
             if hasattr(self, "_ctrl_worker_task") and self._ctrl_worker_task:
@@ -785,6 +1009,7 @@ class DialogSession:
 
             # 每一轮文本回答开始（例如 event=553），重置 LLM 关键词缓冲区 & 已触发集合
             if event == 553:
+                self._model_replying = True
                 self._llm_keyword_buffer = ""
                 self._llm_kws_fired.clear()
                 # 机器人开始回答时，固定上一轮用户文本（若未写过则写入一次）
@@ -921,6 +1146,39 @@ class DialogSession:
                 if random.randint(0, 10000) == 0:
                     self.is_sending_chat_tts_text = True
                     asyncio.create_task(self.trigger_chat_tts_text())
+
+            # 559 ChatEnded：模型本轮回复文本已结束 → 退出“回复中”状态
+            if event == 559:
+                self._model_replying = False
+
+            # 567 ConversationCreated：ConversationCreate(510) 的确认回执，返回成功创建的 item 列表
+            if event == 567:
+                ack_items = payload_msg.get("items", []) if isinstance(payload_msg, dict) else []
+                ack = getattr(self, "_conversation_ack", None)
+                if ack is not None and not ack.done():
+                    ack.set_result(ack_items)
+                else:
+                    print(f"[CTRL-INJECT] 收到未预期的 567 回执: {ack_items!r}")
+
+            # 599 DialogCommonError：实时通道通用错误（510 被拒时也会走到这里）
+            if event == 599:
+                msg = (
+                    payload_msg.get("message", "")
+                    if isinstance(payload_msg, dict)
+                    else str(payload_msg)
+                )
+                code = (
+                    payload_msg.get("status_code", "")
+                    if isinstance(payload_msg, dict)
+                    else ""
+                )
+                ack = getattr(self, "_conversation_ack", None)
+                if ack is not None and not ack.done():
+                    ack.set_exception(
+                        RuntimeError(f"ConversationCreate 被拒绝(599/{code}): {msg}")
+                    )
+                else:
+                    print(f"[CTRL-INJECT] 收到 599 错误事件: {code} {msg}")
 
         elif response["message_type"] == "SERVER_ERROR":
             print(f"服务器错误: {response['payload_msg']}")

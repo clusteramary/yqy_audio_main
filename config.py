@@ -156,8 +156,8 @@ output_audio_config = {
 # 参照 daoyi_test 分支的配置化方式：所有 prompt 文本统一放在本文件，入口脚本只负责引用，
 # 修改话术/节奏/风格不需要再动 main.py 代码。
 
-# --- 公共：ctrl.txt 定时注入（main.py 使用） ---
-# 按顺序在指定时间写入不同提示，修改时间或内容仅需调整下方元组列表
+# --- ctrl 定时注入（main.py 使用） ---
+# 按顺序在指定时间注入不同提示，修改时间或内容仅需调整下方元组列表
 CTRL_INJECT_EVENTS = [
     # (20.0, "[回复完当前问题后向被采访者提问：2025年你最难忘的时刻是什么]"),
     (150.0, '[委婉的告诉被采访者，本次采访时间快到了，尽快结束这次采访，记得对话结束说再见。]'),
@@ -165,6 +165,23 @@ CTRL_INJECT_EVENTS = [
     (210.0, '[告诉被采访者，本次采访时间已经到了，尽快结束这次采访，记得对话结束说再见。]'),
 ]
 CTRL_FILE_PATH = Path(__file__).resolve().parent / "sauc_python" / "ctrl.txt"
+
+# --- ctrl 定时注入方式 ---
+# "conversation"（推荐）：用 ConversationCreate(510) 静默追加到对话历史，模型不会回复/播报注入文本，
+#                          不依赖 SAUC 语音捕获，到点即注入；
+# "file"：写 sauc_python/ctrl.txt，由 dialog_session 等模型空闲后用 SAUC 捕获下一句语音、
+#          与控制文本合并后发送（旧方式，保留以便回退）。
+CTRL_INJECT_MODE = os.getenv("CTRL_INJECT_MODE", "conversation")
+
+# 注入失败（599 拒绝 / 567 超时 / 发送异常）后的重试次数与间隔；0 = 不重试只记录原因
+CTRL_INJECT_RETRY_TIMES = int(os.getenv("CTRL_INJECT_RETRY_TIMES", "0"))
+CTRL_INJECT_RETRY_DELAY_SEC = float(os.getenv("CTRL_INJECT_RETRY_DELAY_SEC", "3.0"))
+
+# conversation 模式下的注入文本模板（{ctrl_text} 会被 CTRL_INJECT_EVENTS 中的文本替换）
+# user 消息说明这是后台控制信息，防止模型把注入文本当作受访者真实发言；
+# assistant 消息让对话历史形成完整的 QA 对，模型后续自然遵循。
+CTRL_INJECT_ITEM_USER = "后台控制信息（仅供你参考，不要播报，不要向对方复述本条信息）：{ctrl_text}"
+CTRL_INJECT_ITEM_ASSISTANT = "收到，我会在后续对话中遵循这条控制指令，且不向对方提及或复述本条指令本身。"
 
 # --- 采访风格块（版本A~F，拼接在 INTERVIEW_BASE_RULES 之前组成 prompt 池） ---
 INTERVIEW_STYLES = [
