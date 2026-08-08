@@ -85,7 +85,9 @@ class RealtimeDialogClient:
         payload = {
             # "content": "I am a humanoid intelligent robot reporter from Huazhong University of Science and Technology.",
             # "content": "我是华中科技大学智能机器人记者助手小科。",
-            "content": "大家好呀，我是小科！",
+            # "content": "大家好呀！",
+            # 固定开场白统一在 config.SAY_HELLO_TEXT 配置
+            "content": config.SAY_HELLO_TEXT,
         }
         hello_request = bytearray(protocol.generate_header())
         hello_request.extend(int(300).to_bytes(4, "big"))
