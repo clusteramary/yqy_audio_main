@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations  # Python 3.8 兼容：tuple[str, str] 等内置泛型注解延迟求值
+
 import json
 import locale
 import os
@@ -517,8 +519,9 @@ rosrun direct_control interview_emo_1204_a.py
             CFG["ENV_GAZE"],
             f"""
 cd "{ROOT_DIR}"
+cd /home/zxr/Documents/DA_robot/interview
 source ./devel/setup.bash
-roslaunch ./launch/gaze.launch
+roslaunch src/gaze/launch/gaze.launch
 """,
         )
         self.tasks["gaze"] = ManagedTask(

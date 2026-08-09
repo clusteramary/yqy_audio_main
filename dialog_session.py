@@ -1,3 +1,5 @@
+from __future__ import annotations  # Python 3.8 兼容：list[dict] 等内置泛型注解延迟求值
+
 import asyncio
 import audioop  # 重采样
 import json

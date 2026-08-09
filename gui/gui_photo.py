@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from __future__ import annotations  # Python 3.8 兼容：tuple[str, str] 等内置泛型注解延迟求值
+
 import json
 import locale
 import os
