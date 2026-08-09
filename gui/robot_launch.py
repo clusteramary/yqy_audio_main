@@ -501,7 +501,7 @@ class App(tk.Tk):
             f"""
 cd "{ROOT_DIR}"
 source devel/setup.bash
-rosrun direct_control interview_emo_1204_a.py
+rosrun direct_control interview_emo_1204_a.py   
 """,
         )
         self.tasks["direct_control"] = ManagedTask(

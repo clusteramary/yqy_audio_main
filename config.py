@@ -109,7 +109,7 @@ def get_active_input_config():
 # 关键：mode = "ros1" -> 使用我们实现的 Ros1SpeakerStream，把"原始 PCM 字节"发布到话题
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
-OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "ros1")
+OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "pyaudio")
 output_audio_config = {
     "chunk": 3200,  # 供本地 PyAudio 使用的缓冲大小；ROS 模式下不影响发布
     "format": "pcm",
