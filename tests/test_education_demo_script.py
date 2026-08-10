@@ -151,6 +151,40 @@ class TestEducationDemoScript(unittest.TestCase):
         self.assertIn(("sleep", 0.0), events)
         self.assertIn(("wait_user", "学生 A", 0.0), events)
 
+    def test_consecutive_student_pauses_wait_as_one_discussion_turn(self):
+        events = []
+        session = ScriptSession(
+            events=events,
+            scripted_steps=[
+                {"type": "pause", "speaker": "学生 A", "text": "第一个回答"},
+                {"type": "pause", "speaker": "学生 B", "text": "第二个回答"},
+                {"type": "pause", "speaker": "学生 C", "text": "第三个回答"},
+                {"type": "say", "text": "机器人总结"},
+            ],
+            external_stop_event=None,
+            is_running=True,
+            receive_error=None,
+            client=FakeClient(events),
+            dialog_write_queue=FakeQueue(),
+        )
+
+        asyncio.run(dialog_session.DialogSession.play_scripted_demo(session))
+
+        self.assertEqual(
+            [event for event in events if event[0] == "wait_user"],
+            [
+                (
+                    "wait_user",
+                    "学生 A、学生 B、学生 C",
+                    config.EDUCATION_DEMO_RESPONSE_DELAY_SEC,
+                )
+            ],
+        )
+        self.assertEqual(
+            session.dialog_write_queue.items,
+            ["学生 A: 第一个回答", "学生 B: 第二个回答", "学生 C: 第三个回答", "机器人: 机器人总结"],
+        )
+
     def test_scripted_mode_ignores_content_keyword_detection(self):
         old_int32 = dialog_session.Int32
         dialog_session.Int32 = FakeInt32
