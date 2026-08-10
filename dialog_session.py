@@ -887,7 +887,10 @@ class DialogSession:
 
     async def play_scripted_demo(self) -> None:
         print(f"[EDU-DEMO] 开始固定脚本，共 {len(self.scripted_steps)} 步")
-        for index, step in enumerate(self.scripted_steps, 1):
+        step_index = 0
+        while step_index < len(self.scripted_steps):
+            index = step_index + 1
+            step = self.scripted_steps[step_index]
             self._raise_receive_error()
             if self.external_stop_event and self.external_stop_event.is_set():
                 print("[EDU-DEMO] 收到停止信号，结束脚本")
@@ -897,6 +900,7 @@ class DialogSession:
             if step_type == "say":
                 text = str(step.get("text", "")).strip()
                 if not text:
+                    step_index += 1
                     continue
                 for keyword in step.get("actions_before", []) or []:
                     self.publish_action_keyword(str(keyword))
@@ -916,18 +920,40 @@ class DialogSession:
                 for keyword in step.get("actions_after", []) or []:
                     self.publish_action_keyword(str(keyword))
                 await self._sleep_or_stop(float(step.get("wait_after", 0.0) or 0.0))
+                step_index += 1
             elif step_type == "pause":
-                speaker = str(step.get("speaker", "演员")).strip() or "演员"
-                text = str(step.get("text", "")).strip()
-                print(f"[EDU-DEMO] {index}/{len(self.scripted_steps)} {speaker}: {text}")
-                if text:
-                    try:
-                        self.dialog_write_queue.put_nowait(f"{speaker}: {text}")
-                    except Exception:
-                        pass
+                # 连续学生台词属于同一轮讨论，只需要等待一次“开始发言 -> 静音结束”。
+                pause_steps = [step]
+                next_step_index = step_index + 1
+                while (
+                    next_step_index < len(self.scripted_steps)
+                    and self.scripted_steps[next_step_index].get("type", "say")
+                    == "pause"
+                ):
+                    pause_steps.append(self.scripted_steps[next_step_index])
+                    next_step_index += 1
+
+                speakers = []
+                for pause_offset, pause_step in enumerate(pause_steps, index):
+                    speaker = (
+                        str(pause_step.get("speaker", "演员")).strip() or "演员"
+                    )
+                    speakers.append(speaker)
+                    text = str(pause_step.get("text", "")).strip()
+                    print(
+                        f"[EDU-DEMO] {pause_offset}/{len(self.scripted_steps)} "
+                        f"{speaker}: {text}"
+                    )
+                    if text:
+                        try:
+                            self.dialog_write_queue.put_nowait(f"{speaker}: {text}")
+                        except Exception:
+                            pass
+
                 next_is_robot = (
-                    index < len(self.scripted_steps)
-                    and self.scripted_steps[index].get("type", "say") == "say"
+                    next_step_index < len(self.scripted_steps)
+                    and self.scripted_steps[next_step_index].get("type", "say")
+                    == "say"
                 )
                 response_delay = (
                     float(
@@ -936,9 +962,11 @@ class DialogSession:
                     if next_is_robot
                     else 0.0
                 )
-                await self._wait_for_script_user_turn(speaker, response_delay)
+                await self._wait_for_script_user_turn("、".join(speakers), response_delay)
+                step_index = next_step_index
             else:
                 print(f"[EDU-DEMO] 跳过未知脚本步骤类型: {step_type}")
+                step_index += 1
         print("[EDU-DEMO] 固定脚本播放完成")
 
     def _maybe_emit_wave_from_asr(self, payload_msg: Dict[str, Any]):
