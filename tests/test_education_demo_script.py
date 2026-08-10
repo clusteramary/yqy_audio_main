@@ -76,9 +76,19 @@ class TestEducationDemoScript(unittest.TestCase):
             for step in config.EDUCATION_DEMO_SCRIPT
             if step.get("type") == "say"
         ]
-        self.assertIn("Agent 第一版到底服务谁", robot_lines[0])
-        self.assertTrue(any("大一新生" in line for line in robot_lines))
-        self.assertTrue(any("输入层包括课表" in line for line in robot_lines))
+        self.assertEqual(
+            robot_lines,
+            [
+                "我注意到你们已经提出了很多功能，但现在有一个关键问题还没有确定：这个 Agent 第一版到底服务谁？",
+                "‘所有大学生’范围太宽。如果第一版只能选择一个具体用户，你们会选择大一新生、考研学生，还是社团负责人？",
+                "好。那大一新生在校园学习生活中，最容易遇到的三个高频问题是什么？请每个人说一个，不要重复。",
+                "很好。现在你们的项目对象已经从‘所有大学生’收敛为‘大一新生’，核心场景可以聚焦在考试周规划、校园资源推荐和时间管理冲突上。",
+                "现在我们已经确定了用户和场景。接下来需要设计 Agent 架构。第一个问题：这个 Agent 需要哪些输入？",
+                "很好。那它要做什么决策？",
+                "那它的输出应该只是一个计划表吗？",
+                "所以你们的 Agent 不是一个静态日程表，而是一个能够持续跟进的学习生活规划助手。它的架构可以分为三层：输入层包括课表、考试、校园资源和学生状态；决策层包括优先级、时间块、地点和调整规则；交互层包括提醒、追问、鼓励和复盘。",
+            ],
+        )
 
     def test_script_player_order(self):
         events = []
