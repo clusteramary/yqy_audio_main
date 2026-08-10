@@ -130,8 +130,10 @@ class DialogSession:
         start_prompt: str,
         output_audio_format: str = "pcm",
         audio_file_path: str = "",
+        send_start_prompt: bool = True,
     ):
         self.start_prompt = start_prompt
+        self.send_start_prompt = send_start_prompt
         self.audio_file_path = audio_file_path
         self.is_audio_file_input = self.audio_file_path != ""
         if self.is_audio_file_input:
@@ -1300,7 +1302,8 @@ class DialogSession:
         """
         await self.client.say_hello()
         await self.say_hello_over_event.wait()
-        await self.client.chat_text_query(self.start_prompt)
+        if self.send_start_prompt and self.start_prompt:
+            await self.client.chat_text_query(self.start_prompt)
 
         active_cfg = config.get_active_input_config()
         in_rate = active_cfg["sample_rate"]

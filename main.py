@@ -17,6 +17,9 @@ ABSENT_SECONDS = 100000.0  # ✅ 对话进行时，连续多久没看到人脸�
 EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
 INITIAL_DETECT_TIMEOUT = 1.0  # 首次做人脸特征引导的超时时间
 
+# 视觉迎宾：记录上次会话结束时间，用于跨会话冷却判断
+_last_session_end_ts = 0.0
+
 
 
 
@@ -67,6 +70,75 @@ async def inject_ctrl_instruction(
         print(f"[CTRL-INJECT] 写入 ctrl.txt 失败: {e}")
 
 
+# =========================
+# 视觉迎宾前置阶段
+# =========================
+
+async def visual_greeting_phase(
+    detector: FacePromptDetector,
+    stop_event: asyncio.Event,
+):
+    """
+    迎宾前置阶段（在采访会话建立之前执行）：
+      1) 等待冷却（距上次会话结束 ≥ VISUAL_GREETING_COOLDOWN_SEC）
+      2) 等待稳定人脸
+    两个条件都满足后才返回，进入采访阶段。
+    """
+    loop = asyncio.get_running_loop()
+    cooldown = config.VISUAL_GREETING_COOLDOWN_SEC
+
+    # ---- 阶段 1：等待冷却 ----
+    while not stop_event.is_set():
+        elapsed = time.time() - _last_session_end_ts
+        if elapsed >= cooldown:
+            break
+        remaining = cooldown - elapsed
+        print(f"[VISUAL-GREETING] 冷却中... 还需等待 {remaining:.1f}s")
+        await asyncio.sleep(min(remaining, 1.0))
+
+    if stop_event.is_set():
+        print("[VISUAL-GREETING] 冷却期间收到停止信号")
+        return
+
+    print("[VISUAL-GREETING] 冷却结束，开始等待人脸...")
+
+    # ---- 阶段 2：等待稳定人脸 ----
+    thread_stop = threading.Event()
+
+    async def propagate_stop():
+        if stop_event.is_set():
+            thread_stop.set()
+            return
+        await stop_event.wait()
+        thread_stop.set()
+
+    propagate_task = asyncio.create_task(propagate_stop())
+    stable = False
+    try:
+        stable = await loop.run_in_executor(
+            None,
+            lambda: detector.wait_for_stable_face(
+                interval_sec=config.VISUAL_GREETING_INTERVAL_SEC,
+                required_consecutive=config.VISUAL_GREETING_REQUIRED_CONSECUTIVE,
+                min_face_width=config.VISUAL_GREETING_MIN_FACE_WIDTH,
+                stop_event=thread_stop,
+            ),
+        )
+    except Exception as e:
+        print(f"[VISUAL-GREETING] 人脸检测异常: {e}")
+    finally:
+        propagate_task.cancel()
+        try:
+            await propagate_task
+        except (asyncio.CancelledError, Exception):
+            pass
+
+    if stable:
+        print("[VISUAL-GREETING] 检测到稳定人脸，准备进入采访阶段")
+    else:
+        print("[VISUAL-GREETING] 人脸检测被中断")
+
+
 async def monitor_face_absence(
     detector: FacePromptDetector,
     stop_event: asyncio.Event,
@@ -88,7 +160,7 @@ async def monitor_face_absence(
         asyncio.CancelledError: 当任务被取消时可能抛出
     """
     """
-    对话阶段的“看门狗”：周期性读取 detector.get_last_face_ts()。
+    对话阶段的"看门狗"：周期性读取 detector.get_last_face_ts()。
     若超过 absent_secs 没看到人脸，则触发 stop_event 结束本轮会话。
     warmup_secs：容许对话刚开始的热身窗口（避免一开始就误杀）。
     """
@@ -119,10 +191,10 @@ async def monitor_face_absence(
 async def run_once():
     """
     单次完整流程：
-      1) 启动相机
-      2) 一次性做人脸识别并生成初始 prompt
-      3) 启动情绪/表情推送（也会刷新“最近看见人脸”时间）
-      4) 进入语音对话 + 并发“看门狗”
+      1) 启动相机 + 情绪推送
+      2) 迎宾前置阶段（等待冷却 + 稳定人脸）
+      3) 选取采访 prompt
+      4) 进入语音对话 + 并发"看门狗"
       5) 看门狗触发或会话结束 → 清理 → 返回上一层（由上层循环自动重启）
     """
     # ========== 1) 初始化相机 ==========
@@ -133,51 +205,72 @@ async def run_once():
         ros_queue_size=5,
         ros_node_name="fpd_subscriber",
     )
+    camera.start()
 
-    # ========== 2) 初始化人脸检测器 & 一次性检测 ==========
+    # ========== 2) 初始化人脸检测器 & 启动情绪推送 ==========
     detector = FacePromptDetector(
         camera=camera,
         interval_sec=0.5,
         required_consecutive=2,
         detector_backend="opencv",
     )
-
-    print("等待人脸识别（首次引导）...")
-    prompt = detector.run(timeout=INITIAL_DETECT_TIMEOUT)
-
-    # ========== 3) 启动情绪推送（同时作为“看见人脸”的心跳源） ==========
     detector.start_emotion_stream(
         host="127.0.0.1", port=5555, interval_sec=EMOTION_INTERVAL
     )
 
-    # 构造起始 prompt
-    if prompt:
-        # print(f"[RESULT] prompt = {prompt}")
-        print(f"[RESULT] prompt = {prompt}")  # 这里仍然打印人脸prompt
-        idx, picked = PROMPT_PICKER.next()
-        prompt = picked  # ✅ 仍然覆盖掉人脸prompt（符合你的要求）
-        print(f"[PROMPT] Using prompt #{idx}")
-
-    else:
-        idx, picked = PROMPT_PICKER.next()
-        prompt = picked  # ✅ 仍然覆盖掉人脸prompt（符合你的要求）
-        print(f"[PROMPT] Using prompt #{idx}")
-
-    # ========== 4) 进入语音对话，并发“看脸看门狗” ==========
     stop_event = asyncio.Event()
 
+    # ========== 3) 迎宾前置阶段 ==========
+    await visual_greeting_phase(detector, stop_event)
+
+    if stop_event.is_set():
+        # 迎宾阶段被中断，清理后返回上层循环
+        try:
+            detector.stop_emotion_stream()
+        except Exception:
+            pass
+        try:
+            camera.stop()
+        except Exception:
+            pass
+        return
+
+    # ========== 4) 选取采访 prompt ==========
+    idx, prompt = PROMPT_PICKER.next()
+    print(f"[PROMPT] Using prompt #{idx}")
+
+    # ========== 5) 建立会话（不自动发送采访规则） ==========
     session = DialogSession(
         config.ws_connect_config,
-        start_prompt=prompt,
+        start_prompt="",
         output_audio_format="pcm",
+        send_start_prompt=False,
     )
     session.attach_stop_event(stop_event)
 
     dialog_task = asyncio.create_task(session.start())
+
+    # ---- 等 say_hello 播完 ----
+    await session.say_hello_over_event.wait()
+    print("[VISUAL-GREETING] say_hello 完成，发送迎宾问候")
+
+    # ---- 发送迎宾问候（ChatTextQuery 501，模拟用户输入触发 LLM→TTS） ----
+    await session.client.chat_text_query(
+        f"请你现在立即说出这句话（只允许说这句话，不允许添加任何其他文字）：{config.VISUAL_GREETING_TEXT}"
+    )
+    print("[VISUAL-GREETING] 已发送迎宾问候")
+
+    # ---- 等迎宾 TTS 播完 ----
+    await asyncio.sleep(0.3)
+    while not stop_event.is_set() and session._is_tts_playing():
+        await asyncio.sleep(0.1)
+
+    # ---- 注入采访规则（此时 LLM 已有问候上下文，可自然开始采访） ----
+    print("[VISUAL-GREETING] 迎宾完成，注入采访规则")
+    await session.client.chat_text_query(prompt)
+
+    # ========== 6) 并发任务 ==========
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
-    # ctrl 定时注入：
-    #   conversation 模式（默认）→ ConversationCreate(510) 静默追加对话历史，模型不回复注入文本；
-    #   file 模式 → 沿用旧方式，定时写 ctrl.txt，由 dialog_session 绑定下一轮语音后发送。
     if config.CTRL_INJECT_MODE == "conversation":
         session.start_ctrl_injection()
         ctrl_inject_tasks = []
@@ -199,7 +292,7 @@ async def run_once():
         while not stop_event.is_set():
             await asyncio.sleep(0.1)
     finally:
-        # ========== 5) 清理：停线程、关相机、取消任务 ==========
+        # ========== 7) 清理 ==========
         try:
             detector.stop_emotion_stream()
         except Exception:
@@ -210,7 +303,6 @@ async def run_once():
         except Exception:
             pass
 
-        # 取消并等待任务退出
         for t in (watchdog_task, dialog_task, *ctrl_inject_tasks):
             if not t.done():
                 t.cancel()
@@ -219,13 +311,15 @@ async def run_once():
                 except asyncio.CancelledError:
                     pass
 
+        global _last_session_end_ts
+        _last_session_end_ts = time.time()
         print("[run_once] 本轮流程已结束。")
 
 
 async def main():
     """
     外层自恢复循环：每次 run_once 结束（含 5s 无人脸被看门狗杀掉），立即重新开始新一轮。
-    如需“彻底退出”，直接 Ctrl+C 终止进程即可。
+    如需"彻底退出"，直接 Ctrl+C 终止进程即可。
     """
     udp_receiver = UDPReceiver(
         listen_ip="0.0.0.0",

@@ -429,6 +429,17 @@ def build_opening_prompt() -> str:
 
 INTERVIEW_OPENING_PROMPT = build_opening_prompt()
 
+# ============ 视觉迎宾配置 ============
+# 相机每 VISUAL_GREETING_INTERVAL_SEC 秒取一帧做人脸检测；
+# 连续 VISUAL_GREETING_REQUIRED_CONSECUTIVE 帧检测到人脸即触发迎宾。
+VISUAL_GREETING_INTERVAL_SEC = 0.25
+VISUAL_GREETING_REQUIRED_CONSECUTIVE = 5      # 5 x 0.25s = 1.25s
+VISUAL_GREETING_MIN_FACE_WIDTH = 50           # 人脸框最小宽度（像素），过滤远处路人
+VISUAL_GREETING_TEXT = "需要我帮忙吗"
+
+# 迎宾冷却：两次迎宾之间至少间隔此秒数
+VISUAL_GREETING_COOLDOWN_SEC = 10.0
+
 INTERVIEW_PROMPT_POOL = [s + INTERVIEW_BASE_RULES + INTERVIEW_OPENING_PROMPT for s in INTERVIEW_STYLES]
 
 
