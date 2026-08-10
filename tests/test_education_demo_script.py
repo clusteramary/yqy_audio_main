@@ -70,15 +70,22 @@ class TestEducationDemoScript(unittest.TestCase):
                         missing.append(keyword)
         self.assertEqual(missing, [])
 
-    def test_scene_one_contains_fixed_script_lines(self):
+    def test_scene_three_contains_new_fixed_script_lines(self):
         robot_lines = [
             step["text"]
             for step in config.EDUCATION_DEMO_SCRIPT
             if step.get("type") == "say"
         ]
-        self.assertIn("本轮项目讨论已完成总结", robot_lines[0])
-        self.assertTrue(any("学生 A 在需求理解方面" in line for line in robot_lines))
-        self.assertTrue(any("数据来源和评价指标" in line for line in robot_lines))
+        self.assertEqual(
+            robot_lines,
+            [
+                "本轮项目讨论已完成总结。小组最初的问题范围较宽，经过两次引导后，已经聚焦为大一新生考试周规划 Agent。",
+                "从过程表现看，",
+                "姜同学在需求理解方面贡献较多，",
+                "何同学在系统决策设计方面表现突出，",
+                "杨同学提出了反馈调整机制。建议教师后续重点关注小组对数据来源和评价指标的完善。",
+            ],
+        )
 
     def test_scene_three_has_delays_before_student_profile_names(self):
         preface = next(
@@ -90,21 +97,21 @@ class TestEducationDemoScript(unittest.TestCase):
             step
             for step in config.EDUCATION_DEMO_SCRIPT
             if step.get("type") == "say"
-            and any(name in step.get("text", "") for name in ("学生 A", "学生 B", "学生 C"))
+            and any(name in step.get("text", "") for name in ("姜同学", "何同学", "杨同学"))
         ]
 
         self.assertEqual(
             [step["text"] for step in profile_steps],
             [
-                "学生 A 在需求理解方面贡献较多，",
-                "学生 B 在系统决策设计方面表现突出，",
-                "学生 C 提出了反馈调整机制。建议教师后续重点关注小组对数据来源和评价指标的完善。",
+                "姜同学在需求理解方面贡献较多，",
+                "何同学在系统决策设计方面表现突出，",
+                "杨同学提出了反馈调整机制。建议教师后续重点关注小组对数据来源和评价指标的完善。",
             ],
         )
         self.assertEqual(
-            [step["wait_after"] for step in profile_steps[:2]], [1.5, 1.5]
+            [step["wait_after"] for step in profile_steps[:2]], [0.5, 0.5]
         )
-        self.assertEqual(preface["wait_after"], 1.5)
+        self.assertEqual(preface["wait_after"], 0.5)
         self.assertEqual(preface["actions_before"], ["right_front"])
         self.assertEqual(profile_steps[-1]["actions_after"], ["good"])
 

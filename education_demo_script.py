@@ -40,17 +40,9 @@ EDUCATION_DEMO_SCENE = {
         {
             "type": "say",
             "speaker": "机器人",
-            "text": "杨同学 提出了反馈调整机制。建议胡老师你后续重点关注小组对数据来源和评价指标的完善。",
+            "text": "杨同学提出了反馈调整机制。建议教师后续重点关注小组对数据来源和评价指标的完善。",
             "actions_after": ["good"],
             "wait_after": 0.4,
-        },
-        {
-            "type": "say",
-            "speaker": "机器人",
-            "text": "同学们的思路已经从发散功能，转变为围绕用户、输入、决策和交互持续迭代。请继续完善数据来源和评价指标，加油。",
-            "actions_before": ["nod"],
-            "actions_after": ["good"],
-            "wait_after": 0.8,
         },
     ],
 }
