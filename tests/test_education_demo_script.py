@@ -76,9 +76,16 @@ class TestEducationDemoScript(unittest.TestCase):
             for step in config.EDUCATION_DEMO_SCRIPT
             if step.get("type") == "say"
         ]
-        self.assertIn("项目制学习的机器人导师", robot_lines[0])
-        self.assertTrue(any("需求是否真实" in line for line in robot_lines))
-        self.assertTrue(any("功能多不一定代表项目好" in line for line in robot_lines))
+        self.assertEqual(
+            robot_lines,
+            [
+                "同学们好，我是你们本次项目制学习的机器人导师。今天我们要完成一个真实的智能体设计任务：为大一新生设计一个校园学习生活规划 Agent。",
+                "本项目分为三个阶段：第一，明确用户和需求；第二，设计 Agent 的输入、决策和交互方式；第三，完成方案展示和评审。",
+                "评审时，我会重点关注四点：用户是否具体、需求是否真实、架构是否清晰、方案是否能够持续优化。",
+                "我注意到这位刚才在评分规则这里停留了比较久，好像有些疑惑。你是不是想确认，‘需求是否真实’这一项具体怎么判断？",
+                "功能多不一定代表项目好。这个项目更看重的是：用户对象是否明确，使用场景是否具体，问题是否真实存在。也就是说，你们后面设计功能时，要先说明这些功能为什么需要，而不是一开始就堆很多功能。",
+            ],
+        )
 
     def test_script_player_order(self):
         events = []
