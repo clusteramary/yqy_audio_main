@@ -405,7 +405,7 @@ EDUCATION_DEMO_VAD_START_MS = int(
     os.getenv("EDUCATION_DEMO_VAD_START_MS", "200")
 )
 EDUCATION_DEMO_VAD_END_SILENCE_MS = int(
-    os.getenv("EDUCATION_DEMO_VAD_END_SILENCE_MS", "1200")
+    os.getenv("EDUCATION_DEMO_VAD_END_SILENCE_MS", "1800")
 )
 EDUCATION_DEMO_USER_START_TIMEOUT_SEC = float(
     os.getenv("EDUCATION_DEMO_USER_START_TIMEOUT_SEC", "30.0")
@@ -415,7 +415,7 @@ EDUCATION_DEMO_USER_FINISH_TIMEOUT_SEC = float(
 )
 # 在确认学生说完后再额外等待，避免机器人紧贴尾音抢话。
 EDUCATION_DEMO_RESPONSE_DELAY_SEC = float(
-    os.getenv("EDUCATION_DEMO_RESPONSE_DELAY_SEC", "2.0")
+    os.getenv("EDUCATION_DEMO_RESPONSE_DELAY_SEC", "1.5")
 )
 
 # --- 原始 prompt（备用，切回时取消注释并替换上方三行即可） ---
