@@ -2,6 +2,7 @@ from __future__ import annotations  # Python 3.8 兼容：list[dict] 等内置�
 
 import asyncio
 import audioop  # 重采样
+import csv
 import json
 import os
 import queue
@@ -13,6 +14,7 @@ import threading
 import time
 import uuid
 import wave
+from datetime import datetime
 from typing import Any, Dict, Optional, Set
 
 import pyaudio
@@ -204,6 +206,14 @@ class DialogSession:
         )
         # 创建写入任务（懒启动，连接建立后进行）
         self.dialog_writer_task: Optional[asyncio.Task] = None
+
+        # ---------- CSV 结构化对话数据异步写入 ----------
+        self.csv_write_queue: asyncio.Queue = asyncio.Queue()
+        self.csv_file_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "dialog.csv"
+        )
+        self.csv_writer_task: Optional[asyncio.Task] = None
+        self._dialog_round: int = 1  # 对话轮次计数器
 
         # 机器人与用户整段文本的累积/去重
         self._llm_text_accum: list[str] = []  # 累积机器人整段文本
@@ -916,7 +926,7 @@ class DialogSession:
                 bot_text = "".join(self._llm_text_accum).strip()
                 if bot_text and bot_text != self._last_bot_text_written:
                     try:
-                        self.dialog_write_queue.put_nowait(f"机器人: {bot_text}")
+                        self._enqueue_dialog_text("机器人", bot_text)
                         self._last_bot_text_written = bot_text
                     except Exception:
                         pass
@@ -928,6 +938,11 @@ class DialogSession:
         try:
             if hasattr(self, "dialog_writer_task") and self.dialog_writer_task:
                 self.dialog_writer_task.cancel()
+        except Exception:
+            pass
+        try:
+            if hasattr(self, "csv_writer_task") and self.csv_writer_task:
+                self.csv_writer_task.cancel()
         except Exception:
             pass
 
@@ -1020,9 +1035,7 @@ class DialogSession:
                         not self._user_text_round_written
                     ) and self._user_text_accum.strip():
                         try:
-                            self.dialog_write_queue.put_nowait(
-                                f"用户: {self._user_text_accum.strip()}"
-                            )
+                            self._enqueue_dialog_text("用户", self._user_text_accum.strip())
                             self._last_user_text_written = self._user_text_accum.strip()
                         except Exception:
                             pass
@@ -1117,7 +1130,7 @@ class DialogSession:
                 try:
                     if (not self._user_text_round_written) and self._user_text_accum.strip():
                         try:
-                            self.dialog_write_queue.put_nowait(f"用户: {self._user_text_accum.strip()}")
+                            self._enqueue_dialog_text("用户", self._user_text_accum.strip())
                             self._last_user_text_written = self._user_text_accum.strip()
                         except Exception:
                             pass
@@ -1132,9 +1145,7 @@ class DialogSession:
                         bot_text = "".join(self._llm_text_accum).strip()
                         if bot_text and bot_text != self._last_bot_text_written:
                             try:
-                                self.dialog_write_queue.put_nowait(
-                                    f"机器人: {bot_text}"
-                                )
+                                self._enqueue_dialog_text("机器人", bot_text)
                                 self._last_bot_text_written = bot_text
                             except Exception:
                                 pass
@@ -1384,6 +1395,7 @@ class DialogSession:
             await self.client.connect()
             # 启动异步写入任务（追加到历史对话，不再清空文件）
             self.dialog_writer_task = asyncio.create_task(self._dialog_writer())
+            self.csv_writer_task = asyncio.create_task(self._csv_writer())
             if self.is_audio_file_input:
                 asyncio.create_task(self.process_audio_file())
                 await self.receive_loop()
@@ -1411,6 +1423,27 @@ class DialogSession:
         finally:
             if not self.is_audio_file_input:
                 self.audio_device.cleanup()
+
+    def _enqueue_dialog_text(self, role: str, text: str) -> None:
+        """同时写入 txt 队列（纯文本）和 csv 队列（结构化数据）。
+        role: "用户" 或 "机器人"
+        """
+        try:
+            self.dialog_write_queue.put_nowait(f"{role}: {text}")
+        except Exception:
+            pass
+        try:
+            self.csv_write_queue.put_nowait({
+                "timestamp": datetime.now().isoformat(),
+                "round": self._dialog_round,
+                "role": role,
+                "text": text,
+            })
+        except Exception:
+            pass
+        # 机器人每回复一次，对话轮次 +1
+        if role == "机器人":
+            self._dialog_round += 1
 
     async def _dialog_writer(self) -> None:
         """
@@ -1467,5 +1500,72 @@ class DialogSession:
                         for line in remaining:
                             f.write(line.replace("\r\n", "\n").replace("\r", "\n"))
                             f.write("\n")
+            except Exception:
+                pass
+
+    async def _csv_writer(self) -> None:
+        """
+        将队列中的结构化对话数据批量写入 dialog.csv。
+        与 _dialog_writer 并行运行，共享同一个 csv_write_queue。
+        CSV 字段：timestamp, round, role, text
+        """
+        header_written = False
+        try:
+            while self.is_running:
+                try:
+                    batch: list[dict] = []
+                    try:
+                        while True:
+                            item = self.csv_write_queue.get_nowait()
+                            batch.append(item)
+                            if len(batch) >= 50:
+                                break
+                    except Exception:
+                        pass
+
+                    if not batch:
+                        await asyncio.sleep(0.1)
+                        continue
+
+                    try:
+                        with open(self.csv_file_path, "a", encoding="utf-8-sig", newline="") as f:
+                            fieldnames = ["timestamp", "round", "role", "text"]
+                            writer = csv.DictWriter(f, fieldnames=fieldnames)
+                            if not header_written:
+                                f.seek(0, os.SEEK_END)
+                                if f.tell() == 0:
+                                    writer.writeheader()
+                                header_written = True
+                            for row in batch:
+                                writer.writerow(row)
+                    except Exception as e:
+                        print(f"[CSV-WRITER] 写入失败: {e}")
+
+                    await asyncio.sleep(0.02)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    print(f"[CSV-WRITER] 任务异常: {e}")
+                    await asyncio.sleep(0.1)
+        finally:
+            # 退出前写入残留数据
+            try:
+                remaining: list[dict] = []
+                try:
+                    while True:
+                        remaining.append(self.csv_write_queue.get_nowait())
+                except Exception:
+                    pass
+                if remaining:
+                    with open(self.csv_file_path, "a", encoding="utf-8-sig", newline="") as f:
+                        fieldnames = ["timestamp", "round", "role", "text"]
+                        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                        if not header_written:
+                            f.seek(0, os.SEEK_END)
+                            if f.tell() == 0:
+                                writer.writeheader()
+                            header_written = True
+                        for row in remaining:
+                            writer.writerow(row)
             except Exception:
                 pass
