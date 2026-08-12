@@ -189,52 +189,6 @@ class FacePromptDetector:
                 consecutive = 0
 
     # ---------------- 分析线程（一次性，生成 prompt） ----------------
-    # def _periodic_analysis(self):
-    #     try:
-    #         while not self._stop_event.is_set():
-    #             time.sleep(self.interval_sec)
-
-    #             frame = self.camera.read_latest_frame()
-    #             if frame is None:
-    #                 self._face_counter = 0
-    #                 continue
-
-    #             try:
-    #                 results = DeepFace.analyze(
-    #                     img_path=frame,  # ndarray(BGR)
-    #                     actions=["age", "gender", "race", "emotion"],
-    #                     detector_backend=self.detector_backend,
-    #                     # DeepFace 低版本不支持 prog_bar 参数，勿传
-    #                     # enforce_detection=self.enforce_detection,  # 有些版本此参数存在兼容性问题
-    #                 )
-
-    #                 # 防御式：确保确实拿到结果
-    #                 if not results or (isinstance(results, list) and len(results) == 0):
-    #                     raise RuntimeError("未检测到人脸！")
-
-    #                 if isinstance(results, dict):
-    #                     results = [results]
-    #                 faces = [r for r in results if isinstance(r, dict)]
-
-    #                 if len(faces) >= 1:
-    #                     self._face_counter += 1
-    #                 else:
-    #                     self._face_counter = 0
-    #                     continue
-
-    #                 if self._face_counter >= self.required_consecutive:
-    #                     self._prompt_result = self._build_prompt_from_face(faces[0])
-    #                     self._stop_event.set()
-    #                     break
-
-    #             except Exception as e:
-    #                 print(f"[periodic_analysis error] {e}")
-    #                 self._face_counter = 0
-    #     finally:
-    #         # 不在这里关相机（允许后续持续推送）
-    #         pass
-
-   # ---------------- 分析线程（一次性，生成 prompt） ----------------
     def _periodic_analysis(self):
         try:
             while not self._stop_event.is_set():
@@ -290,35 +244,6 @@ class FacePromptDetector:
         addr = self._emo_addr
         interval = float(self._emo_interval)
 
-        # while not self._emo_stop.is_set():
-        #     t0 = time.time()
-        #     payload = {
-        #         "ts": t0,
-        #         "has_face": False,
-        #         "dominant_emotion": None,
-        #         "emotion": {},
-        #         "source": "FacePromptDetector",
-        #     }
-        #     frame = self.camera.read_latest_frame()
-        #     if frame is not None:
-        #         try:
-        #             res = DeepFace.analyze(
-        #                 img_path=frame,
-        #                 actions=["emotion"],
-        #                 detector_backend=self.detector_backend,
-        #             )
-        #             if isinstance(res, list) and res:
-        #                 res = res[0]
-        #             if isinstance(res, dict) and "emotion" in res:
-        #                 emo = self._sanitize(res.get("emotion", {}))
-        #                 payload["emotion"] = emo
-        #                 payload["has_face"] = True if emo else False
-        #                 if emo:
-        #                     payload["dominant_emotion"] = max(emo, key=emo.get)
-        #         except Exception as e:
-        #             # 推送失败不报错，只在控制台提示一次
-        #             # print(f"[emotion_loop warn] {e}")
-        #             pass
         while not self._emo_stop.is_set():
             t0 = time.time()
             payload = {

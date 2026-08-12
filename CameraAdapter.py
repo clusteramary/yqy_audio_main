@@ -35,8 +35,6 @@ try:
 except Exception:
     _HAS_ROS2 = False
 
-from deepface import DeepFace
-
 
 class CameraAdapter:
     """

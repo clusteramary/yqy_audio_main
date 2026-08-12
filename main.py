@@ -15,7 +15,6 @@ from str_receiver import UDPReceiver
 # ABSENT_SECONDS = 30.0      # ✅ 对话进行时，连续多久没看到人脸就重启
 ABSENT_SECONDS = 100000.0  # ✅ 对话进行时，连续多久没看到人脸就重启
 EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
-INITIAL_DETECT_TIMEOUT = 1.0  # 首次做人脸特征引导的超时时间
 
 # 视觉迎宾：记录上次会话结束时间，用于跨会话冷却判断
 _last_session_end_ts = 0.0
@@ -159,11 +158,6 @@ async def monitor_face_absence(
     Raises:
         asyncio.CancelledError: 当任务被取消时可能抛出
     """
-    """
-    对话阶段的"看门狗"：周期性读取 detector.get_last_face_ts()。
-    若超过 absent_secs 没看到人脸，则触发 stop_event 结束本轮会话。
-    warmup_secs：容许对话刚开始的热身窗口（避免一开始就误杀）。
-    """
     start = time.time()
     while not stop_event.is_set():
         now = time.time()
@@ -258,46 +252,47 @@ async def run_once():
         print("[VISUAL-GREETING] ⚠️ 等待 say_hello 超时(15s)，WS 可能未连上或服务器未回 359，跳过迎宾、结束本轮")
         stop_event.set()
 
-    if not stop_event.is_set():
-        # ---- 发送迎宾问候（ChatTextQuery 501，模拟用户输入触发 LLM→TTS） ----
-        await session.client.chat_text_query(
-            f"请你现在立即说出这句话（只允许说这句话，不允许添加任何其他文字）：{config.VISUAL_GREETING_TEXT}"
-        )
-        print("[VISUAL-GREETING] 已发送迎宾问候")
-
-        # ---- 等迎宾 TTS 播完 ----
-        await asyncio.sleep(0.3)
-        while not stop_event.is_set() and session._is_tts_playing():
-            await asyncio.sleep(0.1)
-
-        # ---- 注入采访规则（此时 LLM 已有问候上下文，可自然开始采访） ----
-        print("[VISUAL-GREETING] 迎宾完成，注入采访规则")
-        await session.client.chat_text_query(prompt)
-
-    # ========== 6) 并发任务 ==========
-    watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
-    if config.CTRL_INJECT_MODE == "conversation":
-        session.start_ctrl_injection()
-        ctrl_inject_tasks = []
-    else:
-        ctrl_inject_tasks = [
-            asyncio.create_task(
-                inject_ctrl_instruction(
-                    config.CTRL_FILE_PATH,
-                    message,
-                    delay,
-                    stop_event,
-                )
-            )
-            for delay, message in config.CTRL_INJECT_EVENTS
-        ]
-
-    # 等待停止信号（来自看门狗或会话自然结束）
+    watchdog_task = None
+    ctrl_inject_tasks: list = []
     try:
+        if not stop_event.is_set():
+            # ---- 发送迎宾问候（ChatTextQuery 501，模拟用户输入触发 LLM→TTS） ----
+            await session.client.chat_text_query(
+                f"请你现在立即说出这句话（只允许说这句话，不允许添加任何其他文字）：{config.VISUAL_GREETING_TEXT}"
+            )
+            print("[VISUAL-GREETING] 已发送迎宾问候")
+
+            # ---- 等迎宾 TTS 播完 ----
+            await asyncio.sleep(0.3)
+            while not stop_event.is_set() and session._is_tts_playing():
+                await asyncio.sleep(0.1)
+
+            # ---- 注入采访规则（此时 LLM 已有问候上下文，可自然开始采访） ----
+            print("[VISUAL-GREETING] 迎宾完成，注入采访规则")
+            await session.client.chat_text_query(prompt)
+
+        # ========== 6) 并发任务 ==========
+        watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
+        if config.CTRL_INJECT_MODE == "conversation":
+            session.start_ctrl_injection()
+        else:
+            ctrl_inject_tasks = [
+                asyncio.create_task(
+                    inject_ctrl_instruction(
+                        config.CTRL_FILE_PATH,
+                        message,
+                        delay,
+                        stop_event,
+                    )
+                )
+                for delay, message in config.CTRL_INJECT_EVENTS
+            ]
+
+        # 等待停止信号（来自看门狗或会话自然结束）
         while not stop_event.is_set():
             await asyncio.sleep(0.1)
     finally:
-        # ========== 7) 清理 ==========
+        # ========== 7) 清理（异常路径也保证执行） ==========
         try:
             detector.stop_emotion_stream()
         except Exception:
@@ -308,7 +303,7 @@ async def run_once():
         except Exception:
             pass
 
-        for t in (watchdog_task, dialog_task, *ctrl_inject_tasks):
+        for t in [t for t in (watchdog_task, dialog_task, *ctrl_inject_tasks) if t is not None]:
             if not t.done():
                 t.cancel()
                 try:
