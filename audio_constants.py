@@ -275,3 +275,6 @@ class AudioConfig:
     ros1_node_name: str = "speaker_publisher"
     ros1_queue_size: int = 10
     ros1_latch: bool = False
+    ros1_control_topic: str = "/audio/control"
+    ros1_audio_frame_ms: int = 20
+    duplex_mode: str = "half"

@@ -23,13 +23,15 @@
    ```bash
    pip install -r requirements.txt
    
-3. 通过麦克风运行程序
+3. 默认启动（本地 PyAudio 麦克风 + ROS 下位机扬声器 + 半双工）
    ```bash
-   python main.py --format=pcm
+   python main.py
    ```
-4. 通过录音文件启动程序
-   ```
-   python main.py --audio=whoareyou.wav
 
-conda activate yqy1
+4. 切换双工或音频输入/输出
+   ```bash
+   python main.py --duplex-mode half --input-audio-mode pyaudio --output-audio-mode ros1
+   python main.py --duplex-mode full --input-audio-mode pyaudio --output-audio-mode ros1
    ```
+
+   半双工恢复开麦延迟在 `config.py` 的 `HALF_DUPLEX_RESUME_DELAY_MS` 中调整，设为 `0` 表示下位机播放结束后立即开麦。

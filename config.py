@@ -109,15 +109,15 @@ def get_active_input_config():
 # 关键：mode = "ros1" -> 使用我们实现的 Ros1SpeakerStream，把"原始 PCM 字节"发布到话题
 # 下位机需要按 24k / 单声道 / PCM（常见为 s16le）进行播放
 # 提示：将 OUTPUT_AUDIO_MODE 环境变量设为 pyaudio/ros1 可在运行时切换输出路径。
-OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "pyaudio")
+OUTPUT_AUDIO_MODE = os.getenv("OUTPUT_AUDIO_MODE", "ros1")
 output_audio_config = {
     "chunk": 3200,  # 供本地 PyAudio 使用的缓冲大小；ROS 模式下不影响发布
     "format": "pcm",
     "channels": 1,
     "sample_rate": 24000,  # 与 start_session_req.tts.audio_config 保持一致
     # 对于本地 PyAudio 播放：bit_size 要与下行位宽一致
-    # 你之前用的是 paFloat32，这里保持原样；若服务端确认为 s16le，建议改为 pyaudio.paInt16
-    "bit_size": pyaudio.paFloat32,
+    # 火山端 pcm 输出为 16-bit little-endian PCM。
+    "bit_size": pyaudio.paInt16,
     # 当 mode="pyaudio" 时可用名称模糊匹配声卡输出；优先级高于 device_index。
     "device_name": None,  # 例如 "Realtek" / "Speakers"（大小写不敏感、子串匹配）
     "device_index": None,  # 仅在 mode='pyaudio' 时生效
@@ -129,20 +129,53 @@ output_audio_config = {
     "ros1_latch": False,  # 音频流不建议 latched，保持 False
 }
 
+# ============ 全双工 / 半双工 ============
+# "half": 机器人播放时暂停上位机麦克风（默认）。
+# "full": 麦克风持续上行，检测到用户说话时可打断机器人播放。
+DUPLEX_MODE = os.getenv("DUPLEX_MODE", "half").lower()
+
+# 半双工中，下位机播放状态变为 False 后，再等待该时间恢复麦克风。
+# 如果环境回声大可调大；需要播完立即开麦可设为 0。
+HALF_DUPLEX_RESUME_DELAY_MS = int(
+    os.getenv("HALF_DUPLEX_RESUME_DELAY_MS", "50")
+)
+
+# 全双工本地能量打断参数（输入为 16kHz/s16le/20ms 帧）。
+ENABLE_BARGE_IN = os.getenv("ENABLE_BARGE_IN", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+BARGE_IN_THRESHOLD = int(os.getenv("BARGE_IN_THRESHOLD", "2000"))
+BARGE_IN_MIN_DURATION_MS = int(os.getenv("BARGE_IN_MIN_DURATION_MS", "300"))
+FULL_DUPLEX_INTERRUPT_ON_EVENT450 = os.getenv(
+    "FULL_DUPLEX_INTERRUPT_ON_EVENT450", "true"
+).lower() in ("1", "true", "yes")
+
+# ros_audio_player.py 的可打断播放协议配置。
+ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
+ROS_AUDIO_FRAME_MS = int(os.getenv("ROS_AUDIO_FRAME_MS", "20"))
+
+output_audio_config.update(
+    {
+        "duplex_mode": DUPLEX_MODE,
+        "ros1_control_topic": ROS_AUDIO_CONTROL_TOPIC,
+        "ros1_audio_frame_ms": ROS_AUDIO_FRAME_MS,
+    }
+)
+
 """
 使用说明：
 1) 本文件与 audio_manager.py 中的 AudioDeviceManager/Ros1SpeakerStream 联动：
    - 当 output_audio_config['mode'] == 'ros1' 时，音频播放改为在 ROS 话题发布字节流；
-   - 下位机订阅 /robot/speaker/audio 并按 24k/单声道/PCM 解码播放；
+   - 下位机 ros_audio_player.py 订阅 /audio 并按 24k/单声道/s16le 播放；
    - 若你的下位机采用 audio_common_msgs/AudioData，则消息类型自动为 AudioData；
      若该包未安装，会退化为 std_msgs/ByteMultiArray（字段 data 为 uint8[]），请下位机相应适配。
 
 2) 如需临时切回本地声卡播放：
    - 仅把 output_audio_config['mode'] 改为 'pyaudio'，其他保持不变即可。
 
-3) 若确认服务端返回的是 s16le：
-   - 建议把 output_audio_config['bit_size'] 改为 pyaudio.paInt16，以保持一致（仅在 'pyaudio' 模式下有用；
-     'ros1' 模式下该字段不参与发布，但建议保持与真实位宽一致，以免后续切回本地时爆音）。
+3) 服务端返回 s16le，output_audio_config['bit_size'] 必须保持 pyaudio.paInt16。
 
 添加扬声器功能：
     新增输出切换：支持用环境变量或配置切换到本地扬声器。PowerShell 运行本地播放示例：$env:OUTPUT_AUDIO_MODE='pyaudio'; python main.py；恢复 ROS：$env:OUTPUT_AUDIO_MODE='ros1'; python main.py。也可以直接改 config.py 的 output_audio_config["mode"]。
@@ -179,11 +212,7 @@ CTRL_INJECT_ITEM_ASSISTANT = "收到，我会在后续对话中遵循这条控�
 # 用途：机器人作为"专家分身"采访人类，收集对未来专家机器人的期待
 # ========================================================================
 
-# --- say_hello 连接后第一句话（初始 TTS 播报，不含问题） ---
-EXPERT_ROBOT_SAY_HELLO = "你好！我是小科，一个正在学习成为专家分身的智能机器人，很高兴认识你！"
-
-
-# --- 开场白（五选一，由遥操或机器人自主选择） ---
+# --- say_hello 使用的开场白（每次会话随机五选一） ---
 EXPERT_ROBOT_OPENING_LINES = [
     # 1
     (
@@ -353,12 +382,11 @@ def build_expert_robot_system_prompt(
 ) -> str:
     """构建专家机器人采访的 system_role prompt。
     参数：
-        opening_index: 开场白索引 (0~4)
+        opening_index: 保留的兼容参数；开场白现由 say_hello 随机选择
         identity_index: 身份问题索引 (0~1)
         key_side: 关键问题方向，"user_side" 或 "expert_side"
         key_index: 关键问题索引 (0~1)
     """
-    opening = EXPERT_ROBOT_OPENING_LINES[opening_index]
     identity = EXPERT_ROBOT_IDENTITY_QUESTIONS[identity_index]
     key_question = EXPERT_ROBOT_KEY_QUESTIONS[key_side][key_index]
     secondary_list = EXPERT_ROBOT_SECONDARY_QUESTIONS
@@ -384,9 +412,8 @@ def build_expert_robot_system_prompt(
     prompt = (
         "\n你是一个正在进行\"专家机器人访谈调研\"的采访机器人，你的名字叫【小科】。"
         "\n\n========================"
-        "\n【开场白（必须原样说出）】"
-        "\n第一位新受访者开始时，必须先友好打招呼，然后说："
-        "\n  \"" + opening + "\""
+        "\n【开场衔接】"
+        "\nsay_hello 已经完成打招呼和邀请。不要再次自我介绍，不要重复开场邀请，直接进入身份确认。"
         "\n\n========================"
         "\n【身份确认（必须执行）】"
         "\n开场后必须询问身份："

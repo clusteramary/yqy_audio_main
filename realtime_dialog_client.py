@@ -2,6 +2,7 @@ from __future__ import annotations  # Python 3.8 兼容：list[dict] 等内置�
 
 import gzip
 import json
+import random
 import socket
 import time
 from typing import Any, Dict
@@ -83,14 +84,13 @@ class RealtimeDialogClient:
 
     # 在 RealtimeDialogClient 类中的 hello 函数修改
     async def say_hello(self) -> None:
-        """发送Hello消息并直接发送start关键词"""
+        """随机选择一条开场白发送，并直接发送 start 关键词。"""
+        opening_index = random.randrange(len(config.EXPERT_ROBOT_OPENING_LINES))
+        opening_line = config.EXPERT_ROBOT_OPENING_LINES[opening_index]
         payload = {
-            # "content": "I am a humanoid intelligent robot reporter from Huazhong University of Science and Technology.",
-            # "content": "我是华中科技大学智能机器人记者助手小科。",
-            # "content": "大家好呀！",
-            # 固定开场白统一在 config.EXPERT_ROBOT_SAY_HELLO 配置
-            "content": config.EXPERT_ROBOT_SAY_HELLO,
+            "content": opening_line,
         }
+        print(f"[say_hello] 随机开场白 #{opening_index + 1}")
         hello_request = bytearray(protocol.generate_header())
         hello_request.extend(int(300).to_bytes(4, "big"))
         payload_bytes = str.encode(json.dumps(payload))
@@ -221,10 +221,12 @@ class RealtimeDialogClient:
 
     async def close(self) -> None:
         """关闭WebSocket连接"""
-        if self.ws:
-            print(f"Closing WebSocket connection...")
-            await self.ws.close()
-            await self.ws.close()
-            await self.ws.close()
-            await self.ws.close()
-            await self.ws.close()
+        try:
+            if self.ws:
+                print("Closing WebSocket connection...")
+                await self.ws.close()
+        finally:
+            try:
+                self.voice_udp_socket.close()
+            except Exception:
+                pass

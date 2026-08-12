@@ -1,5 +1,6 @@
 # async_app.py
 import asyncio
+import argparse
 import os
 import random
 import threading
@@ -19,19 +20,17 @@ INITIAL_DETECT_TIMEOUT = 1.0  # 首次做人脸特征引导的超时时间
 
 
 def pick_interview_prompt():
-    """根据环境变量或随机选择采访参数，返回 (prompt_str, opening_index)。"""
-    opening_idx = int(os.getenv("EXPERT_OPENING_INDEX", str(random.randint(0, 4))))
+    """根据环境变量或随机选择采访参数。"""
     identity_idx = int(os.getenv("EXPERT_IDENTITY_INDEX", str(random.randint(0, 1))))
     key_side = os.getenv("EXPERT_KEY_SIDE", random.choice(["user_side", "expert_side"]))
     key_idx = int(os.getenv("EXPERT_KEY_INDEX", str(random.randint(0, 1))))
 
     prompt = config.build_expert_robot_system_prompt(
-        opening_index=opening_idx,
         identity_index=identity_idx,
         key_side=key_side,
         key_index=key_idx,
     )
-    return prompt, opening_idx
+    return prompt
 
 
 async def inject_ctrl_instruction(
@@ -125,8 +124,8 @@ async def run_once():
     )
 
     # 构造采访 prompt（根据环境变量或随机选择参数）
-    prompt, opening_idx = pick_interview_prompt()
-    print(f"[PROMPT] 使用专家机器人采访 prompt，开场白 #{opening_idx + 1}")
+    prompt = pick_interview_prompt()
+    print("[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择")
 
     # ========== 4) 进入语音对话，并发"看脸看门狗" ==========
     stop_event = asyncio.Event()
@@ -135,6 +134,7 @@ async def run_once():
         config.ws_connect_config,
         start_prompt=prompt,
         output_audio_format="pcm",
+        duplex_mode=getattr(config, "DUPLEX_MODE", "half"),
     )
     session.attach_stop_event(stop_event)
 
@@ -162,9 +162,18 @@ async def run_once():
     # 等待停止信号（来自看门狗或会话自然结束）
     try:
         while not stop_event.is_set():
+            if dialog_task.done():
+                if dialog_task.cancelled():
+                    break
+                error = dialog_task.exception()
+                if error is not None:
+                    raise error
+                break
             await asyncio.sleep(0.1)
     finally:
         # ========== 5) 清理：停线程、关相机、取消任务 ==========
+        session.stop()
+
         try:
             detector.stop_emotion_stream()
         except Exception:
@@ -175,14 +184,12 @@ async def run_once():
         except Exception:
             pass
 
-        # 取消并等待任务退出
-        for t in (watchdog_task, dialog_task, *ctrl_inject_tasks):
+        # 取消并等待任务退出。gather 保证不会因单个任务异常遗漏其他清理。
+        tasks = (watchdog_task, dialog_task, *ctrl_inject_tasks)
+        for t in tasks:
             if not t.done():
                 t.cancel()
-                try:
-                    await t
-                except asyncio.CancelledError:
-                    pass
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         print("[run_once] 本轮流程已结束。")
 
@@ -204,24 +211,52 @@ async def main():
     )
     udp_thread.start()
 
-    while True:
-        try:
-            await run_once()
-        except KeyboardInterrupt:
-            print("程序被用户中断")
-            break
-        except Exception as e:
-            # 防御：任何异常都不至于崩死主循环
-            print(f"[main] 捕获异常：{e}；3s 后重启。")
-            await asyncio.sleep(3.0)
-    # 主循环退出时，停止 UDP 监听
-    udp_receiver.stop_receiving()
-    udp_receiver.close()
-    if udp_thread.is_alive():
-        udp_thread.join(timeout=1.0)
+    try:
+        while True:
+            try:
+                await run_once()
+            except Exception as e:
+                # 防御：业务异常不崩溃；asyncio 的取消会自然越过这里进入 finally。
+                print(f"[main] 捕获异常：{e}；3s 后重启。")
+                await asyncio.sleep(3.0)
+    finally:
+        udp_receiver.stop_receiving()
+        udp_receiver.close()
+        if udp_thread.is_alive():
+            udp_thread.join(timeout=1.0)
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="专家机器人语音采访系统")
+    parser.add_argument(
+        "--duplex-mode",
+        choices=("half", "full"),
+        default=config.DUPLEX_MODE,
+        help="双工模式：half=半双工（默认），full=全双工可打断",
+    )
+    parser.add_argument(
+        "--input-audio-mode",
+        choices=("pyaudio", "ros1"),
+        default=config.INPUT_AUDIO_MODE,
+        help="麦克风输入：pyaudio=本地麦克风，ros1=ROS 音频话题",
+    )
+    parser.add_argument(
+        "--output-audio-mode",
+        choices=("pyaudio", "ros1"),
+        default=config.OUTPUT_AUDIO_MODE,
+        help="扬声器输出：pyaudio=本地扬声器，ros1=下位机 ros_audio_player.py",
+    )
+    args = parser.parse_args()
+    config.DUPLEX_MODE = args.duplex_mode
+    config.INPUT_AUDIO_MODE = args.input_audio_mode
+    config.OUTPUT_AUDIO_MODE = args.output_audio_mode
+    config.output_audio_config["mode"] = args.output_audio_mode
+    config.output_audio_config["duplex_mode"] = args.duplex_mode
+    print(
+        f"[启动参数] duplex={args.duplex_mode}, "
+        f"input={args.input_audio_mode}, output={args.output_audio_mode}, "
+        f"half_resume_delay={config.HALF_DUPLEX_RESUME_DELAY_MS}ms"
+    )
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

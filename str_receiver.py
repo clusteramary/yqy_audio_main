@@ -18,6 +18,7 @@ class UDPReceiver:
         self.file_path = file_path
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.running = False
+        self._closed = False
 
         # 确保目录存在
         self._ensure_directory()
@@ -72,19 +73,29 @@ class UDPReceiver:
                 else:
                     print("[UDPReceiver] 已忽略该UDP消息（不写入 ctrl.txt）")
 
+        except OSError as e:
+            if self.running:
+                print(f"接收错误: {e}")
         except Exception as e:
-            print(f"接收错误: {e}")
+            if self.running:
+                print(f"接收错误: {e}")
         finally:
             self.close()
 
     def stop_receiving(self):
         """停止接收消息"""
         self.running = False
+        self.close()
 
     def close(self):
         """关闭socket连接"""
-        self.sock.close()
-        print("UDP接收器已关闭")
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            self.sock.close()
+        finally:
+            print("UDP接收器已关闭")
 
 
 # 使用示例
