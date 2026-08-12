@@ -104,6 +104,9 @@ class AudioDeviceManager:
         if isinstance(self.input_stream, pyaudio.Stream):
             try:
                 self.input_stream.stop_stream()
+            except Exception:
+                pass
+            try:
                 self.input_stream.close()
             except Exception:
                 pass
