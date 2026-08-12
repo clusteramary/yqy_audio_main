@@ -144,6 +144,8 @@ class FacePromptDetector:
         consecutive = 0
         fail_count = 0
         max_fail = 20  # 连续异常超过此次数则判定 DeepFace 不可用，避免静默死循环
+        last_warn_ts = 0.0   # 上次输出状态日志的时间（限频用）
+        start_ts = time.time()
         while True:
             if stop_event is not None and stop_event.is_set():
                 return False
@@ -151,6 +153,14 @@ class FacePromptDetector:
             frame = self.camera.read_latest_frame()
             if frame is None:
                 consecutive = 0
+                # 限频提示：相机一直没帧（多为 ROS 订阅/相机未启动问题）
+                now = time.time()
+                if now - last_warn_ts >= 5.0:
+                    last_warn_ts = now
+                    print(
+                        f"[wait_for_stable_face] ⚠️ 已等待 {now - start_ts:.0f}s 仍无相机图像，"
+                        f"请检查 ROS 话题/相机是否正常（当前帧为 None）"
+                    )
                 continue
             try:
                 faces = DeepFace.extract_faces(
@@ -187,6 +197,14 @@ class FacePromptDetector:
                     return True
             else:
                 consecutive = 0
+                # 限频提示：有帧但没检测到人脸（多为人脸太小/太远/不在画面内）
+                now = time.time()
+                if now - last_warn_ts >= 5.0:
+                    last_warn_ts = now
+                    print(
+                        f"[wait_for_stable_face] ⚠️ 已等待 {now - start_ts:.0f}s 未检测到人脸，"
+                        f"请确认人脸在画面内且足够大（最小宽度 {min_face_width}px）"
+                    )
 
     # ---------------- 分析线程（一次性，生成 prompt） ----------------
     def _periodic_analysis(self):

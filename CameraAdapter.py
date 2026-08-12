@@ -109,7 +109,13 @@ class CameraAdapter:
     # ----------- 公共API -----------
     def start(self):
         if self._thread and self._thread.is_alive():
-            return
+            # 旧采集线程未退出：强制停止并回收，再启动新线程。
+            # 否则第二轮循环时订阅已被注销却不再开新线程，将永远取不到帧。
+            print("[CameraAdapter] 检测到旧采集线程未退出，强制停止后重启采集...")
+            self._stop_event.set()
+            self._thread.join(timeout=3.0)
+            self._release_resources()
+            self._thread = None
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
@@ -117,8 +123,9 @@ class CameraAdapter:
     def stop(self):
         self._stop_event.set()
         if self._thread:
-            self._thread.join(timeout=1.0)
+            self._thread.join(timeout=3.0)
         self._release_resources()
+        self._thread = None
 
     def read_latest_frame(self) -> Optional[np.ndarray]:
         with self._last_frame_lock:

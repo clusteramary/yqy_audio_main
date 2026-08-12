@@ -1,7 +1,9 @@
 # async_app.py
 import asyncio
+import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import random
@@ -18,6 +20,44 @@ EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是�
 
 # 视觉迎宾：记录上次会话结束时间，用于跨会话冷却判断
 _last_session_end_ts = 0.0
+
+
+# ============ 日志双写：终端 + 文件（多线程安全） ============
+class _Tee:
+    """把 print 同时写到终端和日志文件。"""
+
+    def __init__(self, *streams):
+        self.streams = streams
+        self._lock = threading.Lock()
+
+    def write(self, data):
+        with self._lock:
+            for s in self.streams:
+                try:
+                    s.write(data)
+                    s.flush()
+                except Exception:
+                    pass
+
+    def flush(self):
+        with self._lock:
+            for s in self.streams:
+                try:
+                    s.flush()
+                except Exception:
+                    pass
+
+
+def setup_file_log() -> Path:
+    """启动后调用：所有 print 同时写入 logs/main_时间戳.log。"""
+    log_dir = Path(__file__).resolve().parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / f"main_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    f = open(log_path, "a", encoding="utf-8", buffering=1)
+    sys.stdout = _Tee(sys.__stdout__, f)
+    sys.stderr = _Tee(sys.__stderr__, f)
+    print(f"[LOG] 📁 日志文件：{log_path}")
+    return log_path
 
 
 
@@ -99,7 +139,11 @@ async def visual_greeting_phase(
         print("[VISUAL-GREETING] 冷却期间收到停止信号")
         return
 
-    print("[VISUAL-GREETING] 冷却结束，开始等待人脸...")
+    # ===== 冷却结束 → 切换为迎宾状态，醒目提醒 =====
+    print("=" * 64)
+    print(f"[VISUAL-GREETING] 🚪 冷却结束（距上次会话 {time.time() - _last_session_end_ts:.0f}s），已切换为【迎宾状态】！")
+    print(f"[VISUAL-GREETING] 👀 开始等待人脸：请确认摄像头前有人（连续 {config.VISUAL_GREETING_REQUIRED_CONSECUTIVE} 帧）")
+    print("=" * 64)
 
     # ---- 阶段 2：等待稳定人脸 ----
     thread_stop = threading.Event()
@@ -182,7 +226,7 @@ async def monitor_face_absence(
         await asyncio.sleep(poll_secs)
 
 
-async def run_once():
+async def run_once(round_no: int = 1):
     """
     单次完整流程：
       1) 启动相机 + 情绪推送
@@ -191,6 +235,9 @@ async def run_once():
       4) 进入语音对话 + 并发"看门狗"
       5) 看门狗触发或会话结束 → 清理 → 返回上一层（由上层循环自动重启）
     """
+    print("=" * 64)
+    print(f"[run_once] 🚀 第 {round_no} 轮流程开始（上次会话结束后冷却 {config.VISUAL_GREETING_COOLDOWN_SEC}s）")
+    print("=" * 64)
     # ========== 1) 初始化相机 ==========
     camera = CameraAdapter(
         kind="ros1",
@@ -333,9 +380,10 @@ async def main():
     )
     udp_thread.start()
 
+    round_no = 1
     while True:
         try:
-            await run_once()
+            await run_once(round_no)
         except KeyboardInterrupt:
             print("程序被用户中断")
             break
@@ -343,6 +391,7 @@ async def main():
             # 防御：任何异常都不至于崩死主循环
             print(f"[main] 捕获异常：{e}；3s 后重启。")
             await asyncio.sleep(3.0)
+        round_no += 1
     # 主循环退出时，停止 UDP 监听
     udp_receiver.stop_receiving()
     udp_receiver.close()
@@ -351,6 +400,7 @@ async def main():
 
 
 if __name__ == "__main__":
+    setup_file_log()
     try:
         asyncio.run(main())
     except KeyboardInterrupt:

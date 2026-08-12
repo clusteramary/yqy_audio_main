@@ -1,2 +1,21 @@
 __pycache__/
 *.pyc
+
+# Environment files
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+environment.yml
+environment.yaml
+conda-env/
+*.egg-info/
+
+# Runtime artifacts (removed from tracking)
+*.pcm
+*.log
+logs/
+dialog.txt
+a.txt

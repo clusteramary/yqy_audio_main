@@ -191,6 +191,7 @@ class DialogSession:
 
         # MIC 指令冷却
         self._last_mic_send_time = 0.0
+        self._last_mic_cmd_shown = None   # 仅命令变化时打印，避免刷屏
 
         # ---------- LLM 输出关键短语检测缓冲 ----------
         self._llm_keyword_buffer: str = ""
@@ -415,7 +416,10 @@ class DialogSession:
             self.mic_udp_socket.sendto(
                 msg.encode("utf-8"), (self.mic_udp_host, self.mic_udp_port)
             )
-            print(f"[MIC-UDP:{self.mic_udp_port}] 发送指令：{command}")
+            # 只在命令切换时打印一次，避免 send/release 每 0.2s 刷屏淹没其他日志
+            if command != self._last_mic_cmd_shown:
+                print(f"[MIC-UDP:{self.mic_udp_port}] 发送指令：{command}")
+                self._last_mic_cmd_shown = command
             self._last_mic_send_time = now
         except Exception as e:
             print(f"[MIC-UDP] 发送失败: {e}")
