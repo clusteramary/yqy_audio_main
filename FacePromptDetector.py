@@ -142,6 +142,8 @@ class FacePromptDetector:
         min_face_width: 人脸框最小宽度（像素），小于此宽度的远处人脸将被忽略。
         """
         consecutive = 0
+        fail_count = 0
+        max_fail = 20  # 连续异常超过此次数则判定 DeepFace 不可用，避免静默死循环
         while True:
             if stop_event is not None and stop_event.is_set():
                 return False
@@ -156,8 +158,16 @@ class FacePromptDetector:
                     detector_backend=self.detector_backend,
                     enforce_detection=False,
                 )
-            except Exception:
+                fail_count = 0  # 成功一次即重置失败计数
+            except Exception as e:
                 consecutive = 0
+                fail_count += 1
+                # 限频打印：首次及每 10 次输出一次，避免刷屏
+                if fail_count == 1 or fail_count % 10 == 0:
+                    print(f"[wait_for_stable_face] DeepFace 调用异常(累计 {fail_count} 次): {e}")
+                if fail_count >= max_fail:
+                    print(f"[wait_for_stable_face] 连续 {fail_count} 次异常，判定 DeepFace 不可用，放弃检测")
+                    return False
                 continue
             has_face = False
             for f in faces:

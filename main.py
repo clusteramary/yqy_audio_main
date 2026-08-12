@@ -250,24 +250,29 @@ async def run_once():
 
     dialog_task = asyncio.create_task(session.start())
 
-    # ---- 等 say_hello 播完 ----
-    await session.say_hello_over_event.wait()
-    print("[VISUAL-GREETING] say_hello 完成，发送迎宾问候")
+    # ---- 等 say_hello 播完（带超时，防止 WS 异常或服务器不回 359 时永久卡死） ----
+    try:
+        await asyncio.wait_for(session.say_hello_over_event.wait(), timeout=15.0)
+        print("[VISUAL-GREETING] say_hello 完成，发送迎宾问候")
+    except asyncio.TimeoutError:
+        print("[VISUAL-GREETING] ⚠️ 等待 say_hello 超时(15s)，WS 可能未连上或服务器未回 359，跳过迎宾、结束本轮")
+        stop_event.set()
 
-    # ---- 发送迎宾问候（ChatTextQuery 501，模拟用户输入触发 LLM→TTS） ----
-    await session.client.chat_text_query(
-        f"请你现在立即说出这句话（只允许说这句话，不允许添加任何其他文字）：{config.VISUAL_GREETING_TEXT}"
-    )
-    print("[VISUAL-GREETING] 已发送迎宾问候")
+    if not stop_event.is_set():
+        # ---- 发送迎宾问候（ChatTextQuery 501，模拟用户输入触发 LLM→TTS） ----
+        await session.client.chat_text_query(
+            f"请你现在立即说出这句话（只允许说这句话，不允许添加任何其他文字）：{config.VISUAL_GREETING_TEXT}"
+        )
+        print("[VISUAL-GREETING] 已发送迎宾问候")
 
-    # ---- 等迎宾 TTS 播完 ----
-    await asyncio.sleep(0.3)
-    while not stop_event.is_set() and session._is_tts_playing():
-        await asyncio.sleep(0.1)
+        # ---- 等迎宾 TTS 播完 ----
+        await asyncio.sleep(0.3)
+        while not stop_event.is_set() and session._is_tts_playing():
+            await asyncio.sleep(0.1)
 
-    # ---- 注入采访规则（此时 LLM 已有问候上下文，可自然开始采访） ----
-    print("[VISUAL-GREETING] 迎宾完成，注入采访规则")
-    await session.client.chat_text_query(prompt)
+        # ---- 注入采访规则（此时 LLM 已有问候上下文，可自然开始采访） ----
+        print("[VISUAL-GREETING] 迎宾完成，注入采访规则")
+        await session.client.chat_text_query(prompt)
 
     # ========== 6) 并发任务 ==========
     watchdog_task = asyncio.create_task(monitor_face_absence(detector, stop_event))
