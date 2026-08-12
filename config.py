@@ -88,13 +88,17 @@ input_audio_config = {
 INPUT_AUDIO_MODE = os.getenv("INPUT_AUDIO_MODE", "pyaudio")
 
 # PyAudio 本地麦克风采集专用配置（INPUT_AUDIO_MODE="pyaudio" 时生效）
+# device_name/device_index 留 None 即可：ALSA 默认设备已在 ~/.asoundrc 中指向
+# 系统麦克风 KTMICRO（hw:KTMICRODevice1,0），且系统级 ALSA pulse 插件已移除，
+# 采集流直连 USB 麦克风，不再经过 PulseAudio，不会再触发其客户端库的崩溃 bug：
+#   Assertion 'pthread_mutex_destroy(&m->mutex) == 0' failed at pulsecore/mutex-posix.c:83
 pyaudio_input_audio_config = {
     "chunk": 4800,  # 0.1s @ 48k
     "format": "pcm",
     "channels": 1,  # 本地麦克风通常为单声道（与 ROS 模式的 2 声道不同）
     "sample_rate": 48000,  # 大多数设备支持 48k，下游会重采样到 16k
     "bit_size": pyaudio.paInt16,
-    "device_name": None,  # None = Linux 系统默认麦克风（PulseAudio/ALSA）
+    "device_name": None,  # None = 系统默认麦克风（由 ~/.asoundrc 指定，直连 ALSA，不走 PA）
     "device_index": None,  # 可指定具体设备索引；None 时由 PyAudio 选默认设备
 }
 
