@@ -1,0 +1,5 @@
+[启动参数] duplex=half, input=pyaudio, output=ros1, half_resume_delay=50ms
+等待人脸识别（首次引导）...UDP接收器已关闭
+
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[INFO] 超时未检测到满足条件的人脸，结束。

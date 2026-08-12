@@ -1,0 +1,499 @@
+[启动参数] duplex=half, input=pyaudio, output=pyaudio, half_resume_delay=50ms
+等待人脸识别（首次引导）...UDP接收器已关闭
+
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+ALSA lib pcm_dmix.c:1089:(snd_pcm_dmix_open) unable to open slave
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.rear
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.center_lfe
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.side
+ALSA lib confmisc.c:1281:(snd_func_refer) Unable to find definition 'cards.USB-Audio.pcm.hdmi.0:CARD=0,AES0=4,AES1=130,AES2=0,AES3=2'
+ALSA lib conf.c:4732:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5220:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM hdmi
+ALSA lib confmisc.c:1281:(snd_func_refer) Unable to find definition 'cards.USB-Audio.pcm.hdmi.0:CARD=0,AES0=4,AES1=130,AES2=0,AES3=2'
+ALSA lib conf.c:4732:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5220:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM hdmi
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.modem
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.modem
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.phoneline
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.phoneline
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+ALSA lib pcm_oss.c:377:(_snd_pcm_oss_open) Unknown field port
+ALSA lib pcm_oss.c:377:(_snd_pcm_oss_open) Unknown field port
+ALSA lib pcm_usb_stream.c:486:(_snd_pcm_usb_stream_open) Invalid type for card
+ALSA lib pcm_usb_stream.c:486:(_snd_pcm_usb_stream_open) Invalid type for card
+ALSA lib pcm_dmix.c:1024:(snd_pcm_dmix_open) The dmix plugin supports only playback stream
+ALSA lib pcm_dmix.c:1089:(snd_pcm_dmix_open) unable to open slave
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+Expression 'paInvalidSampleRate' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2048
+Expression 'PaAlsaStreamComponent_InitialConfigure( &self->playback, outParams, self->primeBuffers, hwParamsPlayback, &realSr )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2721
+Expression 'PaAlsaStream_Configure( stream, inputParameters, outputParameters, sampleRate, framesPerBuffer, &inputLatency, &outputLatency, &hostBufferSizeMode )' failed in 'src/hostapi/alsa/pa_linux_alsa.c', line: 2842
+[main] 捕获异常：[Errno -9997] Invalid sample rate；3s 后重启。
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。

@@ -1,0 +1,67 @@
+[启动参数] duplex=half, input=pyaudio, output=ros1, half_resume_delay=50ms
+UDP接收器已启动，监听 0.0.0.0:8889
+消息将保存至: /home/nvidia/Documents/Robot-Voice/yqy_audio_main/sauc_python/ctrl.txt
+等待人脸识别（首次引导）...
+[CameraAdapter] ROS1 订阅 Image: /camera/color/image_raw
+[INFO] 超时未检测到满足条件的人脸，结束。
+[periodic_analysis error] Face could not be detected in numpy array.Please confirm that the picture is a face photo or consider to set enforce_detection param to False.
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
+已订阅下位机播放状态话题: /audio_playing_status
+ALSA lib pcm_dmix.c:1089:(snd_pcm_dmix_open) unable to open slave
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.rear
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.center_lfe
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.side
+ALSA lib confmisc.c:1281:(snd_func_refer) Unable to find definition 'cards.USB-Audio.pcm.hdmi.0:CARD=0,AES0=4,AES1=130,AES2=0,AES3=2'
+ALSA lib conf.c:4732:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5220:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM hdmi
+ALSA lib confmisc.c:1281:(snd_func_refer) Unable to find definition 'cards.USB-Audio.pcm.hdmi.0:CARD=0,AES0=4,AES1=130,AES2=0,AES3=2'
+ALSA lib conf.c:4732:(_snd_config_evaluate) function snd_func_refer returned error: No such file or directory
+ALSA lib conf.c:5220:(snd_config_expand) Evaluate error: No such file or directory
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM hdmi
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.modem
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.modem
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.phoneline
+ALSA lib pcm.c:2642:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.phoneline
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+ALSA lib pcm_oss.c:377:(_snd_pcm_oss_open) Unknown field port
+ALSA lib pcm_oss.c:377:(_snd_pcm_oss_open) Unknown field port
+ALSA lib pcm_usb_stream.c:486:(_snd_pcm_usb_stream_open) Invalid type for card
+ALSA lib pcm_usb_stream.c:486:(_snd_pcm_usb_stream_open) Invalid type for card
+ALSA lib pcm_dmix.c:1024:(snd_pcm_dmix_open) The dmix plugin supports only playback stream
+ALSA lib pcm_dmix.c:1089:(snd_pcm_dmix_open) unable to open slave
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+JackShmReadWritePtr::~JackShmReadWritePtr - Init not done for -1, skipping unlock
+[PYAUDIO-MIC] 已打开本地麦克风 (默认设备), rate=48000Hz, channels=1
+[CTRL-INJECT] 已启动 0 个独立定时注入任务：
+[CTRL-MONITOR] 启动（conversation 模式）：ctrl.txt 内容变化将静默注入，不合并语音。
+url: wss://openspeech.bytedance.com/api/v3/realtime/dialogue, headers: {'X-Api-App-ID': '3804715431', 'X-Api-Access-Key': '7kWnt7X4Y41dZZtf6fUHj-PZwtNzJnol', 'X-Api-Resource-Id': 'volc.speech.dialog', 'X-Api-App-Key': 'PlgvMymc7f3tQnJ6', 'X-Api-Connect-Id': '78709938-96ec-4563-ae57-892de6a7a91b'}
+dialog server response logid: 202608121907495FA2FA3FC0428ADFDFE0
+StartConnection response: {'message_type': 'SERVER_FULL_RESPONSE', 'event': 50, 'session_id': "b'78709938-96ec-4563-ae57-892de6a7a91b'", 'payload_msg': {}, 'payload_size': 2}
+StartSession response: {'message_type': 'SERVER_FULL_RESPONSE', 'event': 150, 'session_id': "b'd5713bea-1e47-4bc8-af3e-becd4d4a2778'", 'payload_msg': {'dialog_id': '6f1f1c49-aec1-4782-824a-8bf9304d352d'}, 'payload_size': 52}
+[MIC-UDP:5558] 发送指令：send_microphone
+[Half-Duplex] 暂停上位机麦克风: say_hello
+[say_hello] 随机开场白 #1
+直接发送'开始'关键词，发送UDP消息
+服务器响应: {'message_type': 'SERVER_FULL_RESPONSE', 'event': 350, 'session_id': "b'd5713bea-1e47-4bc8-af3e-becd4d4a2778'", 'payload_msg': {'question_id': '52431935444768770', 'reply_id': '52431935444769026', 'text': '', 'tts_type': 'chat_tts_text'}, 'payload_size': 103}
+服务器响应: {'message_type': 'SERVER_FULL_RESPONSE', 'event': 154, 'session_id': "b'd5713bea-1e47-4bc8-af3e-becd4d4a2778'", 'payload_msg': {'usage': {'cached_audio_tokens': 0, 'cached_text_tokens': 0, 'input_audio_tokens': 0, 'input_text_tokens': 0, 'output_audio_tokens': 330, 'output_text_tokens': 50}}, 'payload_size': 153}
+服务器响应: {'message_type': 'SERVER_FULL_RESPONSE', 'event': 351, 'session_id': "b'd5713bea-1e47-4bc8-af3e-becd4d4a2778'", 'payload_msg': {'amount': 73, 'mute_cut_ms': 0, 'question_id': '52431935444768770', 'reply_id': '52431935444769026', 'sentence_duration': {'cur_sentence_index': 0, 'sentence_end_time': 13.203, 'sentence_start_time': 0}, 'text': '您好！欢迎来到我们的展台～我是小科，一个正在学习成为专家分身的智能机器人。今天想邀请您花一分钟，和我聊聊天，听听您对未来机器人专家的期待。可以吗？'}, 'payload_size': 419}
+服务器响应: {'message_type': 'SERVER_FULL_RESPONSE', 'event': 359, 'session_id': "b'd5713bea-1e47-4bc8-af3e-becd4d4a2778'", 'payload_msg': {'question_id': '52431935444768770', 'reply_id': '52431935444769026'}, 'payload_size': 66}
+receive tts sayhello ended event
+[MIC-UDP:5558] 发送指令：release_microphone
+[Half-Duplex] 恢复上位机麦克风: robot_speaker_finished
+使用 PyAudio 本地麦克风 作为麦克风输入，采样率=48000Hz, channels=1，开始讲话...

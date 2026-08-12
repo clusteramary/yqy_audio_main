@@ -1,0 +1,7 @@
+[2026-08-12_19:19:55] === run_ros_speaker.sh 启动 pid=68255 cwd=/home/nvidia/Documents/Robot-Voice/yqy_audio_main ===
+[2026-08-12_19:19:55] uname=Linux ubuntu 5.10.216-tegra #1 SMP PREEMPT Wed Aug 28 01:46:  bash=5.0.17(1)-release
+[2026-08-12_19:19:55] 检查 venv: OK
+[2026-08-12_19:19:55] 检查 ROS: OK
+[2026-08-12_19:19:55] ROS_IP=192.168.10.100  ROS_MASTER_URI=http://192.168.10.66:11311
+[2026-08-12_19:19:56] 检查 roscore: OK
+[2026-08-12_19:19:57] 前置检查全部通过，开始启动主程序

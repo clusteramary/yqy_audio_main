@@ -1,0 +1,9 @@
+[启动参数] duplex=half, input=pyaudio, output=pyaudio, half_resume_delay=50ms
+等待人脸识别（首次引导）...
+UDP接收器已启动，监听 0.0.0.0:8889
+消息将保存至: /home/nvidia/Documents/Robot-Voice/yqy_audio_main/sauc_python/ctrl.txt
+Unable to register with master node [http://localhost:11311]: master may not be running yet. Will keep trying.
+[INFO] 超时未检测到满足条件的人脸，结束。
+[FacePromptDetector] Emotion stream started udp://127.0.0.1:5555 @ 5s
+[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择
+[CTRL-INJECT] CTRL_INJECT_MODE=conversation，使用 ConversationCreate(510) 静默注入；ctrl.txt 变化也走静默注入
