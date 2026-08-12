@@ -390,6 +390,8 @@ class DialogSession:
         """
         if self.ros_audio_queue is None:
             return
+        if self._mic_frame_blocked():
+            return
         try:
             pcm_bytes = bytes(msg.data)  # msg.data 是 List[int]
             try:
@@ -414,10 +416,11 @@ class DialogSession:
         数据格式和推入策略与 _ros_audio_callback 完全一致，保证 process_microphone_input() 无需修改。
         """
         while not self._pyaudio_input_stop.is_set():
-            # 半双工时不仅禁止上行，读麦线程也真正停止取帧。
-            if self._half_duplex_mic_paused:
-                time.sleep(0.01)
-                continue
+            # ALSA/PulseAudio 不允许主协程在本线程执行 read() 时跨线程
+            # stop_stream()/start_stream()，否则可能在 C 层直接 abort。
+            # 因此半双工期间仍由唯一采集线程读取并排空 ALSA 缓冲，
+            # 但立即丢弃音频，不入队、不上行。
+            paused_before_read = self._half_duplex_mic_paused
             try:
                 audio_data = stream.read(chunk_size, exception_on_overflow=False)
             except OSError:
@@ -429,6 +432,8 @@ class DialogSession:
                 time.sleep(0.01)
                 continue
 
+            if self._mic_frame_blocked(paused_before_read):
+                continue
             if self.ros_audio_queue is None:
                 continue
             try:
@@ -897,19 +902,9 @@ class DialogSession:
             except queue.Empty:
                 return count
 
-    def _set_input_stream_active(self, active: bool) -> None:
-        stream = self.input_stream
-        if stream is None:
-            return
-        try:
-            is_active = stream.is_active() if hasattr(stream, "is_active") else active
-            if active and not is_active:
-                stream.start_stream()
-            elif not active and is_active:
-                stream.stop_stream()
-        except Exception as e:
-            action = "启动" if active else "暂停"
-            print(f"[Half-Duplex] {action}上位机麦克风失败: {e}")
+    def _mic_frame_blocked(self, paused_before_read: bool = False) -> bool:
+        """在读取前或读取期间进入半双工静音时，丢弃整帧。"""
+        return bool(paused_before_read or self._half_duplex_mic_paused)
 
     def _pause_half_duplex_mic(self, reason: str) -> None:
         if not self.block_mic_while_playing:
@@ -921,16 +916,14 @@ class DialogSession:
         if self._half_duplex_mic_paused:
             return
         self._half_duplex_mic_paused = True
-        self._set_input_stream_active(False)
         # 兼容现有 MIC UDP 接收端约定。
         self.send_mic_command("send_microphone", cooldown_sec=0.0)
-        print(f"[Half-Duplex] 暂停上位机麦克风: {reason}")
+        print(f"[Half-Duplex] 屏蔽上位机麦克风输入: {reason}")
 
     def _resume_half_duplex_mic(self, reason: str) -> None:
         if not self.block_mic_while_playing or not self._half_duplex_mic_paused:
             return
         self._drain_audio_input_queue()
-        self._set_input_stream_active(True)
         self._half_duplex_mic_paused = False
         self.send_mic_command("release_microphone", cooldown_sec=0.0)
         print(f"[Half-Duplex] 恢复上位机麦克风: {reason}")

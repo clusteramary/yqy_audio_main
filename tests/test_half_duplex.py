@@ -27,7 +27,7 @@ class HalfDuplexMicGateTest(unittest.TestCase):
     def make_session_stub(self):
         class Stub:
             _drain_audio_input_queue = DialogSession._drain_audio_input_queue
-            _set_input_stream_active = DialogSession._set_input_stream_active
+            _mic_frame_blocked = DialogSession._mic_frame_blocked
             _pause_half_duplex_mic = DialogSession._pause_half_duplex_mic
             _resume_half_duplex_mic = DialogSession._resume_half_duplex_mic
             _hold_half_duplex_mic_if_needed = (
@@ -52,13 +52,15 @@ class HalfDuplexMicGateTest(unittest.TestCase):
         session.commands = commands
         return session
 
-    def test_pause_stops_stream_and_discards_echo(self):
+    def test_pause_blocks_frames_without_cross_thread_stream_stop(self):
         session = self.make_session_stub()
 
         session._pause_half_duplex_mic("test")
 
         self.assertTrue(session._half_duplex_mic_paused)
-        self.assertFalse(session.input_stream.active)
+        self.assertTrue(session._mic_frame_blocked())
+        self.assertTrue(session.input_stream.active)
+        self.assertEqual(session.input_stream.stops, 0)
         self.assertTrue(session.ros_audio_queue.empty())
         self.assertEqual(session.commands, [("send_microphone", 0.0)])
 
@@ -68,10 +70,11 @@ class HalfDuplexMicGateTest(unittest.TestCase):
         session._half_duplex_resume_after = time.time() + 0.5
 
         self.assertTrue(session._hold_half_duplex_mic_if_needed())
-        self.assertFalse(session.input_stream.active)
+        self.assertTrue(session._mic_frame_blocked())
 
         session._half_duplex_resume_after = time.time() - 0.01
         self.assertFalse(session._hold_half_duplex_mic_if_needed())
+        self.assertFalse(session._mic_frame_blocked())
         self.assertTrue(session.input_stream.active)
         self.assertEqual(
             session.commands,
@@ -86,6 +89,12 @@ class HalfDuplexMicGateTest(unittest.TestCase):
         self.assertFalse(session._hold_half_duplex_mic_if_needed())
         self.assertTrue(session.input_stream.active)
         self.assertEqual(session.commands, [])
+
+    def test_frame_started_while_paused_is_discarded_after_resume(self):
+        session = self.make_session_stub()
+        session._half_duplex_mic_paused = False
+
+        self.assertTrue(session._mic_frame_blocked(paused_before_read=True))
 
 
 if __name__ == "__main__":
