@@ -1,10 +1,10 @@
 # async_app.py
 import asyncio
+import os
+import random
 import threading
 import time
 from pathlib import Path
-
-import random
 
 import config
 from audio_manager import DialogSession
@@ -12,39 +12,26 @@ from CameraAdapter import CameraAdapter
 from FacePromptDetector import FacePromptDetector
 from str_receiver import UDPReceiver
 
-# ABSENT_SECONDS = 30.0      # ✅ 对话进行时，连续多久没看到人脸就重启
-ABSENT_SECONDS = 100000.0  # ✅ 对话进行时，连续多久没看到人脸就重启
+# ABSENT_SECONDS = 30.0      # 对话进行时，连续多久没看到人脸就重启
+ABSENT_SECONDS = 100000.0  # 对话进行时，连续多久没看到人脸就重启
 EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是算力更高）
 INITIAL_DETECT_TIMEOUT = 1.0  # 首次做人脸特征引导的超时时间
 
 
+def pick_interview_prompt():
+    """根据环境变量或随机选择采访参数，返回 (prompt_str, opening_index)。"""
+    opening_idx = int(os.getenv("EXPERT_OPENING_INDEX", str(random.randint(0, 4))))
+    identity_idx = int(os.getenv("EXPERT_IDENTITY_INDEX", str(random.randint(0, 1))))
+    key_side = os.getenv("EXPERT_KEY_SIDE", random.choice(["user_side", "expert_side"]))
+    key_idx = int(os.getenv("EXPERT_KEY_INDEX", str(random.randint(0, 1))))
 
-
-class PromptPicker:
-    """洗牌袋：避免连续重复；袋空了再洗牌。"""
-
-    def __init__(self, prompts, seed=None):
-        self.prompts = list(prompts)
-        self.rng = random.Random(seed)
-        self.bag = []
-        self.last_idx = None
-
-    def next(self):
-        n = len(self.prompts)
-        if n == 0:
-            raise ValueError("PROMPT_POOL is empty")
-        if not self.bag:
-            ids = list(range(n))
-            self.rng.shuffle(ids)
-            if self.last_idx is not None and n > 1 and ids[0] == self.last_idx:
-                ids[0], ids[1] = ids[1], ids[0]
-            self.bag = ids
-        idx = self.bag.pop(0)
-        self.last_idx = idx
-        return idx, self.prompts[idx]
-
-
-PROMPT_PICKER = PromptPicker(config.INTERVIEW_PROMPT_POOL, seed=None)
+    prompt = config.build_expert_robot_system_prompt(
+        opening_index=opening_idx,
+        identity_index=identity_idx,
+        key_side=key_side,
+        key_index=key_idx,
+    )
+    return prompt, opening_idx
 
 
 async def inject_ctrl_instruction(
@@ -75,20 +62,7 @@ async def monitor_face_absence(
     warmup_secs: float = 2.0,
 ):
     """
-    监控人脸是否消失的异步看门狗函数。周期性检查人脸检测时间戳，若超过指定时间未检测到人脸则触发停止事件。
-
-    Args:
-        detector (FacePromptDetector): 人脸检测器实例，提供最后检测到人脸的时间戳
-        stop_event (asyncio.Event): 异步事件对象，用于触发会话结束
-        absent_secs (float): 允许人脸消失的最大时间（秒），默认值 ABSENT_SECONDS
-        poll_secs (float): 检查间隔时间（秒），默认0.5秒
-        warmup_secs (float): 启动后的热身窗口时间（秒），避免初始误判，默认2.0秒
-
-    Raises:
-        asyncio.CancelledError: 当任务被取消时可能抛出
-    """
-    """
-    对话阶段的“看门狗”：周期性读取 detector.get_last_face_ts()。
+    对话阶段的"看门狗"：周期性读取 detector.get_last_face_ts()。
     若超过 absent_secs 没看到人脸，则触发 stop_event 结束本轮会话。
     warmup_secs：容许对话刚开始的热身窗口（避免一开始就误杀）。
     """
@@ -121,8 +95,8 @@ async def run_once():
     单次完整流程：
       1) 启动相机
       2) 一次性做人脸识别并生成初始 prompt
-      3) 启动情绪/表情推送（也会刷新“最近看见人脸”时间）
-      4) 进入语音对话 + 并发“看门狗”
+      3) 启动情绪/表情推送（也会刷新"最近看见人脸"时间）
+      4) 进入语音对话 + 并发"看门狗"
       5) 看门狗触发或会话结束 → 清理 → 返回上一层（由上层循环自动重启）
     """
     # ========== 1) 初始化相机 ==========
@@ -143,27 +117,18 @@ async def run_once():
     )
 
     print("等待人脸识别（首次引导）...")
-    prompt = detector.run(timeout=INITIAL_DETECT_TIMEOUT)
+    detector.run(timeout=INITIAL_DETECT_TIMEOUT)
 
-    # ========== 3) 启动情绪推送（同时作为“看见人脸”的心跳源） ==========
+    # ========== 3) 启动情绪推送（同时作为"看见人脸"的心跳源） ==========
     detector.start_emotion_stream(
         host="127.0.0.1", port=5555, interval_sec=EMOTION_INTERVAL
     )
 
-    # 构造起始 prompt
-    if prompt:
-        # print(f"[RESULT] prompt = {prompt}")
-        print(f"[RESULT] prompt = {prompt}")  # 这里仍然打印人脸prompt
-        idx, picked = PROMPT_PICKER.next()
-        prompt = picked  # ✅ 仍然覆盖掉人脸prompt（符合你的要求）
-        print(f"[PROMPT] Using prompt #{idx}")
+    # 构造采访 prompt（根据环境变量或随机选择参数）
+    prompt, opening_idx = pick_interview_prompt()
+    print(f"[PROMPT] 使用专家机器人采访 prompt，开场白 #{opening_idx + 1}")
 
-    else:
-        idx, picked = PROMPT_PICKER.next()
-        prompt = picked  # ✅ 仍然覆盖掉人脸prompt（符合你的要求）
-        print(f"[PROMPT] Using prompt #{idx}")
-
-    # ========== 4) 进入语音对话，并发“看脸看门狗” ==========
+    # ========== 4) 进入语音对话，并发"看脸看门狗" ==========
     stop_event = asyncio.Event()
 
     session = DialogSession(
@@ -225,7 +190,7 @@ async def run_once():
 async def main():
     """
     外层自恢复循环：每次 run_once 结束（含 5s 无人脸被看门狗杀掉），立即重新开始新一轮。
-    如需“彻底退出”，直接 Ctrl+C 终止进程即可。
+    如需"彻底退出"，直接 Ctrl+C 终止进程即可。
     """
     udp_receiver = UDPReceiver(
         listen_ip="0.0.0.0",
@@ -260,5 +225,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("程序被用户中断")
         print("程序被用户中断")
