@@ -156,6 +156,13 @@ FULL_DUPLEX_INTERRUPT_ON_EVENT450 = os.getenv(
     "FULL_DUPLEX_INTERRUPT_ON_EVENT450", "true"
 ).lower() in ("1", "true", "yes")
 
+# 开场白播完后，不再立即注入采访 prompt（否则开场白和身份问题会连着说出）。
+# 改为：等用户说完第一句话（检测到语音后连续静音达到阈值）才注入；
+# 若用户一直不开口，超过超时秒数后强制注入，避免会话卡死。
+FIRST_VOICE_RMS_THRESHOLD = int(os.getenv("FIRST_VOICE_RMS_THRESHOLD", "800"))
+FIRST_VOICE_END_SILENCE_MS = int(os.getenv("FIRST_VOICE_END_SILENCE_MS", "800"))
+FIRST_VOICE_TIMEOUT_SEC = float(os.getenv("FIRST_VOICE_TIMEOUT_SEC", "30"))
+
 # ros_audio_player.py 的可打断播放协议配置。
 ROS_AUDIO_CONTROL_TOPIC = os.getenv("ROS_AUDIO_CONTROL_TOPIC", "/audio/control")
 ROS_AUDIO_FRAME_MS = int(os.getenv("ROS_AUDIO_FRAME_MS", "20"))

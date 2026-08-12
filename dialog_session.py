@@ -1552,7 +1552,14 @@ class DialogSession:
         while self._hold_half_duplex_mic_if_needed():
             await self._send_silence_if_due()
             await asyncio.sleep(0.02)
-        await self.client.chat_text_query(self.start_prompt)
+
+        # 不再开场白播完就立即注入采访 prompt（否则开场白与身份问题会连着问出）。
+        # 改为在下方主循环中检测：用户说完第一句话（语音 + 连续静音端点）后才注入；
+        # 若用户一直不开口，超过 FIRST_VOICE_TIMEOUT_SEC 秒后强制注入，避免会话卡死。
+        prompt_injected = False
+        first_voice_heard = False
+        first_voice_silent_frames = 0
+        first_voice_wait_start_ts = time.time()
 
         active_cfg = config.get_active_input_config()
         in_rate = active_cfg["sample_rate"]
@@ -1575,11 +1582,19 @@ class DialogSession:
                 return pcm_bytes
 
         while self.is_recording:
-            try:
-                if self.external_stop_event and self.external_stop_event.is_set():
-                    self.stop()
-                    break
+            # 兜底：用户一直不开口时强制注入，避免对话卡在开场白后
+            if not prompt_injected and (
+                time.time() - first_voice_wait_start_ts >= config.FIRST_VOICE_TIMEOUT_SEC
+            ):
+                await self.client.chat_text_query(self.start_prompt)
+                prompt_injected = True
+                print("[PROMPT] 用户长时间未开口，超时注入采访 prompt")
 
+            if self.external_stop_event and self.external_stop_event.is_set():
+                self.stop()
+                break
+
+            try:
                 if self._hold_half_duplex_mic_if_needed():
                     await self._send_silence_if_due()
                     await asyncio.sleep(0.02)
@@ -1608,6 +1623,30 @@ class DialogSession:
                 while total_len - offset >= frame_bytes:
                     chunk16k = pcm16_16k[offset : offset + frame_bytes]
                     offset += frame_bytes
+
+                    # 开场白播完后：等用户说完第一句话，再注入采访 prompt。
+                    # 注入时机 = 检测到语音（RMS 超阈值）后连续静音达到端点阈值；
+                    # 之后模型会以“身份问题”作为下一轮回复，不会和开场白连在一起。
+                    if not prompt_injected:
+                        frame_ms = int(
+                            1000 * TARGET_CHUNK_SAMPLES / TARGET_SAMPLE_RATE
+                        )
+                        if (
+                            self._compute_rms_16bit(chunk16k)
+                            > config.FIRST_VOICE_RMS_THRESHOLD
+                        ):
+                            first_voice_heard = True
+                            first_voice_silent_frames = 0
+                        elif first_voice_heard:
+                            first_voice_silent_frames += 1
+                        if (
+                            first_voice_heard
+                            and first_voice_silent_frames * frame_ms
+                            >= config.FIRST_VOICE_END_SILENCE_MS
+                        ):
+                            await self.client.chat_text_query(self.start_prompt)
+                            prompt_injected = True
+                            print("[PROMPT] 用户说完第一句，已注入采访 prompt")
 
                     # 如果 ctrl 捕获模式开启：这帧给 ctrl_frame_queue 做 VAD + 识别
                     if self._pause_mic_for_ctrl:
