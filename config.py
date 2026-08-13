@@ -520,15 +520,11 @@ VISUAL_GREETING_TEXT = os.getenv(
     "你好呀，欢迎来到我们的展台，很高兴见到你！",
 )
 
-# 麦克风无输入超过此秒数后开启迎宾监控（用户活动 = ASR 收到用户语音）
+# 麦克风无输入超过此秒数后开启迎宾监控（用户活动 = ASR 收到用户语音；
+# 静默计时仅在对话状态机处于 LISTENING（正常监听）时累计，
+# 开场白/机器人回答/欢迎语播放期间不累计）。
 VISUAL_GREETING_SILENCE_SEC = float(
-    os.getenv("VISUAL_GREETING_SILENCE_SEC", "10")
-)
-
-# 会话最短时长保护：会话开始后至少运行这么久才允许开启迎宾，
-# 避免程序刚启动（开场白还没播完）就误触发迎宾。
-VISUAL_GREETING_MIN_SESSION_SEC = float(
-    os.getenv("VISUAL_GREETING_MIN_SESSION_SEC", "10")
+    os.getenv("VISUAL_GREETING_SILENCE_SEC", "15")
 )
 
 # 结束语检测特征串：LLM 输出中命中任一子串即认为"结束语已说"。

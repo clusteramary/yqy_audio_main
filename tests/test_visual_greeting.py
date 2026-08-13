@@ -20,7 +20,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
 
 config.ENABLE_VISUAL_GREETING = True
-config.VISUAL_GREETING_MIN_SESSION_SEC = 1.0   # 测试加速
 config.VISUAL_GREETING_SILENCE_SEC = 2.0       # 测试加速
 config.VISUAL_GREETING_TEXT = "欢迎测试语"
 
@@ -61,11 +60,21 @@ class FakeSession:
         self.is_user_querying = False
         self._model_replying = False
         self.last_user_activity_ts = time.time()
+        # 模拟新逻辑：开场白播完即就绪；静默计时只在 LISTENING 状态累计
+        self.interview_ready_event = asyncio.Event()
+        self.interview_ready_event.set()
+        self.dialog_state = "LISTENING"
 
     def is_ending_said(self):
         return self._ending_said
 
+    def closing_spoken_ready(self):
+        # 模拟结束语"三条件齐备"：_ending_said 即代表已完整说完
+        return self._ending_said and not self.is_user_querying
+
     def idle_silence_sec(self):
+        if self.dialog_state != "LISTENING":
+            return 0.0
         return time.time() - self.last_user_activity_ts
 
     def _is_tts_playing(self):

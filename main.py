@@ -114,9 +114,9 @@ async def visual_greeting(
 ):
     """
     视觉迎宾循环：
-      0) 等待启动条件（二者之一，且会话已运行 VISUAL_GREETING_MIN_SESSION_SEC 秒）：
-         a) 说完结束语：session.is_ending_said() 且 TTS 已播完（结束语完整说完）
-         b) 麦克风无输入：idle_silence_sec() >= VISUAL_GREETING_SILENCE_SEC
+      0) 等待启动条件（开场白播放完毕后，二者之一）：
+         a) 结束语已完整说完（文本+服务端TTS合成+下位机播放三条件齐备）
+         b) 监听状态麦克风无输入：idle_silence_sec() >= VISUAL_GREETING_SILENCE_SEC
       1) 等待稳定人脸（头部大小达标）→ 说欢迎语（500 直接 TTS，失败退 501）→ 等 TTS 播完
       2) 触发 stop_event 结束本轮会话 → 外层循环重开会话 →
          新会话 say_hello 随机开场白 → 重新进入访谈逻辑。
@@ -125,30 +125,42 @@ async def visual_greeting(
     """
     try:
         loop = asyncio.get_running_loop()
-        min_session = float(getattr(config, "VISUAL_GREETING_MIN_SESSION_SEC", 10.0))
-        silence_sec = float(getattr(config, "VISUAL_GREETING_SILENCE_SEC", 10.0))
-        session_start_ts = time.time()
+        silence_sec = float(getattr(config, "VISUAL_GREETING_SILENCE_SEC", 15.0))
 
         # ---- 阶段 0：等待启动条件 ----
         print(
-            f"[VISUAL-GREETING] 待机：访谈至少运行 {min_session:.0f}s 后，"
-            f"若「结束语说完」或「麦克风 {silence_sec:.0f}s 无输入」则开启迎宾监控"
+            f"[VISUAL-GREETING] 待机：开场白播放完毕（interview_ready）后，"
+            f"若「结束语已完整说完」或「监听状态麦克风 {silence_sec:.0f}s 无输入」"
+            "则开启迎宾监控"
         )
         while not stop_event.is_set():
-            elapsed_session = time.time() - session_start_ts
-            if elapsed_session < min_session:
-                await asyncio.sleep(0.5)
+            # 等 interview_ready：开场白播完 + 下位机播完 + 尾音延迟 + 麦克风正式恢复。
+            # 在此之前（含开场白播放期间）绝不启动静默计时，避免欢迎语与开场白重叠。
+            ready_evt = getattr(session, "interview_ready_event", None)
+            if ready_evt is not None and not ready_evt.is_set():
+                await asyncio.sleep(0.2)
                 continue
 
+            # 结束语：三条件齐备才算"说完"（文本 + 服务端TTS合成结束 + 下位机播放结束）
+            closing_ready = getattr(session, "closing_spoken_ready", None)
             ending_done = (
-                session.is_ending_said()
-                and not session._is_tts_playing()
-                and not session.is_user_querying
+                closing_ready()
+                if closing_ready is not None
+                else (
+                    session.is_ending_said()
+                    and not session._is_tts_playing()
+                    and not session.is_user_querying
+                )
             )
+            # 静默：只在 LISTENING 状态累计（开场白/机器人回答/欢迎语播放期间恒为 0）
             silent_done = session.idle_silence_sec() >= silence_sec
 
             if ending_done or silent_done:
-                reason = "结束语已说完" if ending_done else f"麦克风 {silence_sec:.0f}s 无输入"
+                reason = (
+                    "结束语已完整说完"
+                    if ending_done
+                    else f"监听状态麦克风 {silence_sec:.0f}s 无输入"
+                )
                 print(f"[VISUAL-GREETING] 启动条件满足（{reason}），开始视觉迎宾监控")
                 break
             await asyncio.sleep(0.5)

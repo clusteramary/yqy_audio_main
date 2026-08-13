@@ -194,14 +194,38 @@ class DialogSession:
         # ---------- 用户活动时间戳（供视觉迎宾判断"麦克风无输入"） ----------
         # 每次 ASR 收到用户语音（事件 450/451）时刷新；
         # time.time() - last_user_activity_ts >= VISUAL_GREETING_SILENCE_SEC
-        # 即认为麦克风长时间无输入。
+        # 即认为麦克风长时间无输入。静默计时只在 LISTENING 状态累计（见 idle_silence_sec）。
         self.last_user_activity_ts: float = time.time()
 
+        # ---------- 对话状态机（供视觉迎宾判断何时可累计静默时间） ----------
+        # OPENING_PLAYING: 开场白播放中（say_hello 后到麦克风恢复前）
+        # LISTENING      : 正常监听用户输入（唯一累计静默时间的状态）
+        # USER_SPEAKING  : 用户正在说话（450~459 之间）
+        # BOT_REPLYING   : 机器人回答中（459 后模型生成 + TTS 播放 + 下位机播放）
+        # CLOSING_PLAYING: 结束语已完整播完（文本+服务端TTS+下位机播放三条件齐备）
+        # GREETING_WAIT_FACE: 迎宾等待人脸/播欢迎语阶段（不累计静默）
+        self.dialog_state = "OPENING_PLAYING"
+
+        # ---------- 访谈就绪事件（供视觉迎宾判断"开场白已结束、可开始迎宾监控"） ----------
+        # 在以下动作全部完成后置位：
+        #   say_hello 收到结束事件(359) → 下位机 /audio_playing_status 为 False
+        #   → 半双工尾音延迟结束 → 麦克风正式恢复发送。
+        # 替代原先按 VISUAL_GREETING_MIN_SESSION_SEC 猜测开场白是否播完的做法。
+        self.interview_ready_event: asyncio.Event = asyncio.Event()
+
         # ---------- 结束语检测（供视觉迎宾判断"说完结束语"） ----------
-        # LLM 输出流中命中 config.ENDING_DETECT_PATTERNS 后置位；
-        # 配合 _is_tts_playing() 可判断"结束语已完整说完"。
+        # "结束语已生成" != "结束语已说完"。只有三个条件全部成立才置位
+        # closing_spoken_event，随后才能进入视觉迎宾：
+        #   1) closing_text_detected      ：LLM 输出流中命中 ENDING_DETECT_PATTERNS
+        #   2) closing_server_tts_ended   ：服务端 TTS 合成结束（事件 359，且 reply_id 对应该轮）
+        #   3) closing_remote_speaker_ended：下位机播放结束（/audio_playing_status 为 False）
         self.ending_said_ts: Optional[float] = None
         self._ending_detect_buffer: str = ""
+        self.closing_text_detected: bool = False
+        self.closing_server_tts_ended: bool = False
+        self.closing_remote_speaker_ended: bool = False
+        self._closing_reply_id: Optional[str] = None
+        self.closing_spoken_event: asyncio.Event = asyncio.Event()
 
         # ---------- 下位机播放状态 ----------
         self.remote_playing = False
@@ -242,6 +266,7 @@ class DialogSession:
         self.microphone_task: Optional[asyncio.Task] = None
         self.receive_task: Optional[asyncio.Task] = None
         self.audio_file_task: Optional[asyncio.Task] = None
+        self._state_tick_task: Optional[asyncio.Task] = None
 
         # ---------- CSV 结构化对话数据异步写入 ----------
         self.csv_write_queue: asyncio.Queue = asyncio.Queue()
@@ -1211,12 +1236,76 @@ class DialogSession:
         return local_playing or self.remote_playing
 
     def is_ending_said(self) -> bool:
-        """结束语是否已说（LLM 输出命中结束语特征串）。"""
+        """结束语文本是否已在 LLM 输出中检测到（仅文本生成，不等同于说完）。"""
         return self.ending_said_ts is not None
 
+    def closing_spoken_ready(self) -> bool:
+        """结束语是否已"完整说完"：文本命中 + 服务端 TTS 合成结束 + 下位机播放结束，
+        三条件齐备（closing_spoken_event）且用户未再开口。"""
+        return self.closing_spoken_event.is_set() and not self.is_user_querying
+
     def idle_silence_sec(self) -> float:
-        """距用户最后一次语音输入的秒数。"""
+        """距用户最后一次语音输入的秒数。
+
+        静默计时只在 LISTENING（正常监听）状态累计：
+        开场白播放、用户说话、机器人回答、结束语播完、迎宾等待人脸期间
+        一律返回 0，避免把"机器人在说话"误算成"用户长时间无输入"。
+        """
+        if self.dialog_state != "LISTENING":
+            return 0.0
         return time.time() - self.last_user_activity_ts
+
+    def _maybe_set_closing_spoken(self) -> None:
+        """结束语三条件（文本/服务端TTS/下位机播放）齐备后置位 closing_spoken_event。"""
+        if (
+            self.closing_text_detected
+            and self.closing_server_tts_ended
+            and self.closing_remote_speaker_ended
+        ):
+            self.dialog_state = "CLOSING_PLAYING"
+            if not self.closing_spoken_event.is_set():
+                self.closing_spoken_event.set()
+                print(
+                    "[ENDING-DETECT] 结束语已完整说完"
+                    "（文本+服务端TTS合成+下位机播放三条件齐备），视觉迎宾可开启"
+                )
+
+    async def _state_machine_tick(self) -> None:
+        """后台状态机守护协程：
+        - 用户说话/机器人回答彻底结束后自动回到 LISTENING，并把"静默起点"
+          刷新为回答结束时刻，避免把机器人播放时间算成用户静默；
+        - 结束语三条件中的条件3（下位机播放结束）在此补齐。
+        任何异常都只打印日志，绝不影响对话主流程。"""
+        try:
+            while self.is_running:
+                try:
+                    now = time.time()
+                    # 用户说话/机器人回答彻底结束（无模型生成、无TTS播放）→ 回到监听
+                    if (
+                        self.dialog_state in ("USER_SPEAKING", "BOT_REPLYING")
+                        and not self.is_user_querying
+                        and not self._model_replying
+                        and not self._is_tts_playing()
+                    ):
+                        if not self.closing_text_detected:
+                            if self.dialog_state == "BOT_REPLYING":
+                                print("[STATE] 机器人回答播放结束，回到监听状态")
+                            self.dialog_state = "LISTENING"
+                            self.last_user_activity_ts = now
+                    # 结束语：下位机播放结束 = 条件3
+                    if (
+                        self.closing_text_detected
+                        and not self.closing_remote_speaker_ended
+                        and not self._is_tts_playing()
+                    ):
+                        self.closing_remote_speaker_ended = True
+                        print("[ENDING-DETECT] 结束语下位机播放结束（条件3/3）")
+                        self._maybe_set_closing_spoken()
+                except Exception as e:
+                    print(f"[STATE] 状态机守护异常（已隔离）: {e}")
+                await asyncio.sleep(0.2)
+        except asyncio.CancelledError:
+            pass
 
     def _emit_voice_keyword(self, keyword: str):
         try:
@@ -1310,8 +1399,10 @@ class DialogSession:
                     ]
 
                 # 结束语检测：独立于关键词缓冲的更长窗口，跨 token 匹配结束语特征串。
-                # 命中后置位 ending_said_ts，供视觉迎宾判断"说完结束语"。
-                if self.ending_said_ts is None and content:
+                # 命中只标记"文本已生成"（closing_text_detected，条件1），
+                # 还需服务端 TTS 合成结束(359，条件2) + 下位机播放结束(条件3)，
+                # 三条件齐备才允许进入视觉迎宾（见 _maybe_set_closing_spoken）。
+                if not self.closing_text_detected and content:
                     self._ending_detect_buffer += content
                     if len(self._ending_detect_buffer) > 400:
                         self._ending_detect_buffer = self._ending_detect_buffer[-400:]
@@ -1319,7 +1410,14 @@ class DialogSession:
                     for pat in patterns:
                         if pat and pat in self._ending_detect_buffer:
                             self.ending_said_ts = time.time()
-                            print("[ENDING-DETECT] 检测到结束语已说，视觉迎宾可开启")
+                            self.closing_text_detected = True
+                            self._closing_reply_id = (
+                                payload_msg.get("reply_id") or None
+                            )
+                            print(
+                                "[ENDING-DETECT] 检测到结束语文本（条件1/3），"
+                                "等待服务端TTS合成结束与下位机播放结束"
+                            )
                             break
 
                 buf = self._llm_keyword_buffer
@@ -1374,6 +1472,8 @@ class DialogSession:
                     self._interrupt_playback("user_speech")
                 self.is_user_querying = True
                 self.last_user_activity_ts = time.time()
+                # 状态机：用户开始说话（静默计时暂停）
+                self.dialog_state = "USER_SPEAKING"
                 # 用户新一轮开始：清理累积并标记未写
                 self._user_text_accum = ""
                 self._user_text_round_written = False
@@ -1392,6 +1492,9 @@ class DialogSession:
 
             if event == 459:
                 self.is_user_querying = False
+                # 状态机：用户说完，进入机器人回答阶段（静默计时暂停，
+                # 由 _state_machine_tick 在回答彻底播完后切回 LISTENING）
+                self.dialog_state = "BOT_REPLYING"
                 # 若本轮用户文本还未写入，兜底写一次，避免漏日志
                 try:
                     if (not self._user_text_round_written) and self._user_text_accum.strip():
@@ -1514,10 +1617,32 @@ class DialogSession:
                     not self.is_audio_file_input
                     and "event" in response
                     and response["event"] == 359
-                    and not self.say_hello_over_event.is_set()
                 ):
-                    print("receive tts sayhello ended event")
-                    self.say_hello_over_event.set()
+                    # 开场白（say_hello）的 TTS 结束事件
+                    if not self.say_hello_over_event.is_set():
+                        print("receive tts sayhello ended event")
+                        self.say_hello_over_event.set()
+                    # 结束语条件2：服务端 TTS 合成结束（reply_id 对应当前结束语轮次）
+                    if (
+                        self.closing_text_detected
+                        and not self.closing_server_tts_ended
+                    ):
+                        payload_msg = response.get("payload_msg", {})
+                        reply_id = (
+                            payload_msg.get("reply_id")
+                            if isinstance(payload_msg, dict)
+                            else None
+                        )
+                        if (
+                            self._closing_reply_id is None
+                            or reply_id is None
+                            or reply_id == self._closing_reply_id
+                        ):
+                            self.closing_server_tts_ended = True
+                            print(
+                                "[ENDING-DETECT] 结束语服务端 TTS 合成结束（条件2/3）"
+                            )
+                            self._maybe_set_closing_spoken()
         except asyncio.CancelledError:
             print("接收任务已取消")
         except Exception as e:
@@ -1584,6 +1709,14 @@ class DialogSession:
         while self._hold_half_duplex_mic_if_needed():
             await self._send_silence_if_due()
             await asyncio.sleep(0.02)
+
+        # 开场白播完（say_hello 359 收到）→ 下位机播放结束 → 尾音延迟 → 麦克风正式恢复。
+        # 至此才进入监听状态并置位 interview_ready_event（视觉迎宾以此为启动起点，
+        # 不再用 VISUAL_GREETING_MIN_SESSION_SEC 猜测开场白是否播完）。
+        self.dialog_state = "LISTENING"
+        self.last_user_activity_ts = time.time()
+        self.interview_ready_event.set()
+        print("[STATE] 开场白播放完毕，麦克风已恢复，进入监听状态")
 
         # 不再开场白播完就立即注入采访 prompt（否则开场白与身份问题会连着问出）。
         # 改为在下方主循环中检测：用户说完第一句话（语音 + 连续静音端点）后才注入；
@@ -1723,6 +1856,9 @@ class DialogSession:
                     self.process_microphone_input()
                 )
                 self.receive_task = asyncio.create_task(self.receive_loop())
+                self._state_tick_task = asyncio.create_task(
+                    self._state_machine_tick()
+                )
                 while self.is_running:
                     if self.external_stop_event and self.external_stop_event.is_set():
                         self.stop()
@@ -1748,6 +1884,7 @@ class DialogSession:
                     self.microphone_task,
                     self.receive_task,
                     self.audio_file_task,
+                    self._state_tick_task,
                 )
                 if task is not None
             ]
