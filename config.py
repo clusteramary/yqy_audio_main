@@ -32,7 +32,17 @@ ws_connect_config = {
 
 
 # ============ 会话启动参数（下行 TTS 配置） ============
-# 说明：这里声明了服务端 TTS 的输出格式，当前为 24k / pcm / 单声道
+# 说明：这里声明了服务端 TTS 的输出格式，当前为 24k / pcm / 单声道。
+# 指定 dialog.extra.model = "1.2.1.1"（O2.0 版本）后可配置以下音频特性：
+#   - tts.audio_config.speech_rate   ：语速，范围 [-50, 100]，默认 0（数值越大越快）
+#   - tts.audio_config.loudness_rate ：音量，范围 [-50, 100]，默认 0（数值越大越响）
+#   - tts.extra.explicit_dialect     ：方言，取值 dongbei/sichuan/shaanxi（仅 2.0 模型 vv 音色生效），空串则不发送
+#   - dialog.extra.enable_music      ：唱歌能力开关（仅版本 1.2.1.1 生效）
+TTS_SPEECH_RATE = int(os.getenv("TTS_SPEECH_RATE", "0"))
+TTS_LOUDNESS_RATE = int(os.getenv("TTS_LOUDNESS_RATE", "0"))
+TTS_EXPLICIT_DIALECT = os.getenv("TTS_EXPLICIT_DIALECT", "")
+ENABLE_MUSIC = os.getenv("ENABLE_MUSIC", "false").lower() in ("1", "true", "yes")
+
 start_session_req = {
     "tts": {
         "speaker": "zh_female_vv_jupiter_bigtts",
@@ -40,7 +50,10 @@ start_session_req = {
             "channel": 1,
             "format": "pcm",
             "sample_rate": 24000,
+            "speech_rate": TTS_SPEECH_RATE,
+            "loudness_rate": TTS_LOUDNESS_RATE,
         },
+        "extra": {},
     },
     "dialog": {
         "bot_name": "华科机器人",
@@ -52,9 +65,16 @@ start_session_req = {
             # "strict_audit": True,
             "audit_response": "当我用开心的语气说话，你就用开心的语气说话，当我用悲伤的语气说话，你就用悲伤的语气说话。",
             # "audit_response": "文化宫先往左走再往前走，少年宫先往右边走再往左边走。",
+            # O2.0 版本（官方必传参数：1.2.1.1=O2.0，2.2.0.0=SC2.0）
+            "model": "1.2.1.1",
+            "enable_music": ENABLE_MUSIC,
         },
     },
 }
+
+# explicit_dialect 仅在配置了非空方言时才发送（避免空串触发服务端参数校验）
+if TTS_EXPLICIT_DIALECT:
+    start_session_req["tts"]["extra"]["explicit_dialect"] = TTS_EXPLICIT_DIALECT
 
 # ============ 输入音频（麦克风，直连） ============
 # # 你的设备只能 48k，这里按 48k 打开；上层会在发送前重采样到 16k
