@@ -80,6 +80,22 @@ OUTPUT_AUDIO_MODE=pyaudio .venv/bin/python main.py
 | `--duplex-mode` | half / full | half | 半双工 / 全双工（可打断） |
 | `--input-audio-mode` | pyaudio / ros1 | pyaudio | 麦克风输入方式 |
 | `--output-audio-mode` | pyaudio / ros1 | ros1 | 扬声器输出方式 |
+| `--visual-greeting` | on / off | config.ENABLE_VISUAL_GREETING | 视觉迎宾开关（不传则用 config 默认） |
+
+### 视觉迎宾
+
+访谈结束（模型说完结束语）或麦克风无输入 10s 后，机器人进入视觉迎宾监控：
+检测到走近的人脸（头部大小达标）→ 说欢迎语 → 重新开始访谈（随机开场白）。
+视觉故障（相机/ROS/deepface 不可用）时自动降级为纯语音对话，迎宾逻辑完全独立、不影响对话。
+
+相关 config 配置（`config.py`）：
+- `ENABLE_VISUAL_GREETING`（默认 false）：总开关，可用启动参数 `--visual-greeting on/off` 覆盖
+- `VISUAL_GREETING_MIN_FACE_WIDTH`（默认 50）：触发迎宾的人脸框最小宽度（像素，头部大小阈值）
+- `VISUAL_GREETING_INTERVAL_SEC` / `VISUAL_GREETING_REQUIRED_CONSECUTIVE`：检测频率与连续命中帧数
+- `VISUAL_GREETING_SILENCE_SEC`（默认 10）：麦克风无输入多少秒后开启迎宾
+- `VISUAL_GREETING_MIN_SESSION_SEC`（默认 10）：会话最短时长保护（防止一开场就误触迎宾）
+- `VISUAL_GREETING_TEXT`：欢迎语内容
+- `ENDING_DETECT_PATTERNS`：结束语检测特征串（LLM 输出命中即认为"结束语已说"）
 
 环境变量（可选，均有默认值）：
 - `FIRST_VOICE_RMS_THRESHOLD`（默认 800）：开场白后判定"用户开口"的能量阈值

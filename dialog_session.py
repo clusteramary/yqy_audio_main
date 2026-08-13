@@ -191,6 +191,18 @@ class DialogSession:
 
         self.external_stop_event: Optional[asyncio.Event] = None
 
+        # ---------- 用户活动时间戳（供视觉迎宾判断"麦克风无输入"） ----------
+        # 每次 ASR 收到用户语音（事件 450/451）时刷新；
+        # time.time() - last_user_activity_ts >= VISUAL_GREETING_SILENCE_SEC
+        # 即认为麦克风长时间无输入。
+        self.last_user_activity_ts: float = time.time()
+
+        # ---------- 结束语检测（供视觉迎宾判断"说完结束语"） ----------
+        # LLM 输出流中命中 config.ENDING_DETECT_PATTERNS 后置位；
+        # 配合 _is_tts_playing() 可判断"结束语已完整说完"。
+        self.ending_said_ts: Optional[float] = None
+        self._ending_detect_buffer: str = ""
+
         # ---------- 下位机播放状态 ----------
         self.remote_playing = False
         self.remote_status_topic = "/audio_playing_status"
@@ -1198,6 +1210,14 @@ class DialogSession:
         ) * 1000.0 < grace_ms or not self.audio_queue.empty()
         return local_playing or self.remote_playing
 
+    def is_ending_said(self) -> bool:
+        """结束语是否已说（LLM 输出命中结束语特征串）。"""
+        return self.ending_said_ts is not None
+
+    def idle_silence_sec(self) -> float:
+        """距用户最后一次语音输入的秒数。"""
+        return time.time() - self.last_user_activity_ts
+
     def _emit_voice_keyword(self, keyword: str):
         try:
             now = time.time()
@@ -1289,6 +1309,19 @@ class DialogSession:
                         -self._llm_buffer_max_len :
                     ]
 
+                # 结束语检测：独立于关键词缓冲的更长窗口，跨 token 匹配结束语特征串。
+                # 命中后置位 ending_said_ts，供视觉迎宾判断"说完结束语"。
+                if self.ending_said_ts is None and content:
+                    self._ending_detect_buffer += content
+                    if len(self._ending_detect_buffer) > 400:
+                        self._ending_detect_buffer = self._ending_detect_buffer[-400:]
+                    patterns = getattr(config, "ENDING_DETECT_PATTERNS", None) or []
+                    for pat in patterns:
+                        if pat and pat in self._ending_detect_buffer:
+                            self.ending_said_ts = time.time()
+                            print("[ENDING-DETECT] 检测到结束语已说，视觉迎宾可开启")
+                            break
+
                 buf = self._llm_keyword_buffer
 
                 # 2. 遍历 LLM_KWS_PATTERNS，检测关键短语
@@ -1309,6 +1342,7 @@ class DialogSession:
                         # break
 
             if event == 451:
+                self.last_user_activity_ts = time.time()
                 try:
                     self._maybe_emit_wave_from_asr(payload_msg)
                 except Exception as e:
@@ -1339,6 +1373,7 @@ class DialogSession:
                 if should_interrupt:
                     self._interrupt_playback("user_speech")
                 self.is_user_querying = True
+                self.last_user_activity_ts = time.time()
                 # 用户新一轮开始：清理累积并标记未写
                 self._user_text_accum = ""
                 self._user_text_round_written = False

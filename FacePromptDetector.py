@@ -125,6 +125,68 @@ class FacePromptDetector:
         with self._ts_lock:
             self._last_face_ts = None
     # <<< 新增结束
+
+    # ---------------- 稳定人脸检测（视觉迎宾用） ----------------
+    def wait_for_stable_face(
+        self,
+        interval_sec: float = 0.25,
+        required_consecutive: int = 3,
+        stop_event: Optional[threading.Event] = None,
+        min_face_width: int = 0,
+    ) -> bool:
+        """
+        阻塞等待人脸出现。
+
+        每 interval_sec 秒取一帧，用 DeepFace.extract_faces 检测；
+        连续 required_consecutive 帧有人脸即返回 True。
+        不做人脸框位置匹配，纯粹"连续几帧都看到了人脸"就触发。
+
+        min_face_width: 人脸框最小宽度（像素），小于此宽度的人脸（远处的人）将被忽略。
+                        设为 0 则不过滤。约 50 像素对应 3~5 米以内距离。
+        """
+        consecutive = 0
+
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                return False
+
+            time.sleep(interval_sec)
+
+            frame = self.camera.read_latest_frame()
+            if frame is None:
+                consecutive = 0
+                continue
+
+            try:
+                faces = DeepFace.extract_faces(
+                    img_path=frame,
+                    detector_backend=self.detector_backend,
+                    enforce_detection=False,
+                )
+            except Exception:
+                consecutive = 0
+                continue
+
+            has_face = False
+            for f in faces:
+                region = f.get("facial_area", {})
+                conf = f.get("confidence", 0)
+                w = region.get("w", 0)
+                h = region.get("h", 0)
+                if conf >= 0.5 and w > 0 and h > 0:
+                    # 过滤远处小人脸：宽度低于阈值则忽略
+                    if min_face_width > 0 and w < min_face_width:
+                        continue
+                    has_face = True
+                    break
+
+            if has_face:
+                consecutive += 1
+                self._mark_face_seen()
+                if consecutive >= required_consecutive:
+                    return True
+            else:
+                consecutive = 0
     
     
     # ---------------- 分析线程（一次性，生成 prompt） ----------------

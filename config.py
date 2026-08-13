@@ -465,3 +465,54 @@ def build_expert_robot_system_prompt(
         "\n6) 半双工容错：如果用户话说一半被打断，先用\"没事您慢慢说\"把话递回去。"
     )
     return prompt.strip()
+
+
+# ========================================================================
+# 视觉迎宾配置（Visual Greeting）
+# 用途：访谈结束（说完结束语）或麦克风长时间无输入后，开启视觉迎宾监控；
+#       检测到人脸（头部大小达标）→ 说欢迎语 → 重新开始访谈（说开场白）。
+# 迎宾逻辑完全独立于语音对话：视觉故障时仅关闭迎宾，语音对话不受影响。
+# ========================================================================
+
+# --- 总开关：启动参数 --visual-greeting on/off 可覆盖 ---
+ENABLE_VISUAL_GREETING = os.getenv(
+    "ENABLE_VISUAL_GREETING", "false"
+).lower() in ("1", "true", "yes")
+
+# 相机每 VISUAL_GREETING_INTERVAL_SEC 秒取一帧做人脸检测；
+# 连续 VISUAL_GREETING_REQUIRED_CONSECUTIVE 帧检测到人脸即触发迎宾。
+VISUAL_GREETING_INTERVAL_SEC = float(
+    os.getenv("VISUAL_GREETING_INTERVAL_SEC", "0.25")
+)
+VISUAL_GREETING_REQUIRED_CONSECUTIVE = int(
+    os.getenv("VISUAL_GREETING_REQUIRED_CONSECUTIVE", "5")
+)
+
+# 头部大小阈值：人脸框最小宽度（像素）。小于该值的人脸（远处的人）会被忽略，
+# 不会触发迎宾。约 50 像素对应 3~5 米内距离，按实际场地/相机分辨率调整。
+VISUAL_GREETING_MIN_FACE_WIDTH = int(
+    os.getenv("VISUAL_GREETING_MIN_FACE_WIDTH", "50")
+)
+
+# 迎宾欢迎语（检测到人脸后说出）
+VISUAL_GREETING_TEXT = os.getenv(
+    "VISUAL_GREETING_TEXT",
+    "你好呀，欢迎来到我们的展台，很高兴见到你！",
+)
+
+# 麦克风无输入超过此秒数后开启迎宾监控（用户活动 = ASR 收到用户语音）
+VISUAL_GREETING_SILENCE_SEC = float(
+    os.getenv("VISUAL_GREETING_SILENCE_SEC", "10")
+)
+
+# 会话最短时长保护：会话开始后至少运行这么久才允许开启迎宾，
+# 避免程序刚启动（开场白还没播完）就误触发迎宾。
+VISUAL_GREETING_MIN_SESSION_SEC = float(
+    os.getenv("VISUAL_GREETING_MIN_SESSION_SEC", "10")
+)
+
+# 结束语检测特征串：LLM 输出中命中任一子串即认为"结束语已说"。
+# 默认取自 EXPERT_ROBOT_CLOSING 的末尾一句（足够独特，避免误触发）。
+ENDING_DETECT_PATTERNS = [
+    "感谢你的时间，期待再次相遇",
+]
