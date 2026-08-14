@@ -123,6 +123,7 @@ OUTPUT_AUDIO_MODE=pyaudio .venv/bin/python main.py
 main.py                  主程序（采访机器人入口）
 config.py                配置：API 密钥、发音人、采访问题池、prompt、参数
 dialog_session.py        对话会话（语音收发、prompt 注入时机、半双工逻辑）
+idle_attract_announcer.py 闲时招揽客户语音脚本（独立运行，见"六"）
 run_ros_speaker.sh       桌面启动脚本（ROS 扬声器）
 run_local_playback.sh    桌面启动脚本（本地播放）
 logs/                    运行日志
@@ -132,3 +133,41 @@ logs/                    运行日志
 source /opt/ros/noetic/setup.bash                              
 cd /home/nvidia/Documents/Robot-Voice/yqy_audio_main           
 .venv/bin/python main.py 
+
+## 六、闲时招揽客户语音脚本（idle_attract_announcer.py）
+
+机器人空闲时，每固定间隔（默认 15 秒）通过 ROS 话题 /audio 说一句固定招揽语
+（默认："你好，有空来做个小小的机器人访谈嘛？"）。TTS 音色与 main.py 开场白一致，
+发布走 main.py 相同的 ROS1 链路。
+
+> 注意：本脚本独立运行，**不要与 main.py 同时运行**（两者都会往 /audio 发布语音）。
+
+### 启动（ROS 扬声器模式）
+
+```bash
+source /opt/ros/noetic/setup.bash
+cd /home/nvidia/Documents/Robot-Voice/yqy_audio_main
+OUTPUT_AUDIO_MODE=ros1 .venv/bin/python idle_attract_announcer.py
+```
+
+停止：终端按 `Ctrl + C`。
+
+### 可选参数
+
+| 参数 | 可选值 | 默认 | 说明 |
+|---|---|---|---|
+| `--phrase` | 任意文本 | 你好，有空来做个小小的机器人访谈嘛？ | 要说的固定语句 |
+| `--interval` | 秒（浮点） | 15 | 每隔多少秒说一次 |
+| `--duplex-mode` | half / full | half | 半双工 / 全双工（可打断） |
+| `--output-audio-mode` | pyaudio / ros1 | ros1 | 扬声器输出方式 |
+
+### 修改固定语句 / 间隔
+
+直接编辑 `idle_attract_announcer.py` 顶部的可配置项：
+
+```python
+ATTRACT_PHRASE = "你好，有空来做个小小的机器人访谈嘛？"  # 固定输出的语句内容
+ANNOUNCE_INTERVAL_SEC = 15.0                            # 每隔多少秒说一次
+```
+
+合成的语音会缓存到 `logs/idle_attract_*.pcm`，同一句话只合成一次，网络异常时可直接复用缓存。

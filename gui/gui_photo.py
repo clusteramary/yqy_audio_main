@@ -388,9 +388,23 @@ class App(tk.Tk):
             ui_candidates = ["SF Pro Text", "Helvetica", "Arial"]
             mono_candidates = ["Menlo", "Monaco", "Courier"]
         else:
-            # Ubuntu typically has DejaVu; Noto may also exist.
-            ui_candidates = ["DejaVu Sans", "Noto Sans", "Ubuntu", "Liberation Sans"]
+            # Linux: put CJK-capable fonts first, otherwise Chinese chars
+            # render as empty boxes (Tk does no automatic font fallback).
+            ui_candidates = [
+                "Noto Sans CJK SC",
+                "Noto Sans CJK JP",
+                "WenQuanYi Zen Hei",
+                "Droid Sans Fallback",
+                "DejaVu Sans",
+                "Noto Sans",
+                "Ubuntu",
+                "Liberation Sans",
+            ]
             mono_candidates = [
+                "Noto Sans Mono CJK SC",
+                "Noto Sans Mono CJK JP",
+                "WenQuanYi Zen Hei Mono",
+                "Droid Sans Fallback",
                 "DejaVu Sans Mono",
                 "Noto Sans Mono",
                 "Ubuntu Mono",
