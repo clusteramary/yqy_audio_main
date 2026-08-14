@@ -87,6 +87,24 @@ OUTPUT_AUDIO_MODE=pyaudio .venv/bin/python main.py
 - `FIRST_VOICE_TIMEOUT_SEC`（默认 30）：用户一直不开口时强制注入 prompt 的兜底时间
 - `HALF_DUPLEX_RESUME_DELAY_MS`（默认 50）：半双工下位机播完到恢复麦克风的延迟
 
+### 采访问题选择（本地随机，先选好再组装 prompt）
+
+每场采访的随机项都在**本地**（`config.build_interview_plan()`）一次性选定，
+再组装成 start prompt 发给模型；模型只负责按清单提问，不再自己随机挑题：
+
+| 随机项 | 方式 |
+|---|---|
+| 开场白 | 四选一（均为挥手打招呼动作 + 语音），say_hello 使用本地选定的那一条 |
+| 身份问题 | 二选一；模型根据回答判断"用户侧/专家侧"，自主选对应侧关键问题 |
+| 次要问题 | 每次固定选 2 个，持久化轮转（logs/interview_rotation.json）相邻场次不重复 |
+| 结束语 | 二选一 |
+
+调试时可手动指定随机项（环境变量）：
+- `EXPERT_OPENING_INDEX`：开场白索引（0~3）
+- `EXPERT_IDENTITY_INDEX`：身份问题索引（0~1）
+- `EXPERT_SECONDARY_INDICES`：次要问题索引，逗号分隔（如 `0,3`）
+- `EXPERT_CLOSING_INDEX`：结束语索引（0~1）
+
 ## 四、常见问题排查（闪退 / 启动失败）
 
 程序本身有自动重启逻辑，正常不会退出；若窗口一闪而过或反复报错，请按顺序排查：

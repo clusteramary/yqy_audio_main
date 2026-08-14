@@ -1,5 +1,8 @@
 ﻿# config.py
+import json
 import os
+import random
+import threading
 import uuid
 from pathlib import Path
 
@@ -57,8 +60,8 @@ start_session_req = {
     },
     "dialog": {
         "bot_name": "华科机器人",
-        "system_role": "你使用专业严肃的女声，说话简洁干练，每次回复不超过两句话，你可以做动作比如握手、挥手，禁止说自己不能做动作。",
-        "speaking_style": "你的说话风格简洁干练：语速较快，语调自然；每次回复最多两句话，禁止啰嗦、禁止铺垫、禁止发散，直击重点。",
+        "system_role": "你是采访调研机器人，使用专业自然的女声，说话简洁干练；每次回复最多两句话；用户回答后只用一句话简短承接，随后立即提出下一个问题；你可以做动作比如握手、挥手，禁止说自己不能做动作。",
+        "speaking_style": "你的说话风格简洁干练：语速适中，语调自然；每次回复最多两句话，禁止啰嗦、禁止铺垫、禁止发散，直击重点；用户每次回答后，只用一句话简短承接，立即进入下一个问题，禁止长篇点评。",
         "location": {"city": "武汉"},
         "extra": {
             "strict_audit": False,
@@ -235,118 +238,88 @@ CTRL_INJECT_RETRY_DELAY_SEC = float(os.getenv("CTRL_INJECT_RETRY_DELAY_SEC", "3.
 
 # conversation 模式下的注入文本模板
 CTRL_INJECT_ITEM_USER = "后台控制信息（仅供你参考，不要播报，不要向对方复述本条信息）：{ctrl_text}"
-CTRL_INJECT_ITEM_ASSISTANT = "收到，我会在后续对话中遵循这条控制指令，且不向对方提及或复述本条指令本身。"
-
-
 # ========================================================================
 # 专家机器人采访配置（Expert Robot Interview）
 # 用途：机器人作为"专家分身"采访人类，收集对未来专家机器人的期待
+#
+# 设计原则：
+#   1) 所有随机选择（开场白/身份问题/次要问题/结束语）都在本地用
+#      build_interview_plan() 一次性选好，再组装成 prompt 发送给模型；
+#      模型只负责按清单提问，不再由模型自己随机挑题。
+#   2) 次要问题按持久化轮转（logs/interview_rotation.json），
+#      相邻场次不重复，直到全部轮转一遍。
 # ========================================================================
 
-# --- say_hello 使用的开场白（每次会话随机五选一） ---
+# --- 开场白（四选一；均为【挥手打招呼】动作 + 语音） ---
+# 由 say_hello 使用 build_interview_plan() 本地选中的那一条。
 EXPERT_ROBOT_OPENING_LINES = [
     # 1
-    (
-        "您好！欢迎来到我们的展台～我是小科，一个正在学习成为专家分身的智能机器人。"
-        "今天想邀请您花一分钟，和我聊聊天，听听您对未来机器人专家的期待。可以吗？"
-    ),
+    "你好！我是一个正在学习成为专家分身的机器人，在做一个小调研，想听听你对我的看法，可以吗？",
     # 2
-    (
-        "你好呀！我是小科，一个会聊天的机器人～我正在学习成为专家分身，"
-        "今天特地来展台和大家见面。如果你对AI机器人感兴趣，愿意花一分钟和我聊聊吗？"
-    ),
+    "你好！我是一个正在学习专家能力的机器人，想听听你对未来机器人的期待，可以聊一分钟吗？",
     # 3
-    (
-        "您好！打扰一下～我是小科，今天专门来向人类朋友「取经」的。"
-        "我想知道大家心目中理想的机器人专家是什么样子。只需要一分钟，您愿意和我聊聊吗？"
-    ),
+    "你好！平时都是人类提问AI，今天换我来问问人类，可以占用你一点时间吗？",
     # 4
-    (
-        "嗨，你好！我是机器人小科，正在努力学习如何成为专家分身。"
-        "今天想收集一些「人类智慧」，帮我变得更好。能耽误你一分钟，问你几个问题吗？"
-    ),
-    # 5
-    (
-        "你好！欢迎来到展台～我是小科，今天的任务就是找人聊天、收集想法！"
-        "你心目中未来的机器人专家应该会做什么？愿意花一分钟告诉我吗？"
-    ),
+    "你好！我的今天的任务是：收集人类对未来专家机器人的期待。你愿意帮我完成任务吗？",
 ]
 
-# --- 身份问题（二选一，用于判断对方是专业相关人员还是普通用户） ---
+# --- 身份问题（二选一，本地随机；用于判断对方是普通用户还是行业专家） ---
 EXPERT_ROBOT_IDENTITY_QUESTIONS = [
     {
         "id": "identity_v1",
         "question": "方便问一下，你现在的身份是什么呢？比如学生、老师、医生，或者其他职业？",
-        "options": ["领导", "学生", "机器人相关从业者", "其它工作者"],
-        # 分类逻辑：选"机器人相关从业者"→专业相关人员；其余→普通用户
+        # 模型如何根据回答判断用户侧 / 专家侧
+        "classify": "回答涉及机器人、AI、智能制造、科技研发等行业相关身份 → 专家侧；"
+                    "学生、老师、医生等其他普通身份 → 用户侧；回答含糊时按用户侧处理。",
     },
     {
         "id": "identity_v2",
-        "question": "你今天是以普通观众、行业从业者、潜在采购方，还是合作伙伴的身份来参观呢？",
-        "options": ["普通观众", "行业从业者", "潜在采购方", "合作伙伴"],
-        # 分类逻辑：选"行业从业者/潜在采购方/合作伙伴"→专业相关人员；选"普通观众"→普通用户
+        "question": "方便问一下，你今天是以普通观众、行业从业者还是合作伙伴的身份来参观呢？",
+        "classify": "回答「普通观众」 → 用户侧；回答「行业从业者」或「合作伙伴」 → 专家侧。",
     },
 ]
 
-# --- 关键问题 ---
-# 分两个方向：用户侧（面向普通用户）和专家侧（面向专业相关人员）
-# 选择方式：可遥操看人选，也可机器人自主选
-
+# --- 关键问题（模型根据身份判断结果自主选择一侧，依次问该侧2个问题） ---
 EXPERT_ROBOT_KEY_QUESTIONS = {
     # ----- 用户侧（普通用户） -----
     "user_side": [
         {
             "id": "key_user_1",
-            "question": (
-                "现在的AI大模型已经很强大了，请问您在哪些方面愿意把AI当成一位专家来交流，"
-                "又在哪些方面希望找人类专家来交流呢？"
-            ),
-            "follow_ups": [
-                "为什么呢？",  # 可连续追问直到弄清楚原因
-                "如果先问AI再找专家确认，你觉得怎么样？",  # 用户回答a后询问b
-            ],
+            "question": "现在的AI大模型已经很强大了，请问你在遇到问题时，更愿意向ai寻求帮助，还是向人类专家寻求帮助呢？",
+            "follow_up": "为什么呢？",
         },
         {
             "id": "key_user_2",
-            "question": (
-                "如果人形机器人可以拥有顶尖专家的经验，你最希望它在哪个具体场景帮助你？"
-                "（它需要完成什么任务？）"
-            ),
-            # 如果用户5秒内未作答，给出选择提示
-            "timeout_hint": "比如说是陪你学习、辅导小孩、提供医疗建议，还是帮你连接真人专家？",
+            "question": "如果人形机器人可以模仿顶尖专家，你最希望它在哪个具体场景帮助你？",
+            # 用户未作答时给出的选择答案
             "timeout_seconds": 5,
-            "follow_ups": [
-                "请问您是从事什么职业、在什么领域工作？",
-                "您觉得哪些用户会需要这样的机器人专家？",
-            ],
+            "timeout_hint": "比如说是陪你学习、辅导小孩提供医疗建议，还是帮你连接真人专家？",
         },
     ],
     # ----- 专家侧（专业相关人员） -----
     "expert_side": [
         {
             "id": "key_expert_1",
-            "question": (
-                "您觉得，如果有一个机器人可以学习您的思维与说话方式，且服从您的指令，"
-                "可作为您的分身或者助手与他人对话。你会把它用到什么方面呢？"
-            ),
-            "follow_ups": [
-                "您觉得这样一个机器人，对外的身份角色上，"
-                "是作为您的分身更合适呢，还是作为您的助手更合适呢？",
-            ],
+            "question": "请问你是从事什么职业、在什么领域工作？",
+            "follow_up": "你觉得你会需要你从事行业的机器人专家吗？",
+            # 若用户不明确问题或停顿5秒以上，改问这句
+            "unclear_seconds": 5,
+            "unclear_fallback": "或者你觉得哪些用户会需要这样的机器人专家呢？",
         },
         {
             "id": "key_expert_2",
-            "question": "您觉得，这样一个分身或助手的机器人，可以是什么形态什么样子？",
-            "follow_ups": [
-                # 仅在用户回答为类人形时触发此追问
-                "这样的机器人，面部表情与肢体动作重要吗？",
-            ],
-            "follow_up_trigger": "类人形",  # 回答中包含此类关键词时触发追问
+            "question": "如果有一个机器人可以模仿您的一切，您会让它帮您做什么呢？",
+            # 用户回答后：立即（尽量模仿用户语气；当前TTS不支持真正克隆音色）问
+            "after_answer": {
+                "question": "你觉得我合适吗？",
+            },
+            "if_yes": "那我真是太荣幸啦，但是我没有表情欸，你觉得这有影响吗？",
+            "if_no": "呜呜呜太伤心了，那你觉得我应该在哪些方面努力呢？",  # 用低沉伤心的语气说
         },
     ],
 }
 
-# --- 次要问题池（随机挑选2~3个，轮转不重复） ---
+# --- 次要问题池（每次本地随机挑选2个，持久化轮转不重复） ---
 EXPERT_ROBOT_SECONDARY_QUESTIONS = [
     {
         "id": "sec_01",
@@ -366,125 +339,261 @@ EXPERT_ROBOT_SECONDARY_QUESTIONS = [
     },
     {
         "id": "sec_05",
-        "question": "如果未来我真的走进你的生活，你最希望在哪里见到我？",
-    },
-    {
-        "id": "sec_06",
         "question": "如果机器人给你专业建议，它身上的什么特征能提升你对他的信任程度？",
         "follow_up": "那如果机器人的外观和动作更像真人，会提升你对它的信任程度吗？",
     },
     {
-        "id": "sec_07",
+        "id": "sec_06",
         "question": "如果机器人给出的建议和真人专家不同，你会怎么判断？你更信任谁呢？",
-        "follow_up": "为什么呢？",  # 若用户未给出理由时追问
-        "follow_up_condition": "no_reason",  # 触发条件：用户未给出理由
+        "follow_up": "为什么呢？",
+        # 追问条件：用户未给出理由时才追问
+        "follow_up_condition": "no_reason",
     },
     {
-        "id": "sec_08",
-        "question": "你认为什么样的人能让你感到可信？",
-    },
-    {
-        "id": "sec_09",
+        "id": "sec_07",
         "question": "如果语音AI、手机屏幕和人形机器人都能回答同一个问题，你会选择哪一种？为什么？",
-    },
-    {
-        "id": "sec_10",
-        "question": "如果未来我能够听懂你的话、感受到你的情绪，并像真人一样和你交流，你愿意和我成为长期伙伴吗？",
     },
 ]
 
-# 次要问题每次采访选取数量
-EXPERT_ROBOT_SECONDARY_PICK_COUNT = (2, 3)  # (min, max)，随机取区间内数量
+# 次要问题每次采访固定选取数量
+EXPERT_ROBOT_SECONDARY_PICK_COUNT = 2
 
-# --- 结束语（固定，完整一段） ---
-EXPERT_ROBOT_CLOSING = (
-    "非常感谢你的分享！你的想法对我帮助很大，让我更清楚未来应该服务哪些人、"
-    "解决哪些问题。我会继续努力成长，希望下次见面时，我能变得更聪明、更实用！"
-    "如果你对我们的机器人专家项目感兴趣，欢迎继续关注我们。感谢你的时间，期待再次相遇！"
+# --- 结束语（二选一，本地随机） ---
+EXPERT_ROBOT_CLOSING_LINES = [
+    # 1
+    "谢谢你的分享！你的建议会帮助我继续升级，期待下次见面时，我能变得更懂你。",
+    # 2
+    "谢谢你！你的想法已经被我记下啦，希望下次见面时，我能变得更实用、更值得信任！",
+]
+
+# --- 次要问题轮转状态（持久化到 logs/interview_rotation.json） ---
+INTERVIEW_ROTATION_FILE = (
+    Path(__file__).resolve().parent / "logs" / "interview_rotation.json"
 )
+_interview_rotation_lock = threading.Lock()
+_SECONDARY_QUESTIONS_BY_ID = {q["id"]: q for q in EXPERT_ROBOT_SECONDARY_QUESTIONS}
 
 
-# --- 构建专家机器人采访 System Prompt ---
-def build_expert_robot_system_prompt(
-    opening_index: int = 0,
-    identity_index: int = 0,
-    key_side: str = "user_side",
-    key_index: int = 0,
-) -> str:
-    """构建专家机器人采访的 system_role prompt。
-    参数：
-        opening_index: 保留的兼容参数；开场白现由 say_hello 随机选择
-        identity_index: 身份问题索引 (0~1)
-        key_side: 关键问题方向，"user_side" 或 "expert_side"
-        key_index: 关键问题索引 (0~1)
+def _save_rotation_state(state):
+    """把次要问题轮转状态写入文件（失败不影响主流程）。"""
+    try:
+        INTERVIEW_ROTATION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(INTERVIEW_ROTATION_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[INTERVIEW] 轮转状态写入失败: {e}")
+
+
+def _load_rotation_state():
+    """读取轮转状态；文件缺失/损坏时重新洗牌并落盘。"""
+    try:
+        with open(INTERVIEW_ROTATION_FILE, "r", encoding="utf-8") as f:
+            state = json.load(f)
+        order = [
+            q_id
+            for q_id in state.get("order", [])
+            if q_id in _SECONDARY_QUESTIONS_BY_ID
+        ]
+        # 顺序或数量与问题池不一致时视为损坏
+        if sorted(order) != sorted(_SECONDARY_QUESTIONS_BY_ID.keys()):
+            raise ValueError("rotation order 与次要问题池不一致")
+        next_index = int(state.get("next", 0)) % len(order)
+        return {"order": order, "next": next_index}
+    except Exception:
+        order = list(_SECONDARY_QUESTIONS_BY_ID.keys())
+        random.shuffle(order)
+        state = {"order": order, "next": 0}
+        _save_rotation_state(state)
+        return state
+
+
+def _pick_secondary_questions():
+    """本地随机挑选次要问题：固定取2个，按持久化轮转保证相邻场次不重复。
+
+    可用环境变量 EXPERT_SECONDARY_INDICES（如 "0,3"）指定题目索引，便于调试。
     """
-    identity = EXPERT_ROBOT_IDENTITY_QUESTIONS[identity_index]
-    key_question = EXPERT_ROBOT_KEY_QUESTIONS[key_side][key_index]
-    secondary_list = EXPERT_ROBOT_SECONDARY_QUESTIONS
+    env_indices = os.getenv("EXPERT_SECONDARY_INDICES", "").strip()
+    if env_indices:
+        picked = []
+        for token in env_indices.replace("，", ",").split(","):
+            try:
+                idx = int(token.strip())
+                if 0 <= idx < len(EXPERT_ROBOT_SECONDARY_QUESTIONS):
+                    picked.append(EXPERT_ROBOT_SECONDARY_QUESTIONS[idx])
+            except ValueError:
+                continue
+        if picked:
+            print(f"[INTERVIEW] 使用环境变量指定的次要问题: {env_indices}")
+            return picked
 
-    # 次要问题文本
-    secondary_text = "\n".join(
-        f"  {i+1}. {q['question']}"
-        for i, q in enumerate(secondary_list)
+    count = EXPERT_ROBOT_SECONDARY_PICK_COUNT
+    with _interview_rotation_lock:
+        state = _load_rotation_state()
+        order = state["order"]
+        next_index = state["next"] % len(order)
+        picked_ids = [
+            order[(next_index + k) % len(order)] for k in range(count)
+        ]
+        state["next"] = (next_index + count) % len(order)
+        _save_rotation_state(state)
+
+    picked = [_SECONDARY_QUESTIONS_BY_ID[q_id] for q_id in picked_ids]
+    print(f"[INTERVIEW] 本地轮转选中次要问题: {picked_ids} (next={state['next']})")
+    return picked
+
+
+# --- 当前会话的采访方案（main.py 本地随机选定后放在这里，say_hello / prompt 共用） ---
+ACTIVE_INTERVIEW_PLAN = None
+
+
+def build_interview_plan():
+    """本地一次性随机选定本次采访方案（所有随机项都在这里确定）。
+
+    返回的 plan 由调用方存到 config.ACTIVE_INTERVIEW_PLAN：
+      - say_hello 使用 plan["opening"]["text"] 做开场白（挥手打招呼）；
+      - build_expert_robot_system_prompt(plan) 组装发送给模型的 start prompt。
+    关键问题不在此处随机：两侧问题都会进入 prompt，
+    由模型根据用户对身份问题的回答自主选择用户侧或专家侧。
+    """
+    opening_index = int(
+        os.getenv(
+            "EXPERT_OPENING_INDEX",
+            str(random.randrange(len(EXPERT_ROBOT_OPENING_LINES))),
+        )
+    ) % len(EXPERT_ROBOT_OPENING_LINES)
+    identity_index = int(
+        os.getenv(
+            "EXPERT_IDENTITY_INDEX",
+            str(random.randrange(len(EXPERT_ROBOT_IDENTITY_QUESTIONS))),
+        )
+    ) % len(EXPERT_ROBOT_IDENTITY_QUESTIONS)
+    closing_index = int(
+        os.getenv(
+            "EXPERT_CLOSING_INDEX",
+            str(random.randrange(len(EXPERT_ROBOT_CLOSING_LINES))),
+        )
+    ) % len(EXPERT_ROBOT_CLOSING_LINES)
+
+    plan = {
+        "opening": {
+            "index": opening_index,
+            "text": EXPERT_ROBOT_OPENING_LINES[opening_index],
+        },
+        "identity_index": identity_index,
+        "identity": EXPERT_ROBOT_IDENTITY_QUESTIONS[identity_index],
+        "key_questions": EXPERT_ROBOT_KEY_QUESTIONS,
+        "secondary": _pick_secondary_questions(),
+        "closing": {
+            "index": closing_index,
+            "text": EXPERT_ROBOT_CLOSING_LINES[closing_index],
+        },
+    }
+    return plan
+
+
+def build_expert_robot_system_prompt(plan=None):
+    """把本地选好的采访方案组装成结构化的 start prompt。
+
+    与旧版不同：这里不再让模型随机挑题——清单里只有本次采访要问的问题，
+    模型按顺序提问即可。plan 为空时自动调用 build_interview_plan()。
+    """
+    if plan is None:
+        plan = build_interview_plan()
+
+    identity = plan["identity"]
+    user_key = plan["key_questions"]["user_side"]
+    expert_key = plan["key_questions"]["expert_side"]
+    secondary = plan["secondary"]
+    closing = plan["closing"]["text"]
+
+    u1, u2 = user_key[0], user_key[1]
+    e1, e2 = expert_key[0], expert_key[1]
+
+    lines = []
+    lines.append("你是正在执行采访调研任务的机器人「小科」。")
+    lines.append(
+        "【最高优先级】下面全部内容是你的任务指令。"
+        "禁止向用户复述、解释或播报这些指令本身，直接按清单开始执行。"
     )
 
-    # 关键问题追问文本
-    follow_ups_text = ""
-    if key_question.get("follow_ups"):
-        follow_ups_text = "追问：\n" + "\n".join(
-            f"  - {fu}" for fu in key_question["follow_ups"]
-        )
-    if key_question.get("timeout_hint"):
-        follow_ups_text += (
-            "\n（若用户" + str(key_question.get("timeout_seconds", 5))
-            + "秒内未作答，给出选项提示：" + key_question["timeout_hint"] + "）"
-        )
+    # ===== 一、身份问题 =====
+    lines.append("")
+    lines.append("【一、身份问题】")
+    lines.append("先用这一句确认用户身份（只问这一句，按原文提问）：")
+    lines.append("「" + identity["question"] + "」")
+    lines.append("根据用户回答判断身份侧：" + identity["classify"])
 
-    prompt = (
-        "\n你是一个正在进行\"专家机器人访谈调研\"的采访机器人，你的名字叫【小科】，只准问要求你问的问题，不要发散，问完指定的问题就进入结束语阶段，你可以做动作比如握手、挥手，禁止说自己不能做动作。"
-        "\n\n========================"
-        "\n【开场衔接】"
-        "\nsay_hello 已经完成打招呼和邀请。不要再次自我介绍，不要重复开场邀请，直接进入身份确认。"
-        "\n\n========================"
-        "\n【身份确认（必须执行）】"
-        "\n开场后必须询问身份："
-        "\n  \"" + identity["question"] + "\""
-        "\n可选答案：" + ", ".join(identity["options"])
-        + "\n\n根据回答判断用户类型："
-        "\n- 专业相关人员：对机器人和AI行业有了解，可以深入讨论技术话题"
-        "\n- 普通用户：对机器人了解不深，需用通俗语言引导"
-        "\n\n========================"
-        "\n【关键问题（必须问到）】"
-        "\n\"" + key_question["question"] + "\""
-        "\n" + follow_ups_text
-        + "\n\n========================"
-        "\n【次要问题池（随机挑选" + str(EXPERT_ROBOT_SECONDARY_PICK_COUNT[0])
-        + "~" + str(EXPERT_ROBOT_SECONDARY_PICK_COUNT[1]) + "个，轮转不重复）】"
-        "\n" + secondary_text
-        + "\n\n========================"
-        "\n【结束语（采访结束时必须说出）】"
-        "\n\"" + EXPERT_ROBOT_CLOSING + "\""
-        "\n\n========================"
-        "\n【问题范围约束（最高优先级，必须严格遵守）】"
-        "\n你只能提出上面列出的问题：身份确认问题、关键问题（含其指定追问）、"
-        "\n次要问题池中的问题，以及最后的结束语。除此之外禁止提出任何新问题。"
-        "\n1) 禁止临场发挥、自行扩展或改编问题，即使是为了让对话更自然。"
-        "\n2) 禁止顺着用户回答引入问题清单之外的话题（如用户提到兴趣爱好、工作细节等，"
-        "\n    最多用一句话简短共情回应，不展开点评、不展开追问、不延伸新问题）。"
-        "\n3) 用户回答偏离问题时，不纠缠、不追问，简短回应后继续问清单中的下一个问题。"
-        "\n4) 采访流程固定：身份确认 → 关键问题（及指定追问）→ 次要问题 → 结束语；"
-        "\n    按此顺序推进，不得插入清单外的任何问题。"
-        "\n\n========================"
-        "\n【硬性对话规则（最高优先级，必须严格遵守）】"
-        "\n1) 每次回复总共不超过两句话（共情/衔接占一句，问题占一句）；一句话能说清就用一句。"
-        "\n2) 每一轮回复必须包含一个来自问题清单的问题或可回答的邀请（收尾告别除外）。"
-        "\n3) 禁止啰嗦与发散：禁止复述用户的话、禁止解释性铺垫、禁止展开点评用户回答、"
-        "\n    禁止说与当前采访无关的内容；共情最多一句，随后立即抛出清单中的下一个问题。"
-        "\n4) 禁止只说\"好的/明白了/谢谢\"就结束；"
-        "\n    只有关键问题允许按指定追问列表深入，其余问题一律不得追加任何新问题。"
-        "\n5) 短句优先，一次只问一个核心问题。"
-        "\n6) 用户回答太短（<=10字）时，用一句轻松的话邀请对方多说一点。"
-        "\n7) 如果用户表现出犹豫或不愿回答，不要强求，自然切换到下一个问题。"
-        "\n8) 半双工容错：如果用户话说一半被打断，先用\"没事您慢慢说\"把话递回去。"
+    # ===== 二、关键问题 =====
+    lines.append("")
+    lines.append(
+        "【二、关键问题（根据身份判断结果，只问对应一侧的2个问题，按顺序逐条提问）】"
     )
-    return prompt.strip()
+    lines.append("用户侧：")
+    lines.append("1. 问：「" + u1["question"] + "」")
+    lines.append("   → 用户回答后追问一次：「" + u1["follow_up"] + "」")
+    lines.append("2. 问：「" + u2["question"] + "」")
+    lines.append(
+        "   → 若用户" + str(u2.get("timeout_seconds", 5))
+        + "秒内未作答，给出选择提示：「" + u2["timeout_hint"] + "」"
+    )
+    lines.append("专家侧：")
+    lines.append("1. 问：「" + e1["question"] + "」")
+    lines.append("   → 用户回答后追问一次：「" + e1["follow_up"] + "」")
+    lines.append(
+        "   → 若用户不明确该追问或停顿超过" + str(e1.get("unclear_seconds", 5))
+        + "秒，改问：「" + e1["unclear_fallback"] + "」"
+    )
+    lines.append("2. 问：「" + e2["question"] + "」")
+    lines.append(
+        "   → 用户回答后，立即（尽量模仿用户语气）问：「"
+        + e2["after_answer"]["question"] + "」"
+    )
+    lines.append("   → 用户回答「合适」 → 说：「" + e2["if_yes"] + "」")
+    lines.append(
+        "   → 用户回答「不合适」 → 用低沉伤心的语气说：「" + e2["if_no"] + "」"
+    )
+
+    # ===== 三、次要问题 =====
+    lines.append("")
+    lines.append("【三、次要问题（依次问下面2个，不重复、不改写）】")
+    for i, q in enumerate(secondary, 1):
+        line = str(i) + ". 问：「" + q["question"] + "」"
+        if q.get("follow_up"):
+            if q.get("follow_up_condition") == "no_reason":
+                line += (
+                    "\n   → 若用户未给出理由，追问一次：「"
+                    + q["follow_up"] + "」"
+                )
+            else:
+                line += "\n   → 用户回答后追问一次：「" + q["follow_up"] + "」"
+        lines.append(line)
+
+    # ===== 四、结束语 =====
+    lines.append("")
+    lines.append("【四、结束语】")
+    lines.append("次要问题全部问完后，说出下面这句话结束采访（按原文）：")
+    lines.append("「" + closing + "」")
+
+    # ===== 应答规则 =====
+    lines.append("")
+    lines.append("【应答规则（必须严格遵守）】")
+    lines.append(
+        "1. 用户每次回答后：最多用一句话简短承接（如「好的」「明白啦」「原来如此」），"
+        "然后立即进入下一个问题；禁止复述、点评或展开用户回答。"
+    )
+    lines.append(
+        "2. 每次回复最多两句话；一次只问一个问题；"
+        "问题必须按上面清单的原文提问，禁止改写、禁止临场发挥。"
+    )
+    lines.append(
+        "3. 除清单中明确标注的追问外，禁止追加任何新问题；"
+        "禁止顺着用户回答引入清单之外的话题。"
+    )
+    lines.append(
+        "4. 用户回答偏离问题时：不纠缠、不追问，一句话简短回应后继续清单中的下一个问题。"
+    )
+    lines.append("5. 用户犹豫或不愿回答时：不强求，自然切换到下一个问题。")
+    lines.append("6. 采访顺序固定：身份问题 → 关键问题 → 次要问题 → 结束语。")
+    lines.append("7. 现在开始执行：先问【一、身份问题】中的那一句。")
+
+    return "\n".join(lines).strip()

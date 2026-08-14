@@ -1,8 +1,6 @@
 # async_app.py
 import asyncio
 import argparse
-import os
-import random
 import threading
 import time
 from pathlib import Path
@@ -19,17 +17,25 @@ EMOTION_INTERVAL = 5  # 情绪线程检测频率（越小越灵敏，代价是�
 INITIAL_DETECT_TIMEOUT = 1.0  # 首次做人脸特征引导的超时时间
 
 
-def pick_interview_prompt():
-    """根据环境变量或随机选择采访参数。"""
-    identity_idx = int(os.getenv("EXPERT_IDENTITY_INDEX", str(random.randint(0, 1))))
-    key_side = os.getenv("EXPERT_KEY_SIDE", random.choice(["user_side", "expert_side"]))
-    key_idx = int(os.getenv("EXPERT_KEY_INDEX", str(random.randint(0, 1))))
+def pick_interview_plan():
+    """本地随机选定本次采访方案（开场白/身份问题/次要问题/结束语），
+    再组装成 start prompt。所有随机选择都在本地完成，模型只负责按清单提问。
+    """
+    plan = config.build_interview_plan()
+    # 存到 config，供 say_hello 使用本地选好的开场白（保证开场白与 prompt 一致）
+    config.ACTIVE_INTERVIEW_PLAN = plan
 
-    prompt = config.build_expert_robot_system_prompt(
-        identity_index=identity_idx,
-        key_side=key_side,
-        key_index=key_idx,
+    secondary_ids = [q["id"] for q in plan["secondary"]]
+    print(
+        "[PLAN] 本地随机选定采访方案: "
+        f"开场白#{plan['opening']['index'] + 1}, "
+        f"身份问题#{plan['identity_index'] + 1}({plan['identity']['id']}), "
+        f"次要问题={secondary_ids}, "
+        f"结束语#{plan['closing']['index'] + 1}; "
+        "关键问题侧由模型根据用户身份回答自主选择"
     )
+
+    prompt = config.build_expert_robot_system_prompt(plan)
     return prompt
 
 
@@ -123,9 +129,9 @@ async def run_once():
         host="127.0.0.1", port=5555, interval_sec=EMOTION_INTERVAL
     )
 
-    # 构造采访 prompt（根据环境变量或随机选择参数）
-    prompt = pick_interview_prompt()
-    print("[PROMPT] 使用专家机器人采访 prompt，开场白由 say_hello 随机选择")
+    # 本地随机选定采访方案并组装 prompt（开场白也使用本地选定的那一条）
+    prompt = pick_interview_plan()
+    print("[PROMPT] 已按本地随机选定的方案组装 start prompt，开场白由 say_hello 使用同一条方案")
 
     # ========== 4) 进入语音对话，并发"看脸看门狗" ==========
     stop_event = asyncio.Event()

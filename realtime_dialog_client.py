@@ -84,13 +84,21 @@ class RealtimeDialogClient:
 
     # 在 RealtimeDialogClient 类中的 hello 函数修改
     async def say_hello(self) -> None:
-        """随机选择一条开场白发送，并直接发送 start 关键词。"""
-        opening_index = random.randrange(len(config.EXPERT_ROBOT_OPENING_LINES))
-        opening_line = config.EXPERT_ROBOT_OPENING_LINES[opening_index]
+        """打招呼：优先使用本地已随机选定的开场白（config.ACTIVE_INTERVIEW_PLAN）。
+
+        若计划不存在（例如旧入口直接使用本客户端），退回随机选择。
+        """
+        plan = getattr(config, "ACTIVE_INTERVIEW_PLAN", None)
+        opening = (plan or {}).get("opening") or {}
+        opening_line = opening.get("text")
+        opening_index = opening.get("index")
+        if not opening_line:
+            opening_index = random.randrange(len(config.EXPERT_ROBOT_OPENING_LINES))
+            opening_line = config.EXPERT_ROBOT_OPENING_LINES[opening_index]
         payload = {
             "content": opening_line,
         }
-        print(f"[say_hello] 随机开场白 #{opening_index + 1}")
+        print(f"[say_hello] 使用本地选定开场白 #{opening_index + 1}: {opening_line}")
         hello_request = bytearray(protocol.generate_header())
         hello_request.extend(int(300).to_bytes(4, "big"))
         payload_bytes = str.encode(json.dumps(payload))
@@ -101,17 +109,22 @@ class RealtimeDialogClient:
         hello_request.extend(payload_bytes)
         await self.ws.send(hello_request)
 
-        # 在发送 "我是华中科技大学人形智能机器人记者。" 之后直接发送 start 关键词
-        try:
-            start_msg = json.dumps(
-                {"type": "voice_keyword", "keyword": "start", "timestamp": time.time()}
-            )
-            self.voice_udp_socket.sendto(
-                start_msg.encode("utf-8"), (self.voice_udp_host, self.voice_udp_port)
-            )
-            print("直接发送'开始'关键词，发送UDP消息")
-        except Exception as e:
-            print(f"发送UDP消息失败: {e}")
+        # 开场白均为【挥手打招呼】：发送 start 关键词的同时补发 wave 关键词。
+        for keyword in ("start", "wave"):
+            try:
+                start_msg = json.dumps(
+                    {
+                        "type": "voice_keyword",
+                        "keyword": keyword,
+                        "timestamp": time.time(),
+                    }
+                )
+                self.voice_udp_socket.sendto(
+                    start_msg.encode("utf-8"), (self.voice_udp_host, self.voice_udp_port)
+                )
+                print(f"直接发送'{keyword}'关键词，发送UDP消息")
+            except Exception as e:
+                print(f"发送UDP消息失败: {e}")
 
     async def chat_text_query(self, content: str) -> None:
         """发送Chat Text Query消息"""
