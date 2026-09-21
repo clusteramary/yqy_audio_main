@@ -1,0 +1,5 @@
+{
+  "state": {"silence_seconds": 0.8, "max_age_seconds": 2.0, "min_confidence": 0.3},
+  "ranking": {"knowledge_weight": 0.0},
+  "controller": {"cooldown_seconds": 0.5}
+}

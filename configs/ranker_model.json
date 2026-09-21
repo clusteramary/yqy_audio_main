@@ -1,0 +1,5 @@
+{
+  "task": "ranking",
+  "model": {"feature_dim": 8, "hidden": 32, "heads": 4, "use_knowledge": true, "use_gate": true},
+  "training": {"device": "cpu", "epochs": 3, "learning_rate": 0.001, "seed": 42}
+}

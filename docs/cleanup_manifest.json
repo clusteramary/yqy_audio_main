@@ -1,0 +1,30 @@
+﻿{
+    "base_commit":  "23144b8a751ee729b07264605c02360c6f820f82",
+    "backup":  "D:\\PyCharm\\毕业论文\\备份\\yqy_audio_main-23144b8-before-thesis.zip",
+    "removed_from_worktree":  [
+                                  "test_files",
+                                  "__pycache__",
+                                  ".vscode",
+                                  "deepface",
+                                  "src",
+                                  "sauc_python",
+                                  "1.jpg",
+                                  "2.png",
+                                  "a.txt",
+                                  "audio_manager copy.py",
+                                  "audio_manager copy 2.py",
+                                  "deepface_test.py",
+                                  "environment.yml",
+                                  "output.pcm",
+                                  "test.txt",
+                                  "test_image.py",
+                                  "test_image1.py",
+                                  "test_mic.py",
+                                  "test_mic16000.py",
+                                  "test_record.wav",
+                                  "whoareyou.wav",
+                                  "程序说明.txt"
+                              ],
+    "recovery_folder":  "D:\\PyCharm\\毕业论文\\备份\\清理移出文件-23144b8",
+    "note":  "Robot dependency sauc_websocket_mic2.py moved to robot_runtime before cleanup."
+}

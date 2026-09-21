@@ -1,0 +1,29 @@
+{
+  "experiment": "meld-scene-dedup-v1",
+  "feature_dir": "data/features/meld-v1",
+  "protocol": "data/processed/meld/protocol.json",
+  "window": 8,
+  "seed": 42,
+  "device": "cuda",
+  "batch_size": 32,
+  "epochs": 30,
+  "patience": 7,
+  "learning_rate": 0.0003,
+  "weight_decay": 0.01,
+  "gradient_clip": 1.0,
+  "num_workers": 0,
+  "quality_mode": "heuristic",
+  "auxiliary_affect_weight": 0.3,
+  "class_weight": "inverse_sqrt_train_frequency",
+  "selection_metric": "emotion.macro_f1",
+  "model": {
+    "input_dims": {"text": 768, "audio": 768, "visual": 512},
+    "hidden": 128,
+    "heads": 4,
+    "modality_dropout": 0.2,
+    "use_gate": true,
+    "use_temporal": true,
+    "fusion": "attention",
+    "output_heads": {"emotion": 7, "affect": 3}
+  }
+}

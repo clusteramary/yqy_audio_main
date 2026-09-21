@@ -1,0 +1,12 @@
+# Direct Python dependencies of the retained robot integration, NOT a full ROS environment.
+# Original Linux robot environment used Python 3.8; audioop is required (removed in 3.13).
+# Install ROS1, cv_bridge, sensor_msgs, std_msgs and audio_common_msgs via the robot OS.
+aiohttp>=3.8,<4
+websockets>=10,<14
+PyAudio==0.2.14
+numpy<2
+opencv-python>=4.5
+pynput>=1.7
+deepface @ git+https://github.com/serengil/deepface.git@424229e9f2abbb00490b7e015cd76cd5e7eebe03
+# Optional camera backend: pyrealsense2
+# Resolve and lock the environment on the real robot; not validated by CPU replay.

@@ -1,0 +1,6 @@
+{
+  "task": "state",
+  "model": {"input_dims": {"audio": 8, "text": 8, "visual": 8}, "hidden": 32,
+            "heads": 4, "modality_dropout": 0.1, "use_gate": true, "use_temporal": true},
+  "training": {"device": "cpu", "epochs": 3, "learning_rate": 0.001, "seed": 42}
+}

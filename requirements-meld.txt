@@ -1,0 +1,7 @@
+# Install torch/torchvision separately for the server's CUDA driver (see docs).
+# Reference pair: torch==2.5.1, torchvision==0.20.1.
+numpy==1.26.4
+transformers==4.44.2
+safetensors==0.4.5
+Pillow==10.4.0
+imageio-ffmpeg==0.5.1
