@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "utc": "2026-09-14T02:50:12.582175+00:00",
+    "python": "3.9.19 (main, Mar 21 2024, 17:21:27) [MSC v.1916 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "git_commit": "23144b8a751ee729b07264605c02360c6f820f82",
+    "git_dirty": true,
+    "input_sha256": {
+      "outputs/smoke-features/ranking/train.jsonl": "d17ba046b2fb04a389ffd1a3cad614f5331af7929f335e72a7c9a51d8b6f4203",
+      "outputs/smoke-features/ranking/dev.jsonl": "cfd52c04b6b5ea5eb29ad0cd42991ed65c30351af70138f510775486a4adec10",
+      "configs/ranker_model.json": "32241cc7cb81ab0d9de976439b677219a338ff367a866815f1268534fbc9f119"
+    },
+    "config": {
+      "task": "ranking",
+      "model": {
+        "feature_dim": 8,
+        "hidden": 32,
+        "heads": 4,
+        "use_knowledge": true,
+        "use_gate": true
+      },
+      "training": {
+        "device": "cpu",
+        "epochs": 3,
+        "learning_rate": 0.001,
+        "seed": 42
+      }
+    },
+    "torch": "1.12.0+cu113",
+    "purpose": "feature-level development training; scientific validity depends on source data"
+  },
+  "train_count": 4,
+  "validation_count": 2,
+  "best_validation_loss": 1.1003581881523132,
+  "epochs": [
+    {
+      "epoch": 1,
+      "train_loss": 1.106757640838623,
+      "validation_loss": 1.1168700456619263
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.0722182989120483,
+      "validation_loss": 1.1083093285560608
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.040909230709076,
+      "validation_loss": 1.1003581881523132
+    }
+  ]
+}

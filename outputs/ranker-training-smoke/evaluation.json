@@ -1,0 +1,68 @@
+{
+  "metadata": {
+    "utc": "2026-09-14T02:57:54.230713+00:00",
+    "python": "3.9.19 (main, Mar 21 2024, 17:21:27) [MSC v.1916 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "git_commit": "23144b8a751ee729b07264605c02360c6f820f82",
+    "git_dirty": true,
+    "input_sha256": {
+      "outputs/smoke-features/ranking/dev.jsonl": "cfd52c04b6b5ea5eb29ad0cd42991ed65c30351af70138f510775486a4adec10",
+      "outputs/ranker-training-smoke/best.pt": "5c941df8b5f02c8db3f7881ba71f4e9524bfd1f6217ad19848030aa54c1c77f2"
+    },
+    "config": {
+      "task": "ranking",
+      "model": {
+        "feature_dim": 8,
+        "hidden": 32,
+        "heads": 4,
+        "use_knowledge": true,
+        "use_gate": true
+      },
+      "training": {
+        "device": "cpu",
+        "epochs": 3,
+        "learning_rate": 0.001,
+        "seed": 42
+      }
+    }
+  },
+  "count": 2,
+  "datasets": [
+    "synthetic-smoke"
+  ],
+  "metrics": {
+    "MRR": 0.6666666666666666,
+    "Recall@1": 0.5,
+    "nDCG@1": 0.5,
+    "Recall@3": 1.0,
+    "nDCG@3": 0.75
+  },
+  "predictions": [
+    {
+      "id": "ranking-dev-0",
+      "ranked_ids": [
+        "2",
+        "0",
+        "1"
+      ],
+      "scores": [
+        0.3188551664352417,
+        0.24167518317699432,
+        0.3194776773452759
+      ]
+    },
+    {
+      "id": "ranking-dev-1",
+      "ranked_ids": [
+        "1",
+        "2",
+        "0"
+      ],
+      "scores": [
+        0.1437356173992157,
+        0.22362953424453735,
+        0.15515093505382538
+      ]
+    }
+  ]
+}

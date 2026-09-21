@@ -1,0 +1,49 @@
+{
+  "runs": 27,
+  "seeds": [
+    42,
+    2026,
+    3407
+  ],
+  "variants": [
+    "full",
+    "text_only",
+    "audio_only",
+    "visual_only",
+    "concat_mlp",
+    "no_gate",
+    "no_temporal",
+    "no_dropout",
+    "uniform_quality"
+  ],
+  "commands": [
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant full --seed 42 --output outputs/meld/full-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant full --seed 2026 --output outputs/meld/full-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant full --seed 3407 --output outputs/meld/full-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant text_only --seed 42 --output outputs/meld/text_only-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant text_only --seed 2026 --output outputs/meld/text_only-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant text_only --seed 3407 --output outputs/meld/text_only-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant audio_only --seed 42 --output outputs/meld/audio_only-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant audio_only --seed 2026 --output outputs/meld/audio_only-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant audio_only --seed 3407 --output outputs/meld/audio_only-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant visual_only --seed 42 --output outputs/meld/visual_only-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant visual_only --seed 2026 --output outputs/meld/visual_only-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant visual_only --seed 3407 --output outputs/meld/visual_only-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant concat_mlp --seed 42 --output outputs/meld/concat_mlp-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant concat_mlp --seed 2026 --output outputs/meld/concat_mlp-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant concat_mlp --seed 3407 --output outputs/meld/concat_mlp-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_gate --seed 42 --output outputs/meld/no_gate-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_gate --seed 2026 --output outputs/meld/no_gate-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_gate --seed 3407 --output outputs/meld/no_gate-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_temporal --seed 42 --output outputs/meld/no_temporal-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_temporal --seed 2026 --output outputs/meld/no_temporal-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_temporal --seed 3407 --output outputs/meld/no_temporal-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_dropout --seed 42 --output outputs/meld/no_dropout-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_dropout --seed 2026 --output outputs/meld/no_dropout-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant no_dropout --seed 3407 --output outputs/meld/no_dropout-seed3407",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant uniform_quality --seed 42 --output outputs/meld/uniform_quality-seed42",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant uniform_quality --seed 2026 --output outputs/meld/uniform_quality-seed2026",
+    "python scripts/train_meld.py train --config configs/meld_train.json --variant uniform_quality --seed 3407 --output outputs/meld/uniform_quality-seed3407"
+  ],
+  "evaluation": "After freezing experiments, use evaluate on each best.pt; train never opens the test features."
+}

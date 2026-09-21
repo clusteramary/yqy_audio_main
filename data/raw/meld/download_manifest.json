@@ -1,0 +1,32 @@
+{
+  "train_sent_emo.csv": {
+    "url": "https://raw.githubusercontent.com/declare-lab/MELD/e8cedf27b5d2877e198332c957127e16eb214afe/data/MELD/train_sent_emo.csv",
+    "bytes": 1119290,
+    "sha256": "d2fa2d6529cf03cac2989efec05c9b27d8fd2f4c8fc5974c7ae88aa537fa02db"
+  },
+  "dev_sent_emo.csv": {
+    "url": "https://raw.githubusercontent.com/declare-lab/MELD/e8cedf27b5d2877e198332c957127e16eb214afe/data/MELD/dev_sent_emo.csv",
+    "bytes": 121640,
+    "sha256": "2e89c6f8aa182d6f62f8c6331aece905ac7273ca4999660bfb5213e1d0370c1c"
+  },
+  "test_sent_emo.csv": {
+    "url": "https://raw.githubusercontent.com/declare-lab/MELD/e8cedf27b5d2877e198332c957127e16eb214afe/data/MELD/test_sent_emo.csv",
+    "bytes": 294526,
+    "sha256": "8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888"
+  },
+  "UPSTREAM_README.md": {
+    "url": "https://raw.githubusercontent.com/declare-lab/MELD/e8cedf27b5d2877e198332c957127e16eb214afe/README.md",
+    "bytes": 33255,
+    "sha256": "8f660c8aaf0491230050be74863a6b704ff569e913460f0e7250aa5186f85a00"
+  },
+  "UPSTREAM_LICENSE": {
+    "url": "https://raw.githubusercontent.com/declare-lab/MELD/e8cedf27b5d2877e198332c957127e16eb214afe/LICENSE",
+    "bytes": 35149,
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+  },
+  "MELD.Raw.tar.gz": {
+    "url": "https://huggingface.co/datasets/declare-lab/MELD/resolve/9abc51ee7903424ffb971297608aa6d3d0de3bfa/MELD.Raw.tar.gz",
+    "bytes": 10878146150,
+    "sha256": "a56b4407d574195cbce470d86f9c9d72fcfea59b0e34502ecd4babee4a5c613e"
+  }
+}

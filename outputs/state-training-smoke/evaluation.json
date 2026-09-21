@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "utc": "2026-09-14T02:57:52.711650+00:00",
+    "python": "3.9.19 (main, Mar 21 2024, 17:21:27) [MSC v.1916 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "git_commit": "23144b8a751ee729b07264605c02360c6f820f82",
+    "git_dirty": true,
+    "input_sha256": {
+      "outputs/smoke-features/state/dev.jsonl": "3d54225cf420bbac5466d4c850265af98945d3e332f10a3646dbe7d3bdc9dce8",
+      "outputs/state-training-smoke/best.pt": "7dfff972f3a03ec4f8d220863b4e615012b5870b829d3d6c8c52b814aefbc7f6"
+    },
+    "config": {
+      "task": "state",
+      "model": {
+        "input_dims": {
+          "audio": 8,
+          "text": 8,
+          "visual": 8
+        },
+        "hidden": 32,
+        "heads": 4,
+        "modality_dropout": 0.1,
+        "use_gate": true,
+        "use_temporal": true
+      },
+      "training": {
+        "device": "cpu",
+        "epochs": 3,
+        "learning_rate": 0.001,
+        "seed": 42
+      }
+    }
+  },
+  "count": 2,
+  "datasets": [
+    "synthetic-smoke"
+  ],
+  "metrics": {
+    "turn": {
+      "count": 2,
+      "accuracy": 0.5,
+      "macro_f1": 0.3333333333333333,
+      "per_class_f1": {
+        "0": 0.0,
+        "1": 0.6666666666666666
+      }
+    }
+  },
+  "predictions": [
+    {
+      "id": "state-dev-0",
+      "predictions": {
+        "turn": 1,
+        "affect": 1,
+        "speaker_change": 0
+      }
+    },
+    {
+      "id": "state-dev-1",
+      "predictions": {
+        "turn": 1,
+        "affect": 1,
+        "speaker_change": 0
+      }
+    }
+  ]
+}

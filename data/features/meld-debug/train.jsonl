@@ -1,0 +1,1 @@
+{"id": "meld:train:0:0", "group_id": "meld:train:0", "split": "train", "labels": {"emotion": 0, "affect": 1}, "past_ids": [], "feature": "train/dia0_utt0.npz", "feature_sha256": "47077eddb80d9db046c5663c3b96c016baa3272fe7fe88e5e0f11be4bf5672fa"}

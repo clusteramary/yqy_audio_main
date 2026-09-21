@@ -1,0 +1,470 @@
+{
+  "source_rows": 1434,
+  "converted_rows": 1378,
+  "duplicate_candidates_removed": 129,
+  "skipped_conflicts": [
+    {
+      "index": 60,
+      "id": {
+        "dialogue": 22,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 74,
+      "id": {
+        "dialogue": 27,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 103,
+      "id": {
+        "dialogue": 38,
+        "turn": 3
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 106,
+      "id": {
+        "dialogue": 41,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 129,
+      "id": {
+        "dialogue": 50,
+        "turn": 3
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 130,
+      "id": {
+        "dialogue": 50,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 163,
+      "id": {
+        "dialogue": 57,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 179,
+      "id": {
+        "dialogue": 61,
+        "turn": 3
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 204,
+      "id": {
+        "dialogue": 72,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 206,
+      "id": {
+        "dialogue": 72,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 262,
+      "id": {
+        "dialogue": 90,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 309,
+      "id": {
+        "dialogue": 108,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 326,
+      "id": {
+        "dialogue": 113,
+        "turn": 3
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 339,
+      "id": {
+        "dialogue": 116,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 340,
+      "id": {
+        "dialogue": 116,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 345,
+      "id": {
+        "dialogue": 117,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 384,
+      "id": {
+        "dialogue": 134,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 389,
+      "id": {
+        "dialogue": 135,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 449,
+      "id": {
+        "dialogue": 154,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 538,
+      "id": {
+        "dialogue": 188,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 561,
+      "id": {
+        "dialogue": 195,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 580,
+      "id": {
+        "dialogue": 201,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 615,
+      "id": {
+        "dialogue": 214,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 625,
+      "id": {
+        "dialogue": 217,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 639,
+      "id": {
+        "dialogue": 222,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 643,
+      "id": {
+        "dialogue": 224,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 651,
+      "id": {
+        "dialogue": 228,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 687,
+      "id": {
+        "dialogue": 239,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 698,
+      "id": {
+        "dialogue": 241,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 706,
+      "id": {
+        "dialogue": 245,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 728,
+      "id": {
+        "dialogue": 251,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 831,
+      "id": {
+        "dialogue": 283,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 833,
+      "id": {
+        "dialogue": 283,
+        "turn": 3
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 834,
+      "id": {
+        "dialogue": 283,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 838,
+      "id": {
+        "dialogue": 285,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 852,
+      "id": {
+        "dialogue": 290,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 871,
+      "id": {
+        "dialogue": 296,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 937,
+      "id": {
+        "dialogue": 319,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 975,
+      "id": {
+        "dialogue": 331,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1012,
+      "id": {
+        "dialogue": 343,
+        "turn": 3
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1078,
+      "id": {
+        "dialogue": 361,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1119,
+      "id": {
+        "dialogue": 379,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1121,
+      "id": {
+        "dialogue": 379,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1195,
+      "id": {
+        "dialogue": 409,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1197,
+      "id": {
+        "dialogue": 409,
+        "turn": 3
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1198,
+      "id": {
+        "dialogue": 409,
+        "turn": 4
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1200,
+      "id": {
+        "dialogue": 409,
+        "turn": 6
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1219,
+      "id": {
+        "dialogue": 415,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1261,
+      "id": {
+        "dialogue": 431,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1309,
+      "id": {
+        "dialogue": 444,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1311,
+      "id": {
+        "dialogue": 445,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1343,
+      "id": {
+        "dialogue": 456,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1349,
+      "id": {
+        "dialogue": 459,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1369,
+      "id": {
+        "dialogue": 467,
+        "turn": 2
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1380,
+      "id": {
+        "dialogue": 470,
+        "turn": 1
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    },
+    {
+      "index": 1404,
+      "id": {
+        "dialogue": 483,
+        "turn": 0
+      },
+      "reason": "conflicting FQ relevance for identical text"
+    }
+  ],
+  "protocol": "exact-text-dedup-v1; candidate ids sorted independently of labels",
+  "metadata": {
+    "utc": "2026-09-14T02:48:12.478306+00:00",
+    "python": "3.9.13 (main, Aug 25 2022, 23:51:50) [MSC v.1916 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "git_commit": "23144b8a751ee729b07264605c02360c6f820f82",
+    "git_dirty": true,
+    "input_sha256": {
+      "data/raw/fq-bank/dev.json": "4445457da1cf7a2c2d35bffc84ecf2caf471a7a6ce0016e0e96122c69abb28dd"
+    },
+    "config": {
+      "split": "dev",
+      "knowledge": "none; no future answer used"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "utc": "2026-09-14T03:27:50.670800+00:00",
+  "python": "3.9.13 (main, Aug 25 2022, 23:51:50) [MSC v.1916 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.19041-SP0",
+  "git_commit": "23144b8a751ee729b07264605c02360c6f820f82",
+  "git_dirty": true,
+  "input_sha256": {
+    "D:\\PyCharm\\毕业论文\\yqy_audio_main\\data\\examples\\observations.jsonl": "077958990a5c65d72286a78f74802d469e61566ac76669b5b6bd5594131c886c",
+    "D:\\PyCharm\\毕业论文\\yqy_audio_main\\data\\examples\\ranking.jsonl": "a14ccf89801fa59951aa48ae0a6cb9a52a7928d722e100e5cfd442eaf45d6c27",
+    "D:\\PyCharm\\毕业论文\\yqy_audio_main\\configs\\local.json": "66497ddaf828e87463ebe0216dacb32e53b94fae0c158ad10d27e8dfa489fe64"
+  },
+  "config": {
+    "state": {
+      "silence_seconds": 0.8,
+      "max_age_seconds": 2.0,
+      "min_confidence": 0.3
+    },
+    "ranking": {
+      "knowledge_weight": 0.0
+    },
+    "controller": {
+      "cooldown_seconds": 0.5
+    }
+  }
+}

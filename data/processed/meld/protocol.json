@@ -1,0 +1,34 @@
+{
+  "name": "meld-scene-dedup-v1",
+  "excluded_groups": [
+    "meld:train:12"
+  ],
+  "evidence": [
+    {
+      "earlier_partition_id": "meld:train:12:7",
+      "holdout_id": "meld:test:85:0",
+      "text_similarity": 1.0
+    },
+    {
+      "earlier_partition_id": "meld:train:12:8",
+      "holdout_id": "meld:test:85:1",
+      "text_similarity": 0.984375
+    },
+    {
+      "earlier_partition_id": "meld:train:12:9",
+      "holdout_id": "meld:test:85:3",
+      "text_similarity": 0.9649122807017544
+    },
+    {
+      "earlier_partition_id": "meld:train:12:11",
+      "holdout_id": "meld:test:85:4",
+      "text_similarity": 0.8571428571428571
+    }
+  ],
+  "rule": "exclude lower-priority whole dialogue: same episode, overlapping timestamps, >=20-character texts with ratio>=.85 or containment; priority test>dev>train",
+  "counts_after_exclusion": {
+    "train": 9977,
+    "dev": 1109,
+    "test": 2610
+  }
+}

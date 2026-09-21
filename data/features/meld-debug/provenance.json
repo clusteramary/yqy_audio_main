@@ -1,0 +1,54 @@
+{
+  "config": {
+    "version": "meld-frozen-utterance-v1",
+    "text": {
+      "repo": "distilbert/distilbert-base-uncased",
+      "revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+      "folder": "distilbert-base-uncased",
+      "files": [
+        "config.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "vocab.txt",
+        "model.safetensors"
+      ],
+      "dimension": 768,
+      "max_tokens": 128
+    },
+    "audio": {
+      "repo": "facebook/wav2vec2-base-960h",
+      "revision": "22aad52d435eb6dbaf354bdad9b0da84ce7d6156",
+      "folder": "wav2vec2-base-960h",
+      "files": [
+        "config.json",
+        "preprocessor_config.json",
+        "model.safetensors"
+      ],
+      "dimension": 768,
+      "sample_rate": 16000,
+      "chunk_seconds": 8
+    },
+    "visual": {
+      "architecture": "resnet18",
+      "weights": "IMAGENET1K_V1",
+      "url": "https://download.pytorch.org/models/resnet18-f37072fd.pth",
+      "filename": "resnet18-f37072fd.pth",
+      "dimension": 512,
+      "frames": 4
+    }
+  },
+  "encoder_manifest_sha256": "5db009265c7175cc64cf112d9fd28ffdee5d10e5dfdb6bc9ca2b0b2bd3e0d0ad",
+  "extractor_sha256": "01b33fec0a9fdd630e4b2fc0bfc27acf86892f5f6b2a6d5855fafd976e67ba2e",
+  "annotation_manifest_sha256": {
+    "train": "2f211e87515da1c48c2153c78104069b0b1f4f0b03d9327121ccdbed9d0b3614",
+    "dev": "d8d1606a7c051d4d0a175e6a91457dd4e956693ed67cc2d728bfadc1ec84f6ef",
+    "test": "46d0fad20fe7ab8cc5e104286782ddf05711d14c282fc62cbfd18e44f8664bc2"
+  },
+  "feature_dimensions": {
+    "text": 768,
+    "audio": 768,
+    "visual": 512
+  },
+  "quality": "heuristic signal quality; no calibrated confidence",
+  "prediction_time": "completed utterance"
+}

@@ -1,0 +1,187 @@
+{
+  "protocol": "meld-official-completed-utterance-v1",
+  "annotation_sha256": {
+    "train": "d2fa2d6529cf03cac2989efec05c9b27d8fd2f4c8fc5974c7ae88aa537fa02db",
+    "dev": "2e89c6f8aa182d6f62f8c6331aece905ac7273ca4999660bfb5213e1d0370c1c",
+    "test": "8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888"
+  },
+  "labels": {
+    "emotion": [
+      "neutral",
+      "surprise",
+      "fear",
+      "sadness",
+      "joy",
+      "disgust",
+      "anger"
+    ],
+    "affect": [
+      "positive",
+      "neutral",
+      "negative"
+    ]
+  },
+  "splits": {
+    "train": {
+      "utterances": 9989,
+      "dialogues": 1038,
+      "emotion": {
+        "neutral": 4710,
+        "surprise": 1205,
+        "fear": 268,
+        "sadness": 683,
+        "joy": 1743,
+        "disgust": 271,
+        "anger": 1109
+      },
+      "sentiment": {
+        "neutral": 4710,
+        "positive": 2334,
+        "negative": 2945
+      },
+      "missing_media_count": 0,
+      "missing_media_ids": [],
+      "invalid_annotation_time_ids": [],
+      "overlapping_utterances": 651,
+      "texts_with_replacement_character": 0,
+      "expected_upstream_missing_media_ids": [],
+      "known_upstream_corrupt_media_ids": [
+        "meld:train:125:3"
+      ],
+      "unexpected_missing_media_ids": []
+    },
+    "dev": {
+      "utterances": 1109,
+      "dialogues": 114,
+      "emotion": {
+        "sadness": 111,
+        "surprise": 150,
+        "neutral": 470,
+        "joy": 163,
+        "anger": 153,
+        "disgust": 22,
+        "fear": 40
+      },
+      "sentiment": {
+        "negative": 406,
+        "neutral": 470,
+        "positive": 233
+      },
+      "missing_media_count": 1,
+      "missing_media_ids": [
+        "meld:dev:110:7"
+      ],
+      "invalid_annotation_time_ids": [],
+      "overlapping_utterances": 66,
+      "texts_with_replacement_character": 0,
+      "expected_upstream_missing_media_ids": [
+        "meld:dev:110:7"
+      ],
+      "known_upstream_corrupt_media_ids": [],
+      "unexpected_missing_media_ids": []
+    },
+    "test": {
+      "utterances": 2610,
+      "dialogues": 280,
+      "emotion": {
+        "surprise": 281,
+        "anger": 345,
+        "neutral": 1256,
+        "joy": 402,
+        "sadness": 208,
+        "fear": 50,
+        "disgust": 68
+      },
+      "sentiment": {
+        "positive": 521,
+        "negative": 833,
+        "neutral": 1256
+      },
+      "missing_media_count": 0,
+      "missing_media_ids": [],
+      "invalid_annotation_time_ids": [
+        "meld:test:155:3"
+      ],
+      "overlapping_utterances": 105,
+      "texts_with_replacement_character": 0,
+      "expected_upstream_missing_media_ids": [],
+      "known_upstream_corrupt_media_ids": [],
+      "unexpected_missing_media_ids": []
+    }
+  },
+  "cross_split_same_episode_timestamps": [
+    [
+      "6",
+      "4",
+      618.743,
+      621.5360000000001
+    ],
+    [
+      "6",
+      "4",
+      621.704,
+      624.706
+    ],
+    [
+      "6",
+      "24",
+      1242.741,
+      1245.159
+    ],
+    [
+      "8",
+      "24",
+      1037.065,
+      1038.066
+    ],
+    [
+      "6",
+      "17",
+      1166.165,
+      1169.083
+    ]
+  ],
+  "cross_split_identical_dialogue_sha256": [
+    "b79b6a32f4745c632bce3ba852d190a2cc0604a92577652bbccfa9ebbb648b04",
+    "755a1fb0f8fe759d43599a339d4f87664aece432f7bba1cc3bb37ebbc6ffa3d3"
+  ],
+  "deduplicated_protocol": {
+    "name": "meld-scene-dedup-v1",
+    "excluded_groups": [
+      "meld:train:12"
+    ],
+    "evidence": [
+      {
+        "earlier_partition_id": "meld:train:12:7",
+        "holdout_id": "meld:test:85:0",
+        "text_similarity": 1.0
+      },
+      {
+        "earlier_partition_id": "meld:train:12:8",
+        "holdout_id": "meld:test:85:1",
+        "text_similarity": 0.984375
+      },
+      {
+        "earlier_partition_id": "meld:train:12:9",
+        "holdout_id": "meld:test:85:3",
+        "text_similarity": 0.9649122807017544
+      },
+      {
+        "earlier_partition_id": "meld:train:12:11",
+        "holdout_id": "meld:test:85:4",
+        "text_similarity": 0.8571428571428571
+      }
+    ],
+    "rule": "exclude lower-priority whole dialogue: same episode, overlapping timestamps, >=20-character texts with ratio>=.85 or containment; priority test>dev>train",
+    "counts_after_exclusion": {
+      "train": 9977,
+      "dev": 1109,
+      "test": 2610
+    }
+  },
+  "notes": [
+    "Official manifests are preserved; a separate protocol excludes evidenced scene overlap. Speakers are not identity-disjoint.",
+    "MELD has no HOLD/SHIFT, active-speaker or willingness ground truth.",
+    "Overlapping previous clips that end after the target are excluded from history."
+  ]
+}

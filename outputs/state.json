@@ -1,0 +1,252 @@
+{
+  "metadata": {
+    "utc": "2026-09-14T02:48:57.473977+00:00",
+    "python": "3.9.13 (main, Aug 25 2022, 23:51:50) [MSC v.1916 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.19045-SP0",
+    "git_commit": "23144b8a751ee729b07264605c02360c6f820f82",
+    "git_dirty": true,
+    "input_sha256": {
+      "D:\\PyCharm\\毕业论文\\yqy_audio_main\\data\\examples\\observations.jsonl": "077958990a5c65d72286a78f74802d469e61566ac76669b5b6bd5594131c886c",
+      "D:\\PyCharm\\毕业论文\\yqy_audio_main\\configs\\local.json": "a2e13131aa4d79b5e860f7a43973de06862824ef3f2627cb3e58303896c52cbe"
+    },
+    "config": {
+      "state": {
+        "silence_seconds": 0.8,
+        "max_age_seconds": 2.0,
+        "min_confidence": 0.3
+      },
+      "ranking": {
+        "knowledge_weight": 0.0
+      },
+      "controller": {
+        "cooldown_seconds": 0.5
+      }
+    }
+  },
+  "count": 10,
+  "metrics": {
+    "turn": {
+      "count": 10,
+      "accuracy": 1.0,
+      "macro_f1": 1.0,
+      "per_class_f1": {
+        "HOLD": 1.0,
+        "SHIFT": 1.0,
+        "IDLE": 1.0,
+        "ROBOT": 1.0
+      }
+    },
+    "affect": {
+      "count": 10,
+      "accuracy": 1.0,
+      "macro_f1": 0.3333333333333333,
+      "per_class_f1": {
+        "positive": 0.0,
+        "neutral": 1.0,
+        "negative": 0.0
+      }
+    }
+  },
+  "predictions": [
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u1",
+      "timestamp": 0,
+      "speaker_id": "track-1",
+      "turn": "HOLD",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "current user speech activity",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u1",
+      "timestamp": 0.4,
+      "speaker_id": "track-1",
+      "turn": "HOLD",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "ASR utterance is still partial",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u1",
+      "timestamp": 0.6,
+      "speaker_id": "track-1",
+      "turn": "HOLD",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "current user speech activity",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u1",
+      "timestamp": 1.5,
+      "speaker_id": "track-1",
+      "turn": "SHIFT",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "final transcript and observed silence after speech",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u1",
+      "timestamp": 1.6,
+      "speaker_id": "track-1",
+      "turn": "SHIFT",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "final transcript and observed silence after speech",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u1",
+      "timestamp": 1.8,
+      "speaker_id": "track-1",
+      "turn": "ROBOT",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "playback feedback is active",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u1",
+      "timestamp": 3,
+      "speaker_id": "track-1",
+      "turn": "IDLE",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "insufficient current evidence for a turn decision",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u2",
+      "timestamp": 3.2,
+      "speaker_id": "track-1",
+      "turn": "HOLD",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "current user speech activity",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u2",
+      "timestamp": 3.6,
+      "speaker_id": "track-1",
+      "turn": "HOLD",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "current user speech activity",
+      "model": "causal-rule-v1"
+    },
+    {
+      "session_id": "demo-session",
+      "utterance_id": "u2",
+      "timestamp": 4.5,
+      "speaker_id": "track-1",
+      "turn": "SHIFT",
+      "affect": "neutral",
+      "available_modalities": [
+        "audio",
+        "text",
+        "visual"
+      ],
+      "evidence_confidence": {
+        "audio": 0.9,
+        "text": 0.9,
+        "visual": 0.8
+      },
+      "reason": "final transcript and observed silence after speech",
+      "model": "causal-rule-v1"
+    }
+  ]
+}
