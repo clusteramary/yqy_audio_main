@@ -1,0 +1,20 @@
+[
+  {
+    "file": "P19-1050.bib",
+    "source": "https://aclanthology.org/P19-1050.bib",
+    "retrieved": "2026-10-08",
+    "sha256": "f47bb01abe6fb011f82cd5390d7232f888ab4b32007767d0bbe89f31199599d5"
+  },
+  {
+    "file": "2020.acl-main.635.bib",
+    "source": "https://aclanthology.org/2020.acl-main.635.bib",
+    "retrieved": "2026-10-08",
+    "sha256": "9ba7b362fae47431f23e94eca2c1f4789c0ed34c6e38f9311ecd6e8cec0839d7"
+  },
+  {
+    "file": "2023.findings-eacl.149.bib",
+    "source": "https://aclanthology.org/2023.findings-eacl.149.bib",
+    "retrieved": "2026-10-08",
+    "sha256": "18fe720ea3c7afc0ef590a4781935f40a058ffa9357bac42ca906c377289f344"
+  }
+]

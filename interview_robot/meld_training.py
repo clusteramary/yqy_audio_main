@@ -16,10 +16,34 @@ from torch.utils.data import DataLoader, Dataset
 from .meld_data import COUNTS, EMOTIONS, SENTIMENTS, ROOT, dump, sha256
 from .meld_features import get_config, read_rows
 from .models.state_model import MultimodalStateModel
+from .research_metrics import probability_report
 
 MODALITIES = ("text", "audio", "visual")
 SCENARIOS = ("clean", "missing_text", "missing_audio", "missing_visual", "random_missing_0.1", "random_missing_0.3", "random_missing_0.5", "all_missing")
 VARIANTS = ("full", "text_only", "audio_only", "visual_only", "concat_mlp", "no_gate", "no_temporal", "no_dropout", "uniform_quality")
+QUALITY_STRESS = ("quality_ones", "quality_inverted", "quality_rotated")
+
+
+def perturb_quality(values, available, mode="native", quality_mode="heuristic"):
+    """Evaluation-only metadata stress; never changes embeddings or availability.
+
+    Rotation is within the current utterance, in text/audio/visual order. It is
+    not a shuffled dataset or a physical sensor degradation simulation.
+    """
+    if mode not in ("native",) + QUALITY_STRESS:
+        raise ValueError("unknown quality stress mode")
+    if quality_mode not in ("heuristic", "uniform"):
+        raise ValueError("unknown training quality mode")
+    q = np.array(values, dtype="float32", copy=True)
+    if mode == "quality_ones" or (mode == "native" and quality_mode == "uniform"):
+        q[:] = 1
+    elif mode == "quality_inverted":
+        q = 1 - q
+    elif mode == "quality_rotated":
+        # Only rotate observed modalities: missing-slot zero is not a quality value.
+        indices = np.flatnonzero(available)
+        q[indices] = np.roll(q[indices], 1)
+    return q * available
 
 
 def resolved(path):
@@ -140,13 +164,16 @@ def stable_missing(identifier, probability, seed=2026):
 
 
 class MeldWindows(Dataset):
-    def __init__(self, root, rows, normalization, window=8, names=MODALITIES, quality_mode="heuristic", scenario="clean"):
+    def __init__(self, root, rows, normalization, window=8, names=MODALITIES, quality_mode="heuristic", scenario="clean", quality_stress="native"):
         if window < 1 or scenario not in SCENARIOS or quality_mode not in ("heuristic", "uniform"):
             raise ValueError("invalid window, scenario or quality mode")
         self.rows, self.by_id, self.root = rows, {r["id"]: r for r in rows}, Path(root)
         self.normalization, self.window = normalization, window
         self.names, self.indices = tuple(names), [MODALITIES.index(m) for m in names]
         self.quality_mode, self.scenario = quality_mode, scenario
+        if quality_stress not in ("native",) + QUALITY_STRESS:
+            raise ValueError("unknown quality stress mode")
+        self.quality_stress = quality_stress
         self.cache = {}
 
     def __len__(self):
@@ -178,8 +205,8 @@ class MeldWindows(Dataset):
                 x = (f[m] - norm["mean"]) / norm["std"]
                 features[m].append(x if mask[MODALITIES.index(m)] else np.zeros_like(x))
             masks.append(mask[self.indices])
-            q = f["confidence"] if self.quality_mode == "heuristic" else np.ones(3, dtype="float32")
-            qualities.append((q * mask)[self.indices])
+            q = perturb_quality(f["confidence"], mask, self.quality_stress, self.quality_mode)
+            qualities.append(q[self.indices])
             ages.append(f["age"][self.indices])
         return {"id": row["id"], "features": {m: np.stack(v) for m, v in features.items()},
                 "available": np.stack(masks), "confidence": np.stack(qualities), "age": np.stack(ages),
@@ -222,9 +249,9 @@ def classification_report(gold, predictions, labels):
                                   "support": int(support[i])} for i, name in enumerate(labels)}}
 
 
-def make_loader(config, rows, norm, shuffle=False, scenario="clean"):
+def make_loader(config, rows, norm, shuffle=False, scenario="clean", quality_stress="native"):
     dataset = MeldWindows(resolved(config["feature_dir"]), rows, norm, config["window"],
-                          tuple(config["model"]["input_dims"]), config["quality_mode"], scenario)
+                          tuple(config["model"]["input_dims"]), config["quality_mode"], scenario, quality_stress)
     generator = torch.Generator().manual_seed(config["seed"])
     return DataLoader(dataset, batch_size=config["batch_size"], shuffle=shuffle, collate_fn=collate,
                       num_workers=config["num_workers"], generator=generator)
@@ -244,7 +271,8 @@ def evaluate_loader(model, loader, device):
                 guesses[task].extend(probs[task].argmax(-1).tolist())
             for i, identifier in enumerate(batch["ids"]):
                 records.append({"id": identifier, "probabilities": {task: p[i].tolist() for task, p in probs.items()}})
-    return {task: classification_report(gold[task], guesses[task], labels)
+    return {task: {**classification_report(gold[task], guesses[task], labels),
+                   "probability_quality": probability_report(gold[task], [r["probabilities"][task] for r in records])}
             for task, labels in (("emotion", EMOTIONS), ("affect", SENTIMENTS))}, records
 
 
@@ -360,7 +388,7 @@ def train(config, output_dir):
     return {"output": str(output_dir), "best_dev_emotion_macro_f1": best, "epochs": len(history), "test_evaluated": False}
 
 
-def evaluate_checkpoint(checkpoint_path, output_dir, split="test", device="cpu", feature_dir=None):
+def evaluate_checkpoint(checkpoint_path, output_dir, split="test", device="cpu", feature_dir=None, quality_stress=False):
     try:
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     except TypeError:
@@ -385,8 +413,19 @@ def evaluate_checkpoint(checkpoint_path, output_dir, split="test", device="cpu",
               "protocol_sha256": sha256(resolved(config["protocol"])),
               "evaluation_index_sha256": sha256(root / f"{split}.jsonl"), "split": split, "count": len(rows),
               "variant": config["variant"], "seed": config["seed"], "perturbation_seed": 2026, "scenarios": {}}
-    for scenario in SCENARIOS:
-        metrics, records = evaluate_loader(model, make_loader(config, rows, norm, scenario=scenario), device)
+    report["quality_protocol"] = {
+        "version": "metadata-stress-v1", "enabled": quality_stress,
+        "training_quality_mode": config["quality_mode"],
+        "stress_source": "cached heuristic quality; overrides training quality mode for stress runs",
+        "rotation": "one-place cyclic rotation among observed modalities, in text/audio/visual order",
+        "scope": "metadata only; clean embeddings; no physical corruption; no future or donor utterances",
+        "implementation_sha256": sha256(ROOT / "interview_robot/meld_training.py"),
+    }
+    for scenario in SCENARIOS + (QUALITY_STRESS if quality_stress else ()):
+        is_quality = scenario in QUALITY_STRESS
+        metrics, records = evaluate_loader(model, make_loader(
+            config, rows, norm, scenario="clean" if is_quality else scenario,
+            quality_stress=scenario if is_quality else "native"), device)
         report["scenarios"][scenario] = metrics
         dump(output_dir / f"{scenario}.predictions.json", records)
     dump(output_dir / "evaluation.json", report)

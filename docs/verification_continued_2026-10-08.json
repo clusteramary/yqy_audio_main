@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-08",
+  "formal_training_started": false,
+  "test_used_for_model_selection": false,
+  "verification": {
+    "pytest": "82 passed, 6 FutureWarnings in 3.38s",
+    "real_encoder_forward": [
+      "BERT Chinese [1,10] finite",
+      "DistilBERT English [1,21] finite"
+    ],
+    "hardware_connected": false,
+    "playback_replay": {
+      "simulation_only": true,
+      "hardware_connected": false,
+      "training_started": false,
+      "final_phase": "FAULT",
+      "requests": 3,
+      "events": 14
+    },
+    "local_links": "passed"
+  },
+  "implementation_sha256": {
+    "interview_robot/cross_encoder.py": "84caf91ed4fd2eb850fe34c3fb22acf52d5803580a5079dd0aa2addd31c18c92",
+    "interview_robot/confirmed_runtime.py": "7b10be21e8300d58f815ecb2cfd00c2f9b3e43429b781b0132df6b1e05fcf6c2",
+    "interview_robot/annotation_audit.py": "ac2a142403c0199819692135c1b33cfd7b523193e0411886b7afa96ad5e45d3b",
+    "scripts/cross_encoder.py": "983b10367d74d2d1be3f5241107d0a1bc64596af3bab8a1c2691f75547d72e4d",
+    "scripts/replay_confirmed.py": "5551045f12afc8be15765d31b4c22da117028be59fe7df8f80f9c0a6a63bacb1",
+    "scripts/audit_annotation.py": "def814904b60106dc2ad1b0ffd37bcf2015c546969c0769b20d3502884b238c3",
+    "tests/followup/test_cross_encoder.py": "32eab5bffc5b27c719e488fe4f160d26740489c34a9301d96704f39997360dd6",
+    "tests/followup/test_annotation_audit.py": "e7d9e9b3ba817aaa9e743605771d5bcb7197e67337b8bd010398899d96794328",
+    "tests/test_confirmed_runtime.py": "dde18dae439336fce55c1e1b537e76f156fe1468a05b85667358743fb9470d52"
+  }
+}

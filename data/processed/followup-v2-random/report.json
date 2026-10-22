@@ -1,0 +1,25 @@
+{
+  "protocol": "followup-candidates-v2",
+  "hard_negatives": 0,
+  "negative_pool": "same split and domain; exclude entire source dialogue",
+  "task": "offline fixed-candidate reranking, NOT open retrieval",
+  "heldout_pool_usage": "candidate construction only; never training or knowledge retrieval",
+  "label_quality": "weak observed-next versus sampled; human audit still required",
+  "splits": {
+    "train": {
+      "rows": 29488,
+      "source_sha256": "ad7a7304bbf7273b1b602d9f9d3f631b2225291fd8bba720c339f5d2c90a7974",
+      "sha256": "44a3d79f243881e64c1b96dbea3785abdd489e5c7a002673c81e4fa5805786de"
+    },
+    "dev": {
+      "rows": 3767,
+      "source_sha256": "c41e313ce280aa4606a2b0db314c63b3cc53fb3edd0b54b2a3c2199b829e700b",
+      "sha256": "a50565408b692bb4c0249786ecda2121073847030157584efecd98c0fa24f248"
+    },
+    "test": {
+      "rows": 3818,
+      "source_sha256": "a9449b91e7276fe9416820bda8c9626471380b6be32bcf2625806f135ea071d0",
+      "sha256": "69f2aa5c45cd3792d2f72ebb1563207aecea7ef0d348d6244066adf86bf391dc"
+    }
+  }
+}

@@ -1,0 +1,912 @@
+{
+  "counts": {
+    "contexts": 3767,
+    "generic_knowledge_subject_entries": 2094,
+    "candidate_occurrences": 37670,
+    "flagged_occurrences": 2680,
+    "no_explicit_question_cue": 2405,
+    "particle_ne_only": 2405,
+    "possible_statement_or_suggestion": 282,
+    "exact_history_repeat": 4
+  },
+  "examples": [
+    {
+      "id": "film:dev:0:3",
+      "candidate_id": "d3ca80a5d97f7f17",
+      "text": "是的，这部电影花了5,600,000美元的制作成本呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:0:16",
+      "candidate_id": "fd56da84755dbab4",
+      "text": "记得呀，这是1988年上映的老片，很不错的电影！听说当年还获奖了呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:0:24",
+      "candidate_id": "16c7b4f38f84b92c",
+      "text": "看名字够瘆人的了，好像还被翻译成夺魂锯 / 恐惧斗室 / 你死我活 / 链锯惊魂呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:0:24",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:0:26",
+      "candidate_id": "a58254848afcd2f4",
+      "text": "除了配音演员，她还是一名歌手和演员，很多才多艺的一个人呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:2",
+      "candidate_id": "e4e2ff4626a58d25",
+      "text": "是的，我也很喜欢看《闻香识女人》，这部电影还让他获了大奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:4",
+      "candidate_id": "11491d238e23bc9b",
+      "text": "何止看过，1994年12月16日上映的时候我还是去电影院看的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:4",
+      "candidate_id": "1581e1c76cfd134f",
+      "text": "是的，它是1994年12月16日上映的电影，我可是去的影院看的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:4",
+      "candidate_id": "c45b95719e161517",
+      "text": "是的，我也很喜欢看，2013年09月04日上映的时候我还去影院看了呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:7",
+      "candidate_id": "248506943936e921",
+      "text": "是啊，影响了一代人呢，1997年就取得了18.4亿美元的超高票房呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:11",
+      "candidate_id": "3adc8e9b18e62a03",
+      "text": "是的，这部电影着实火了好长的时间呢，我看过好几遍呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:15",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:1:22",
+      "candidate_id": "b4e3b10249410d40",
+      "text": "这部电影还是美国，法国，英国三国联合拍摄的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:2:4",
+      "candidate_id": "989f338fe19d5158",
+      "text": "确实，1900年出的他在1987年去世，作为八零后我才出生没多久呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:2:8",
+      "candidate_id": "d3ca80a5d97f7f17",
+      "text": "是的，这部电影花了5,600,000美元的制作成本呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:2:11",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:2:11",
+      "candidate_id": "f95754324f2db94a",
+      "text": "是呢，我看这部电影，有一半还是冲着发哥去的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:2:15",
+      "candidate_id": "fd56da84755dbab4",
+      "text": "记得呀，这是1988年上映的老片，很不错的电影！听说当年还获奖了呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:2:22",
+      "candidate_id": "3336cd5b830815a6",
+      "text": "当然了，绿野仙踪和乱世佳人是他的两部经典影片，流芳百世呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:2:22",
+      "candidate_id": "52fd727a5610291f",
+      "text": "没错她还被人物杂志风味2001年最佳新星，并且获得第81届奥斯卡金像奖最佳女主角提名呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:2",
+      "candidate_id": "c88422dd2d1c42fb",
+      "text": "相当好了，$140,000,000.00呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:2",
+      "candidate_id": "f1c4e866d3abcf2b",
+      "text": "我知道他是名导演，演员，编剧，而且成就还不小呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:6",
+      "candidate_id": "c45b95719e161517",
+      "text": "是的，我也很喜欢看，2013年09月04日上映的时候我还去影院看了呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:8",
+      "candidate_id": "5d01f5dc8a1b4ba3",
+      "text": "盗梦空间是一部不错的科幻片呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:11",
+      "candidate_id": "1581e1c76cfd134f",
+      "text": "是的，它是1994年12月16日上映的电影，我可是去的影院看的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:11",
+      "candidate_id": "3e0d35b22d8e479a",
+      "text": "我比较喜欢《拯救大兵瑞恩》，这部电影在1998年09月26日上映的时候我还去看了呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:11",
+      "candidate_id": "c45b95719e161517",
+      "text": "是的，我也很喜欢看，2013年09月04日上映的时候我还去影院看了呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:12",
+      "candidate_id": "0cd1b6dbd909fad1",
+      "text": "这部电影你越说我越感兴趣了呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:12",
+      "candidate_id": "4f6444b2e0084068",
+      "text": "当然了，是罗伯特·泰勒和费雯·丽联袂主演的，他们两还真挺般配的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:12",
+      "candidate_id": "c45b95719e161517",
+      "text": "是的，我也很喜欢看，2013年09月04日上映的时候我还去影院看了呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:3:19",
+      "candidate_id": "c7e93f49bcd58d3a",
+      "text": "我看过《乱世佳人》、《欲望号街车》都是很经典的。你还知道她的处女作是哪个吗？",
+      "flags": [
+        "possible_statement_or_suggestion"
+      ]
+    },
+    {
+      "id": "film:dev:4:4",
+      "candidate_id": "991305264edf597d",
+      "text": "当然，他可是获得过奥斯卡最佳导演奖和金球奖最佳导演奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:4:8",
+      "candidate_id": "f1c4e866d3abcf2b",
+      "text": "我知道他是名导演，演员，编剧，而且成就还不小呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:4:10",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:4:13",
+      "candidate_id": "8ab9a6027bfed29f",
+      "text": "啊，这个电影可没看过，不过我看过他的《猜火车》，听说这个电影还获过奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:4:15",
+      "candidate_id": "ae8130b33e8a5427",
+      "text": "哦，那要是严格点来讲，他还是一名演员呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:4:16",
+      "candidate_id": "80914f60137881e4",
+      "text": "不过老当益壮，还获得2015年TVB万千星辉演艺人大奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:4:22",
+      "candidate_id": "b282495119810c12",
+      "text": "这成本值，毕竟有那么多语言版本呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:5:14",
+      "candidate_id": "3e0d35b22d8e479a",
+      "text": "我比较喜欢《拯救大兵瑞恩》，这部电影在1998年09月26日上映的时候我还去看了呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:5:18",
+      "candidate_id": "79c8d7247510d0ad",
+      "text": "啊，我知道《汉江怪物》这部电影，当时花了1000万的制作成本呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:6:2",
+      "candidate_id": "9bbb81cd24bfd50a",
+      "text": "当然好看了，她可是很过奖项的人呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:6:4",
+      "candidate_id": "4cf03ac383e48f75",
+      "text": "实在太多了，比如《阿甘正传》、《费城故事》、《西雅图不眠夜》等，都很经典呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:6:12",
+      "candidate_id": "7ebec2b34594fc64",
+      "text": "她是1968年11月30日出生的，比我妈妈就小一岁呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:6:13",
+      "candidate_id": "573a9ee3aeee308f",
+      "text": "哈哈，同意，据说主演可都是大咖呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:6",
+      "candidate_id": "f4feb39c1b98d7c4",
+      "text": "嗯，他也是个制片人。他的电影还获过奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:9",
+      "candidate_id": "3cef35fd31068862",
+      "text": "还是第88届奥斯卡金像奖最佳男主角奖得主呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:9",
+      "candidate_id": "43db5710786041f2",
+      "text": "不光这个呀，还有第53届戛纳国际电影节最佳男演员奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:12",
+      "candidate_id": "3cef35fd31068862",
+      "text": "还是第88届奥斯卡金像奖最佳男主角奖得主呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:14",
+      "candidate_id": "11491d238e23bc9b",
+      "text": "何止看过，1994年12月16日上映的时候我还是去电影院看的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:14",
+      "candidate_id": "c7e93f49bcd58d3a",
+      "text": "我看过《乱世佳人》、《欲望号街车》都是很经典的。你还知道她的处女作是哪个吗？",
+      "flags": [
+        "possible_statement_or_suggestion"
+      ]
+    },
+    {
+      "id": "film:dev:7:15",
+      "candidate_id": "248506943936e921",
+      "text": "是啊，影响了一代人呢，1997年就取得了18.4亿美元的超高票房呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:17",
+      "candidate_id": "991305264edf597d",
+      "text": "当然，他可是获得过奥斯卡最佳导演奖和金球奖最佳导演奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:18",
+      "candidate_id": "991305264edf597d",
+      "text": "当然，他可是获得过奥斯卡最佳导演奖和金球奖最佳导演奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:18",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:21",
+      "candidate_id": "d19b23e6d946ba74",
+      "text": "是的，这也是他的成名作品了，这个电影还是他自编自导的科幻电影呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:21",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:21",
+      "candidate_id": "fd56da84755dbab4",
+      "text": "记得呀，这是1988年上映的老片，很不错的电影！听说当年还获奖了呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:23",
+      "candidate_id": "72c9129239a52742",
+      "text": "是啊，挺年轻的，我们是同龄人，没想到他还是个处女座的爷们呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:7:23",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:8:3",
+      "candidate_id": "90fae8a9a40be147",
+      "text": "那可惜了，我还想跟你好好聊一下这个作品呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:8:11",
+      "candidate_id": "b282495119810c12",
+      "text": "这成本值，毕竟有那么多语言版本呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:8:21",
+      "candidate_id": "a58254848afcd2f4",
+      "text": "除了配音演员，她还是一名歌手和演员，很多才多艺的一个人呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:8:23",
+      "candidate_id": "80914f60137881e4",
+      "text": "不过老当益壮，还获得2015年TVB万千星辉演艺人大奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:8:23",
+      "candidate_id": "a58254848afcd2f4",
+      "text": "除了配音演员，她还是一名歌手和演员，很多才多艺的一个人呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:8",
+      "candidate_id": "126f25a2e572683c",
+      "text": "上映时间是2006年，当年可是没少卖钱呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:8",
+      "candidate_id": "3cef35fd31068862",
+      "text": "还是第88届奥斯卡金像奖最佳男主角奖得主呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:10",
+      "candidate_id": "9bbb81cd24bfd50a",
+      "text": "当然好看了，她可是很过奖项的人呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:10",
+      "candidate_id": "a58254848afcd2f4",
+      "text": "除了配音演员，她还是一名歌手和演员，很多才多艺的一个人呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:16",
+      "candidate_id": "5af5bd41936a6d4b",
+      "text": "第74届奥斯卡金像奖最佳男配角提名、第77届奥斯卡金像奖最佳改编剧本提名、第86届奥斯卡金像奖最佳改编剧本提名，挺多成就的呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:16",
+      "candidate_id": "b403ba2307573f74",
+      "text": "没错，还有第78届奥斯卡奖最佳女主角提名，第87届奥斯卡奖最佳女配角提名，很了不起呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:17",
+      "candidate_id": "5af5bd41936a6d4b",
+      "text": "第74届奥斯卡金像奖最佳男配角提名、第77届奥斯卡金像奖最佳改编剧本提名、第86届奥斯卡金像奖最佳改编剧本提名，挺多成就的呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:9:17",
+      "candidate_id": "b403ba2307573f74",
+      "text": "没错，还有第78届奥斯卡奖最佳女主角提名，第87届奥斯卡奖最佳女配角提名，很了不起呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:3",
+      "candidate_id": "668fdf6b3382449e",
+      "text": "这两个人都听说过，刘伟强还是这个电影的制片人呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:9",
+      "candidate_id": "248506943936e921",
+      "text": "是啊，影响了一代人呢，1997年就取得了18.4亿美元的超高票房呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:9",
+      "candidate_id": "56cc380d23c10ab3",
+      "text": "啊，这个呀，我只是听说过，但别的什么都不知道。",
+      "flags": [
+        "possible_statement_or_suggestion"
+      ]
+    },
+    {
+      "id": "film:dev:10:9",
+      "candidate_id": "89f0217ab5314e26",
+      "text": "《新龙门客栈》、《花样年华》都不错，尤其是《花样年华》还是获奖电影呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:10",
+      "candidate_id": "b403ba2307573f74",
+      "text": "没错，还有第78届奥斯卡奖最佳女主角提名，第87届奥斯卡奖最佳女配角提名，很了不起呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:12",
+      "candidate_id": "8ab9a6027bfed29f",
+      "text": "啊，这个电影可没看过，不过我看过他的《猜火车》，听说这个电影还获过奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:14",
+      "candidate_id": "490b7c8e17ec2bcb",
+      "text": "它是由美国，英国共同制片的，听说还花了很多的制片成本呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:16",
+      "candidate_id": "39d9341472d05cc0",
+      "text": "毕业于中央戏剧学院，正经的科班出身呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:18",
+      "candidate_id": "e4e2ff4626a58d25",
+      "text": "是的，我也很喜欢看《闻香识女人》，这部电影还让他获了大奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:19",
+      "candidate_id": "8ab9a6027bfed29f",
+      "text": "啊，这个电影可没看过，不过我看过他的《猜火车》，听说这个电影还获过奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:20",
+      "candidate_id": "8ab9a6027bfed29f",
+      "text": "啊，这个电影可没看过，不过我看过他的《猜火车》，听说这个电影还获过奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:21",
+      "candidate_id": "7065f976fa73d827",
+      "text": "他是美国电影学院毕业的，人家可是专业的科班生呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:21",
+      "candidate_id": "7b46fcccc0e7b648",
+      "text": "妈呀，你一口气说了说这么多呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:21",
+      "candidate_id": "cbdfb9eae4ca69f4",
+      "text": "嗯，他可是加利福尼亚大学洛杉矶分校影剧系毕业的专业演员呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:10:26",
+      "candidate_id": "5af5bd41936a6d4b",
+      "text": "第74届奥斯卡金像奖最佳男配角提名、第77届奥斯卡金像奖最佳改编剧本提名、第86届奥斯卡金像奖最佳改编剧本提名，挺多成就的呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:4",
+      "candidate_id": "3e0d35b22d8e479a",
+      "text": "我比较喜欢《拯救大兵瑞恩》，这部电影在1998年09月26日上映的时候我还去看了呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:4",
+      "candidate_id": "571ec83162d7b129",
+      "text": "是啊，我听说她还是日本艺术专科学校特别讲师呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:11",
+      "candidate_id": "585ff5fb345d8acb",
+      "text": "说的对，看来你是真的看过了，而且里面的英语解说也很纯正呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:11",
+      "candidate_id": "e281a3362a319d9e",
+      "text": "我也是，毕竟这是一部让詹姆斯·卡梅隆获得第18届土星奖最佳导演及编剧奖的作品呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:15",
+      "candidate_id": "07982fe0c7238f71",
+      "text": "哥哥是1956年出生，那时他才将将三十岁，可不是很年轻呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:15",
+      "candidate_id": "97d959a3cca6b4cb",
+      "text": "他是1980年9月18日出生的，典型的80后呢，还没到40呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:15",
+      "candidate_id": "9bbb81cd24bfd50a",
+      "text": "当然好看了，她可是很过奖项的人呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:18",
+      "candidate_id": "571ec83162d7b129",
+      "text": "是啊，我听说她还是日本艺术专科学校特别讲师呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:11:24",
+      "candidate_id": "878975ef2be8f4a4",
+      "text": "在1993年的时候这部电影在香港还成为了年度票房冠军呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:12:2",
+      "candidate_id": "14b955bdc086ca99",
+      "text": "是啊，170cm的净身高，穿什么都是魔鬼身材啊！",
+      "flags": [
+        "possible_statement_or_suggestion"
+      ]
+    },
+    {
+      "id": "film:dev:12:2",
+      "candidate_id": "668fdf6b3382449e",
+      "text": "这两个人都听说过，刘伟强还是这个电影的制片人呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:12:9",
+      "candidate_id": "93ee96c53df89208",
+      "text": "对呀，他们花费了5,000,000美元的成本来制作呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:dev:12:16",
+      "candidate_id": "3e9034e029406baf",
+      "text": "他还是皮克斯动画工作室的核心人物呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    }
+  ],
+  "interpretation": "Heuristic warnings only, overlapping counts; not true error rates or labels. No filtering performed.",
+  "input_sha256": "6dcd60e54609b7b95a6ce9bd5b03d2dedd9e291179819612ff7628f62e404e62"
+}

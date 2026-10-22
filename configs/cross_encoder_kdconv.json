@@ -1,0 +1,10 @@
+{
+  "data": "data/processed/followup-v2-mixed/kdconv",
+  "encoder": "models/pretrained/followup/bert-base-chinese",
+  "max_length": 512,
+  "question_tokens": 96,
+  "batch_size": 1,
+  "learning_rate": 0.00002,
+  "epochs": 10,
+  "patience": 3
+}

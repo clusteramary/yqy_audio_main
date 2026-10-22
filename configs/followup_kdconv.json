@@ -1,0 +1,6 @@
+{
+  "data": "data/processed/followup-v2-mixed/kdconv",
+  "cache": "data/features/followup-v2-mixed/kdconv",
+  "model": {"hidden": 128, "heads": 4, "variant": "coverage", "history_position": true},
+  "training": {"epochs": 30, "batch_size": 32, "learning_rate": 0.0003, "patience": 5, "knowledge_dropout": 0.2}
+}

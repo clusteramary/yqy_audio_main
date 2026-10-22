@@ -1,0 +1,14 @@
+{"schema_version": 1, "session_id": "replay", "timestamp": 0.0, "event": "speech_requested", "phase": "PROCESSING", "request_id": "04e7f2f4-9e9d-45e9-bf76-0288d265ca3c", "utterance_id": "u1", "candidate_id": "q1", "question": "career growth?"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 0.1, "event": "feedback_ignored", "phase": "PROCESSING", "request_id": "04e7f2f4-9e9d-45e9-bf76-0288d265ca3c", "reason": "invalid_phase", "received_kind": "finished"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 0.2, "event": "playback_started", "phase": "SPEAKING", "request_id": "04e7f2f4-9e9d-45e9-bf76-0288d265ca3c"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 0.3, "event": "feedback_ignored", "phase": "SPEAKING", "request_id": "04e7f2f4-9e9d-45e9-bf76-0288d265ca3c", "reason": "duplicate_or_old_sequence"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 0.4, "event": "playback_finished", "phase": "COOLDOWN", "request_id": "04e7f2f4-9e9d-45e9-bf76-0288d265ca3c"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 1.0, "event": "cooldown_complete", "phase": "LISTEN", "request_id": null}
+{"schema_version": 1, "session_id": "replay", "timestamp": 1.1, "event": "speech_requested", "phase": "PROCESSING", "request_id": "e9bf5368-d9dc-440e-9ca6-111bad412135", "utterance_id": "u2", "candidate_id": "q2", "question": "career learning?"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 1.2, "event": "feedback_ignored", "phase": "PROCESSING", "request_id": "e9bf5368-d9dc-440e-9ca6-111bad412135", "reason": "foreign_or_expired_request", "received_request_id": "04e7f2f4-9e9d-45e9-bf76-0288d265ca3c"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 3.2, "event": "start_timeout", "phase": "FAULT", "request_id": "e9bf5368-d9dc-440e-9ca6-111bad412135"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 3.4, "event": "operator_recovery", "phase": "COOLDOWN", "request_id": "e9bf5368-d9dc-440e-9ca6-111bad412135", "reason": "simulated operator verified playback stopped"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 4.0, "event": "cooldown_complete", "phase": "LISTEN", "request_id": null}
+{"schema_version": 1, "session_id": "replay", "timestamp": 4.1, "event": "speech_requested", "phase": "PROCESSING", "request_id": "224baf49-90f5-4396-8016-0bdc895737aa", "utterance_id": "u3", "candidate_id": "q3", "question": "career goals?"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 4.2, "event": "playback_started", "phase": "SPEAKING", "request_id": "224baf49-90f5-4396-8016-0bdc895737aa"}
+{"schema_version": 1, "session_id": "replay", "timestamp": 7.3, "event": "finish_timeout", "phase": "FAULT", "request_id": "224baf49-90f5-4396-8016-0bdc895737aa"}

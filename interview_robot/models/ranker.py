@@ -1,13 +1,16 @@
 """Question-conditioned dual-path attention over cached token embeddings."""
 from __future__ import annotations
 
+import math
+
 import torch
 from torch import nn
 
 
 class KnowledgeRanker(nn.Module):
     def __init__(self, feature_dim: int = 32, hidden: int = 32, heads: int = 4,
-                 use_knowledge: bool = True, use_gate: bool = True):
+                 use_knowledge: bool = True, use_gate: bool = True,
+                 history_position: bool = False):
         super().__init__()
         if hidden % heads:
             raise ValueError("hidden must be divisible by heads")
@@ -17,6 +20,18 @@ class KnowledgeRanker(nn.Module):
         self.gate = nn.Linear(hidden * 3, 1)
         self.score = nn.Sequential(nn.Linear(hidden * 2, hidden), nn.Tanh(), nn.Linear(hidden, 1))
         self.use_knowledge, self.use_gate = use_knowledge, use_gate
+        self.history_position = history_position
+
+    def _history_positions(self, values, mask):
+        # Relative utterance lag: latest observed utterance = 0. Padding has no effect.
+        lag = (mask.sum(1, keepdim=True) - mask.long().cumsum(1)).clamp(min=0)
+        frequencies = torch.exp(torch.arange(0, values.shape[-1], 2, device=values.device,
+                                            dtype=values.dtype) * (-math.log(10000.0) / values.shape[-1]))
+        angles = lag.unsqueeze(-1) * frequencies
+        positions = torch.zeros_like(values)
+        positions[..., 0::2] = angles.sin()
+        positions[..., 1::2] = angles[..., :positions[..., 1::2].shape[-1]].cos()
+        return (values + positions) * mask.unsqueeze(-1)
 
     def _project(self, features, mask):
         if mask.dtype != torch.bool or features.shape[:-1] != mask.shape:
@@ -45,6 +60,8 @@ class KnowledgeRanker(nn.Module):
             raise ValueError("each example needs an available candidate")
         q = q_tokens.sum(dim=2) / question_mask.sum(dim=2, keepdim=True).clamp(min=1)
         h = self._project(history, history_mask)
+        if self.history_position:
+            h = self._history_positions(h, history_mask)
         d, _ = self._attend(self.history_attention, q, h, history_mask)
         if self.use_knowledge:
             k = self._project(knowledge, knowledge_mask)

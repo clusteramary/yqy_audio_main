@@ -89,6 +89,39 @@ class MeldFeatureTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fit_normalization({"feature_dir": str(self.root)}, [{**self.rows[0], "split": "dev"}])
 
+    def test_quality_stress_preserves_features_and_causal_window_identity(self):
+        from interview_robot.meld_training import MeldWindows, QUALITY_STRESS
+        for i in range(3):
+            np.savez(self.root / f"{i}.npz", **{m: np.full(4, i + 1, dtype="float32") for m in self.dims},
+                     available=np.array([True, True, False]), confidence=np.array([.2, .8, 0], dtype="float32"),
+                     age=np.zeros(3, dtype="float32"))
+        clean = MeldWindows(self.root, self.rows, self.norm)
+        for mode in QUALITY_STRESS:
+            changed = MeldWindows(self.root, self.rows, self.norm, quality_stress=mode)
+            self.assertTrue(np.array_equal(changed[1]['confidence'][0], changed[2]['confidence'][0]))
+            self.assertTrue(np.array_equal(changed[2]['available'], clean[2]['available']))
+            for m in self.dims:
+                self.assertTrue(np.array_equal(changed[2]['features'][m], clean[2]['features'][m]))
+            self.assertTrue((changed[2]['confidence'][:, 2] == 0).all())
+            self.assertEqual(changed[2]['labels'], clean[2]['labels'])
+        rotated = MeldWindows(self.root, self.rows, self.norm, quality_stress='quality_rotated')
+        self.assertTrue(np.allclose(rotated[0]['confidence'][0], [.8, .2, 0]))
+
+    def test_quality_modes_do_not_mutate_cache_or_create_missing_evidence(self):
+        from interview_robot.meld_training import perturb_quality
+        q = np.array([.1, .4, .9], dtype='float32')
+        original = q.copy()
+        mask = np.ones(3, dtype=bool)
+        self.assertTrue(np.allclose(perturb_quality(q, mask, 'quality_inverted'), [.9, .6, .1]))
+        self.assertTrue(np.allclose(perturb_quality(q, mask, 'quality_rotated'), [.9, .1, .4]))
+        self.assertTrue(np.allclose(perturb_quality(q, mask, 'quality_ones'), [1, 1, 1]))
+        self.assertTrue(np.allclose(perturb_quality(q, mask, quality_mode='uniform'), [1, 1, 1]))
+        self.assertTrue(np.allclose(perturb_quality(q, mask, 'quality_inverted', 'uniform'), [.9, .6, .1]))
+        self.assertTrue(np.array_equal(original, q))
+        self.assertFalse(perturb_quality(q, np.zeros(3, dtype=bool), 'quality_ones').any())
+        with self.assertRaises(ValueError):
+            perturb_quality(q, mask, 'invalid')
+
     def test_future_history_is_rejected(self):
         from interview_robot.meld_training import load_split
         self.rows[0]["past_ids"] = [self.rows[2]["id"]]
@@ -147,6 +180,12 @@ class MeldFeatureTests(unittest.TestCase):
         self.assertEqual(len(report["scenarios"]), 8)
         self.assertEqual(report["count"], 3)
         self.assertTrue((self.root / "evaluation/evaluation.json").exists())
+        with patch("interview_robot.meld_training.COUNTS", {"test": 3}), patch("torch.optim.AdamW", side_effect=AssertionError):
+            stressed = evaluate_checkpoint(self.root / "random.pt", self.root / "stress", device="cpu", quality_stress=True)
+        self.assertEqual(len(stressed['scenarios']), 11)
+        self.assertEqual(stressed['scenarios']['clean'], report['scenarios']['clean'])
+        self.assertTrue(stressed['quality_protocol']['enabled'])
+        self.assertTrue((self.root / 'stress/quality_rotated.predictions.json').exists())
 
 
 if __name__ == "__main__":

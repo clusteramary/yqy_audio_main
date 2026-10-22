@@ -1,0 +1,37 @@
+{
+  "candidate_count": 500,
+  "paired_relevance_count": 0,
+  "unpaired_or_pending": 500,
+  "quadratic_weighted_kappa": null,
+  "scope": "paired valid values per dimension; file fields cannot certify independent human work",
+  "dimensions": {
+    "repeat": {
+      "paired_count": 0,
+      "unpaired_or_pending": 500,
+      "kappa": null,
+      "weighting": "unweighted"
+    },
+    "answerable": {
+      "paired_count": 0,
+      "unpaired_or_pending": 500,
+      "kappa": null,
+      "weighting": "unweighted"
+    },
+    "depth": {
+      "paired_count": 0,
+      "unpaired_or_pending": 500,
+      "kappa": null,
+      "weighting": "quadratic"
+    },
+    "utterance_type": {
+      "paired_count": 0,
+      "unpaired_or_pending": 500,
+      "kappa": null,
+      "weighting": "unweighted"
+    }
+  },
+  "input_sha256": [
+    "d0000acaac6d39468d8ee0fa7576b89bd50d03a8b9319550d3d988976d6f8ee0",
+    "d0000acaac6d39468d8ee0fa7576b89bd50d03a8b9319550d3d988976d6f8ee0"
+  ]
+}

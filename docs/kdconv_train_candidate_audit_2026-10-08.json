@@ -1,0 +1,916 @@
+{
+  "counts": {
+    "contexts": 29488,
+    "candidate_occurrences": 294880,
+    "flagged_occurrences": 18207,
+    "no_explicit_question_cue": 17867,
+    "particle_ne_only": 17867,
+    "generic_knowledge_subject_entries": 17597,
+    "possible_statement_or_suggestion": 386,
+    "exact_history_repeat": 64
+  },
+  "examples": [
+    {
+      "id": "film:train:0:4",
+      "candidate_id": "86c2a5c2845075c7",
+      "text": "是的，电影还获得了第6届香港电影金像奖最佳影片奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:4",
+      "candidate_id": "9b122ce23dc86e72",
+      "text": "是的，这部电影里还获得了第21届香港电影金像奖最佳亚洲电影(提名)呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:6",
+      "candidate_id": "4b734d86584b05be",
+      "text": "当然了是声优，演员，很有才气的呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:6",
+      "candidate_id": "86c2a5c2845075c7",
+      "text": "是的，电影还获得了第6届香港电影金像奖最佳影片奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:12",
+      "candidate_id": "1c5a9fdafd93ccf6",
+      "text": "还有获得三届香港电影金紫荆奖最佳男主角等等，他可是影帝呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:12",
+      "candidate_id": "867480084ae77fe5",
+      "text": "很喜欢的，而且这部电影还是获得了第67届金球奖最佳男配角奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:12",
+      "candidate_id": "baaed0b4c438bcd5",
+      "text": "那他是不是也取得了很多的奖项呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:18",
+      "candidate_id": "238e2f20c19cded6",
+      "text": "有的有的叫Cherie Chung，你经常记明星的英文名吧。她念的学校很特别呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:18",
+      "candidate_id": "867480084ae77fe5",
+      "text": "很喜欢的，而且这部电影还是获得了第67届金球奖最佳男配角奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:22",
+      "candidate_id": "3d1e80253ecb070c",
+      "text": "说了这么多，我们还是再详细了解一下他的个人信息吧，我现在很感兴趣呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:0:28",
+      "candidate_id": "94256ffe6bc1e2c8",
+      "text": "是的，还是第67届奥斯卡金像奖最佳原创剧本提名、第60届美国电影电视金球奖最佳导演提名获得者呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:2",
+      "candidate_id": "ee0f4123e50a488e",
+      "text": "嗯，你算是说对了，但是老电影还是有一定的意义，如果喜欢还是可以适当的回顾呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:3",
+      "candidate_id": "a1b48e66a7ab9167",
+      "text": "他当然高了，191cm呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:4",
+      "candidate_id": "837147113a1c4743",
+      "text": "主要作品有摩登时代和淘金记，这些可都是上个世纪的经典影片呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:4",
+      "candidate_id": "e50cee28ff6695af",
+      "text": "那你看，三个人编剧呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:5",
+      "candidate_id": "f58941891b333fb4",
+      "text": "还是出色的制片人呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:6",
+      "candidate_id": "4a8f7c5b855a7447",
+      "text": "原来还是一位天秤座的女神呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:11",
+      "candidate_id": "59f425c1d5e7b65c",
+      "text": "还有黄雨瑟惠，洪京民，金基邦等人，都是优秀的演员呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:11",
+      "candidate_id": "8a8cce9e18a5a10f",
+      "text": "票房是$9,751,942.00，还好吧，不过影片确实非常精彩呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:13",
+      "candidate_id": "94256ffe6bc1e2c8",
+      "text": "是的，还是第67届奥斯卡金像奖最佳原创剧本提名、第60届美国电影电视金球奖最佳导演提名获得者呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:21",
+      "candidate_id": "dfb4a77d2e350bb4",
+      "text": "是呢，这个美国人真的很了不起呢，我记得他获得过好多提名呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:22",
+      "candidate_id": "8132ecbfe0c2a5b8",
+      "text": "是一位非常优秀的演员，导演，当然了我觉得一个人的成功还是和他的教育相关的呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:22",
+      "candidate_id": "8f6274ca8bfa82c0",
+      "text": "这些都是我最喜欢的动画片呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:22",
+      "candidate_id": "efb77e91568b3e84",
+      "text": "当然是美国了，除了当演员，人家还是歌手呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:23",
+      "candidate_id": "5663208d398c2b1c",
+      "text": "她还获得过奥斯卡金像奖最佳男主角奖，这可是很多演员梦寐以求的奖项呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:23",
+      "candidate_id": "8b8b536206df743f",
+      "text": "可不是嘛，有时间我真得把这些影片都看上一遍呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:23",
+      "candidate_id": "8e3e7e546e250082",
+      "text": "对呀，他可是获得过第64届奥斯卡最佳男主角奖，第61届英国电影和电视艺术学院奖终身成就奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:23",
+      "candidate_id": "c1af80ed5b7d6f93",
+      "text": "你是说她的成就很高是吧，我知道她还获得过其他很多大奖的提名呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:24",
+      "candidate_id": "79a01dbf40e4aa22",
+      "text": "对呀，她获得过第36届日本电影学院奖，最佳新人，这是很多演员梦寐以求的奖项呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:24",
+      "candidate_id": "8e3e7e546e250082",
+      "text": "对呀，他可是获得过第64届奥斯卡最佳男主角奖，第61届英国电影和电视艺术学院奖终身成就奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:25",
+      "candidate_id": "79a01dbf40e4aa22",
+      "text": "对呀，她获得过第36届日本电影学院奖，最佳新人，这是很多演员梦寐以求的奖项呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:25",
+      "candidate_id": "8e3e7e546e250082",
+      "text": "对呀，他可是获得过第64届奥斯卡最佳男主角奖，第61届英国电影和电视艺术学院奖终身成就奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:26",
+      "candidate_id": "79a01dbf40e4aa22",
+      "text": "对呀，她获得过第36届日本电影学院奖，最佳新人，这是很多演员梦寐以求的奖项呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:1:26",
+      "candidate_id": "be0451ccc1934ac0",
+      "text": "是的，这部电影还获得了第67届金球奖最佳影片奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:8",
+      "candidate_id": "65994cfefde98680",
+      "text": "据说这部电影剧当时还很火呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:8",
+      "candidate_id": "d5d6d74d57517496",
+      "text": "2008年12月17日在美国上映的，也是一部大制作呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:10",
+      "candidate_id": "37937445f2c178ed",
+      "text": "真是一名实力派演员呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:12",
+      "candidate_id": "06f1a3009d2e86ad",
+      "text": "2008年12月，它的制作成本还花了不少钱呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:12",
+      "candidate_id": "d5d6d74d57517496",
+      "text": "2008年12月17日在美国上映的，也是一部大制作呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:14",
+      "candidate_id": "057785c1d424ad0a",
+      "text": "记得，印象深刻啊，日语对白，看字幕都跟不上呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:14",
+      "candidate_id": "3ccf6996b6861ee0",
+      "text": "我不太清楚他什么都会，但是他的职业我倒是知道是导演 / 编剧 / 制片 / 演员",
+      "flags": [
+        "possible_statement_or_suggestion"
+      ]
+    },
+    {
+      "id": "film:train:2:16",
+      "candidate_id": "fa91644a3e772e45",
+      "text": "是的，IMDB评分给出了8.8的高分，在影史上排名第11名呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:18",
+      "candidate_id": "5694cbf5e177cf7b",
+      "text": "是啊，控方证人能够由这个公司发行，真是它的福气呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:2:18",
+      "candidate_id": "9375193aa3bef333",
+      "text": "还是首尔艺术大学戏剧系毕业的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:4",
+      "candidate_id": "641e27467ac4ac81",
+      "text": "那你还得真找个恰当的时间，片长很长的129分钟呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:9",
+      "candidate_id": "d2ab590f49b68261",
+      "text": "当然了，香水这部影片可是获得第57届德国电影奖杰出故事片，最佳服装设计等六项奖项呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:10",
+      "candidate_id": "6a69cb7e5cd3b33f",
+      "text": "我最喜欢奇道的演技了，听说他还是第5届华语电影传媒大奖最佳男配角提名者呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:10",
+      "candidate_id": "e9c506380e6902c0",
+      "text": "深田恭子以前我都老喜欢她了，这个《下妻物语》还是她2004年的电影呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:13",
+      "candidate_id": "cc2056982aa2018c",
+      "text": "我还真没关注过他的体重呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:16",
+      "candidate_id": "f44d9b582a63cd3f",
+      "text": "《肖申克的救赎》我看过，它的票房收入了28,241,469美元呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:20",
+      "candidate_id": "67f07db99c5cb9d9",
+      "text": "据说此影片是郑智化填词，谱曲、演唱的呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:21",
+      "candidate_id": "8be080fb40b059d2",
+      "text": "对呀，该片获得了第48届韩国电影大钟奖最佳剪接和最佳导演奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:27",
+      "candidate_id": "cef683031ac752af",
+      "text": "要知道他得过三次金球奖最佳男主角，一次奥斯卡最佳男主角还有终身成就金狮奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:4:28",
+      "candidate_id": "cef683031ac752af",
+      "text": "要知道他得过三次金球奖最佳男主角，一次奥斯卡最佳男主角还有终身成就金狮奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:3",
+      "candidate_id": "67f449b9ffc2bc50",
+      "text": "我也这么觉得，这部1984年上映的影片应该是影响了一代人呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:3",
+      "candidate_id": "8936aaec934dede8",
+      "text": "当然啦，他还得过很多国际大奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:5",
+      "candidate_id": "57a5cfc20108bb3d",
+      "text": "那当然，他可是我的偶像呢!",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:5",
+      "candidate_id": "e33130b844dbac14",
+      "text": "对呀，还有纳谷悟朗和辻村真人，都是很不错的声优呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only",
+        "possible_statement_or_suggestion"
+      ]
+    },
+    {
+      "id": "film:train:5:8",
+      "candidate_id": "dfb4a77d2e350bb4",
+      "text": "是呢，这个美国人真的很了不起呢，我记得他获得过好多提名呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:11",
+      "candidate_id": "04f0a2efcc6498ec",
+      "text": "那还真是了不起啊，我只看过他的电影《心迷宫》，还是通过这部电影关注他的呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:13",
+      "candidate_id": "9d3e900f63b0eaca",
+      "text": "对啊，出名也是必然的，人家获得过1994年日本漫画家协会奖跟2012年度日本文化功劳者称号呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:13",
+      "candidate_id": "bc36e1980910de6c",
+      "text": "嗯，一鸣惊人是吧，这个电影还得了很多大奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:14",
+      "candidate_id": "4d4309a03f75e233",
+      "text": "那当然了，乔尔·埃哲顿还获得过第19届好莱坞电影奖最具突破男演员奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:14",
+      "candidate_id": "73298b79c36d738e",
+      "text": "我想起来了，吉恩·凯利还是一名制片，演员和编剧呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:14",
+      "candidate_id": "d0f3001867894cde",
+      "text": "是吧，我也很喜欢他的才艺，他不但是演员，还是制作人，导演，编剧呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:14",
+      "candidate_id": "e24c2c2329fd35e5",
+      "text": "我听说他还获得过第62届威尼斯电影节荣誉金狮奖，第75届奥斯卡最佳动画长篇奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:16",
+      "candidate_id": "57aea7cc5b4758f1",
+      "text": "是的，他 1994年执导了剧情片《 罪孽天使》，影片获得了 第51届威尼斯国际电影节最佳影片银狮奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:5:16",
+      "candidate_id": "94256ffe6bc1e2c8",
+      "text": "是的，还是第67届奥斯卡金像奖最佳原创剧本提名、第60届美国电影电视金球奖最佳导演提名获得者呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:3",
+      "candidate_id": "68ae1e243a0dd748",
+      "text": "嗯呢，弗朗西斯·福特·科波拉他还是这部影片的制片人呢",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:4",
+      "candidate_id": "2bf737be5a256c67",
+      "text": "这是一部战争题材的喜剧电影，还获得过大奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:6",
+      "candidate_id": "323173bd87d48314",
+      "text": "的确，虽然是142分钟的影片，但我每次看都不会快进，一秒都不想错过呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:6",
+      "candidate_id": "bd04db18fe13bc37",
+      "text": "还有南希.特拉维斯，表演的都很不错呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:10",
+      "candidate_id": "9cde49bdf171957a",
+      "text": "可不是，这个小姑娘还凭借这部电影在当年的北京国际电影节获得了最佳女配角奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:12",
+      "candidate_id": "35069b38107a13f6",
+      "text": "松冈茉优还是第40届 山路文子电影节最佳新人女演员奖，第27届日本电影职业大奖最佳女主角奖得主呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:12",
+      "candidate_id": "adb75123da376b19",
+      "text": "也是啊，第04届北京国际电影节最佳导演得主，名气可是大得很呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:26",
+      "candidate_id": "acb71f330b21f271",
+      "text": "那才哪到哪啊，还是美国CNN亚洲最伟大25位演员之一呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:26",
+      "candidate_id": "fa20f53f3c0fc8be",
+      "text": "是的，2006年，该片还被美国电影学院选为“25部最伟大音乐电影”第一名呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:6:29",
+      "candidate_id": "76f9b73d4db62b90",
+      "text": "我猜你也会知道，一个获得两届台湾金曲奖最佳国语女歌手的人，有谁能不认识呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:3",
+      "candidate_id": "12490339db2f1aae",
+      "text": "没错，他还是个很好的导演和电影制作人呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:4",
+      "candidate_id": "84d382ab93238001",
+      "text": "当然了，他可是一名出色的电影导演、电影监制、动画师和编剧呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:9",
+      "candidate_id": "5fc171bde02d8b61",
+      "text": "你很会看啊，这部电影还获了1995年获奥斯卡最佳原著剧本奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:9",
+      "candidate_id": "ddf8e8bdab375a87",
+      "text": "当然了，当年达到了8.3亿美元的超高票房呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:18",
+      "candidate_id": "867480084ae77fe5",
+      "text": "很喜欢的，而且这部电影还是获得了第67届金球奖最佳男配角奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:18",
+      "candidate_id": "b1fa4c502b9b5e0a",
+      "text": "啊，这部电影是2007年08月03日上映的，我也很喜欢看，还看了很多遍呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:18",
+      "candidate_id": "f2e180689f386b98",
+      "text": "我看过有叫仙履奇缘的动画电影呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:24",
+      "candidate_id": "0f44af10e45e3050",
+      "text": "当然了，这部电影是他和丹尼尔·布鲁赫及伊莱·罗斯联袂主演的，很精彩呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:7:26",
+      "candidate_id": "ef42e0ea92ddb5d2",
+      "text": "嗯，他作曲是很厉害，还获得过亚洲电影最佳原创音乐奖呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:2",
+      "candidate_id": "0cbf3f65d27a8375",
+      "text": "哦，剧组实力雄厚啊，这个电影还获过奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:6",
+      "candidate_id": "7dac626c3435fa56",
+      "text": "啊，我记得小时候看过不少的嘉禾的电影呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:9",
+      "candidate_id": "5b564819990d5424",
+      "text": "影片是由唐·霍尔和克里斯·威廉姆斯共同执导的，非常不错的导演呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:9",
+      "candidate_id": "67f449b9ffc2bc50",
+      "text": "我也这么觉得，这部1984年上映的影片应该是影响了一代人呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:11",
+      "candidate_id": "d002ac7de02695c4",
+      "text": "记得啊，影片是由奥里奥尔·保罗执导的，他可是非常有名的导演呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:12",
+      "candidate_id": "d002ac7de02695c4",
+      "text": "记得啊，影片是由奥里奥尔·保罗执导的，他可是非常有名的导演呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:15",
+      "candidate_id": "2c8aaca354ba03ea",
+      "text": "原来还是个摩羯男呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:16",
+      "candidate_id": "2496912fec1c872d",
+      "text": "这个电影还获得了第73届 金球奖剧情片最佳男主角奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:19",
+      "candidate_id": "3a4ca735d8b7ebbb",
+      "text": "对对对，看我这记性，就是这个，演的不错呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:19",
+      "candidate_id": "e2655928c3bd8552",
+      "text": "制片成本估计有1.75亿美元呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:26",
+      "candidate_id": "99479b52cf0c774e",
+      "text": "他的饶舌很厉害，还得过格莱美奖呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:26",
+      "candidate_id": "d5d49b8f98577bec",
+      "text": "当然了，他可是很有名的导演呢。",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    },
+    {
+      "id": "film:train:8:27",
+      "candidate_id": "2101a22fa2817d7e",
+      "text": "是的，还有杰米·钟，斯科特·埃德希特，斯坦·李，演的都是超级棒呢！",
+      "flags": [
+        "no_explicit_question_cue",
+        "particle_ne_only"
+      ]
+    }
+  ],
+  "interpretation": "Heuristic warnings only, overlapping counts; not true error rates or labels. No filtering performed.",
+  "input_sha256": "10827fd813e851819c5841ce795ed1f2d1bb98bf6f81139de34c9770d8e3f849"
+}

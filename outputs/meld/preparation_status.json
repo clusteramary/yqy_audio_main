@@ -2,7 +2,7 @@
   "archive_exists": true,
   "downloaded_bytes": 10878146150,
   "archive_expected_bytes": 10878146150,
-  "archive_checksum_verified_now": true,
+  "archive_checksum_verified_now": false,
   "raw_mp4_files_by_split": {
     "train": 9989,
     "dev": 1112,
@@ -23,7 +23,6 @@
   "encoder_manifest_exists": true,
   "formal_features_ready": false,
   "note": "Data/weights readiness is separate from complete server feature extraction and training.",
-  "archive_sha256": "a56b4407d574195cbce470d86f9c9d72fcfea59b0e34502ecd4babee4a5c613e",
   "protocol": {
     "name": "meld-scene-dedup-v1",
     "excluded_groups": [

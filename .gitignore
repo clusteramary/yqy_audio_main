@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 .venv-meld/
 .venv-meld-server/
+.venv-followup/
+.venv-server/
 models/pretrained/
 .pytest_cache/
 *.egg-info/

@@ -1,0 +1,16 @@
+{
+  "scope": "AI preliminary pilot only; not gold labels",
+  "counts": {
+    "relevance_0": 24,
+    "flagged_for_review": 23,
+    "statement": 4,
+    "repeat": 15,
+    "answerable_unknown": 14,
+    "relevance_2": 9,
+    "relevance_1": 23,
+    "relevance_3": 4,
+    "contexts": 6,
+    "candidates": 60
+  },
+  "source_sha256": "1291c43495ce75fecc8be621ab4f7e949c0938151f0d0649139debaa34036eb1"
+}

@@ -1,0 +1,8 @@
+{
+  "simulation_only": true,
+  "hardware_connected": false,
+  "training_started": false,
+  "final_phase": "FAULT",
+  "requests": 3,
+  "events": 14
+}

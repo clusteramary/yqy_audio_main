@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-22",
+  "branch": "biyelunwen",
+  "pytest": "83 passed, 6 FutureWarnings",
+  "asset_manifest_files": 63,
+  "additional_asset_bytes": 1342897924,
+  "indexed_payloads_checked": 84,
+  "lfs_payloads": 54,
+  "transport_parts": 13,
+  "assembled_model_sha256": "3404a1ffd8da507042e8161013ba2a4fc49858b4e3f8fbf5ce5724f94883aec3",
+  "mismatches": [],
+  "training_started": false
+}

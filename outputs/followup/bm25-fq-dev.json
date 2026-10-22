@@ -1,0 +1,12 @@
+{
+  "count": 1372,
+  "metrics": {
+    "MRR": 0.12870758069125438,
+    "Recall@1": 0.03206997084548105,
+    "nDCG@1": 0.03206997084548105,
+    "Recall@3": 0.06341107871720117,
+    "nDCG@3": 0.04936283222355304
+  },
+  "data_sha256": "a828721ab1fa43ba8ef4e198401f2cf0cdb53d0ab45a175aea7fadb826058b1b",
+  "model": "BM25-history-only;no-training"
+}

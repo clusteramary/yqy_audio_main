@@ -1,0 +1,18 @@
+{
+  "training_started": false,
+  "protocol": "cross-encoder-history-v1",
+  "data_sha256": {
+    "train": "10827fd813e851819c5841ce795ed1f2d1bb98bf6f81139de34c9770d8e3f849",
+    "dev": "6dcd60e54609b7b95a6ce9bd5b03d2dedd9e291179819612ff7628f62e404e62"
+  },
+  "train_count": 29488,
+  "dev_count": 3767,
+  "encoder_sha256": "cf9f0886c6a7f3eb7e9fbb18a00a4b0e2feb58257d450c5d19c493dd4bc8a7e9",
+  "task_warning": "KdConv labels remain weak; candidate audit must precede formal claims",
+  "forward_shape": [
+    1,
+    10
+  ],
+  "forward_finite": true,
+  "parameters": 102268417
+}

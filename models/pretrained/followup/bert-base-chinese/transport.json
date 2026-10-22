@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "target": "models/pretrained/followup/bert-base-chinese/model.safetensors",
+  "bytes": 411553788,
+  "sha256": "3404a1ffd8da507042e8161013ba2a4fc49858b4e3f8fbf5ce5724f94883aec3",
+  "parts": [
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.000.part",
+      "bytes": 33554432,
+      "sha256": "efe9f0a97a82c1644622404424e5c81b071faf7fde8b21de6f14b4eb13c9d682"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.001.part",
+      "bytes": 33554432,
+      "sha256": "8280dd0409dd9ed0225153b291735ba090ceee2a4e4ebb645df3d9e049e5835c"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.002.part",
+      "bytes": 33554432,
+      "sha256": "c8dfc2bf23e715c5c73816d37523abb2ad7fa76f1f762944adaf49bcb9ffe010"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.003.part",
+      "bytes": 33554432,
+      "sha256": "8ffd6328760d9d32015ab318ce3a1c1c7bc42b2637dccc4ae32470c56ab693a8"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.004.part",
+      "bytes": 33554432,
+      "sha256": "23e52cd9d7c50a3b287bd1ab05621fbd64e8b44ab18635f9a8faf715f39999fb"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.005.part",
+      "bytes": 33554432,
+      "sha256": "226ab446bafcf9767d2dbff26a8c468e722c63d0a6f1027991b0e5dddb09ec1d"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.006.part",
+      "bytes": 33554432,
+      "sha256": "47dde1f55231cda3ed311a2d53d2d81ceb90888cb49c3e073608f0b979f1f0d0"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.007.part",
+      "bytes": 33554432,
+      "sha256": "d8419f4e52dd2763dc1367e954cce06ca5f12c62fe5275c850b67ca1d7fc5840"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.008.part",
+      "bytes": 33554432,
+      "sha256": "e40adaa7634380c8af659a4a46fef8037c01e0363fe79b3df333859d6337ae63"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.009.part",
+      "bytes": 33554432,
+      "sha256": "e5ccea266649ab9657cea815c7f7098b939b2368217bef0b6a959a527c95ba83"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.010.part",
+      "bytes": 33554432,
+      "sha256": "cb74cc33eb693d56cf0e2b95c7ce355a7d78f06cd526dbf7f13ce213834c026c"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.011.part",
+      "bytes": 33554432,
+      "sha256": "91a31c51be18d586b0dee4afc727b1e0ecb70298d385e4f4200785c34640d5b9"
+    },
+    {
+      "path": "models/pretrained/followup/bert-base-chinese/transport/model.012.part",
+      "bytes": 8900604,
+      "sha256": "920a52c6b78bf97314c156c8d0f8493c05bfa8c440c55a2c340a8a221522f051"
+    }
+  ]
+}

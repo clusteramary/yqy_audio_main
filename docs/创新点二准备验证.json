@@ -1,0 +1,137 @@
+{
+  "date": "2026-09-22",
+  "branch": "biyelunwen",
+  "formal_training_run": false,
+  "full_feature_extraction_run": false,
+  "test_set_evaluation_run": false,
+  "sources": {
+    "fq-bank": [
+      "amazon-science/fq-bank",
+      "d164b804d29022ec1e4b79faf4603d5758c8162b"
+    ],
+    "KdConv": [
+      "thu-coai/KdConv",
+      "653db76432de09a004ba708a68f8bbd5500e6bec"
+    ]
+  },
+  "raw_manifest_sha256": "e5b0dbc7969ad419851e74cceeeedb0386f69744dc0d31bd4c4fb45820d3a6cf",
+  "splits": {
+    "fq-bank": {
+      "train": {
+        "rows": 13293,
+        "groups": 3892,
+        "with_knowledge": 0,
+        "candidates": 359989,
+        "sha256": "039f535f212a4d2cfe8c248489d4466266bfe0a0ef538ab636c70d6fc14c8464"
+      },
+      "dev": {
+        "rows": 1372,
+        "groups": 419,
+        "with_knowledge": 0,
+        "candidates": 36731,
+        "sha256": "a828721ab1fa43ba8ef4e198401f2cf0cdb53d0ab45a175aea7fadb826058b1b"
+      },
+      "test": {
+        "rows": 2090,
+        "groups": 658,
+        "with_knowledge": 0,
+        "candidates": 53172,
+        "sha256": "e4c77f0deab8e662ec32089d5118f0cd516c5c652898c57ac2fce1e8a35a02a4"
+      }
+    },
+    "kdconv": {
+      "train": {
+        "rows": 29488,
+        "groups": 3594,
+        "with_knowledge": 29454,
+        "candidates": 294880,
+        "sha256": "ad7a7304bbf7273b1b602d9f9d3f631b2225291fd8bba720c339f5d2c90a7974"
+      },
+      "dev": {
+        "rows": 3767,
+        "groups": 450,
+        "with_knowledge": 3764,
+        "candidates": 37670,
+        "sha256": "c41e313ce280aa4606a2b0db314c63b3cc53fb3edd0b54b2a3c2199b829e700b"
+      },
+      "test": {
+        "rows": 3818,
+        "groups": 449,
+        "with_knowledge": 3814,
+        "candidates": 38180,
+        "sha256": "a9449b91e7276fe9416820bda8c9626471380b6be32bcf2625806f135ea071d0"
+      }
+    }
+  },
+  "fq_conflicts_by_split": {
+    "train": 187,
+    "dev": 57,
+    "test": 42
+  },
+  "fq_quarantined_groups": [
+    {
+      "split": "dev",
+      "group_id": "dev:73",
+      "rows": 5,
+      "reason": "shared opening/context",
+      "earlier_splits": [
+        "train"
+      ]
+    }
+  ],
+  "tests": {
+    "command": "python -m pytest tests -q",
+    "passed": 54
+  },
+  "encoder_forward_check": "both local encoders passed; temporary random ranker, no optimizer",
+  "dev_baselines": {
+    "bm25-fq-dev": {
+      "count": 1372,
+      "metrics": {
+        "MRR": 0.12870758069125438,
+        "Recall@1": 0.03206997084548105,
+        "nDCG@1": 0.03206997084548105,
+        "Recall@3": 0.06341107871720117,
+        "nDCG@3": 0.04936283222355304
+      },
+      "data_sha256": "a828721ab1fa43ba8ef4e198401f2cf0cdb53d0ab45a175aea7fadb826058b1b",
+      "model": "BM25-history-only;no-training"
+    },
+    "bm25-kd-dev": {
+      "count": 3767,
+      "metrics": {
+        "MRR": 0.2104933823808254,
+        "Recall@1": 0.045925139368197504,
+        "nDCG@1": 0.045925139368197504,
+        "Recall@3": 0.12025484470400849,
+        "nDCG@3": 0.08767792075164117
+      },
+      "data_sha256": "c41e313ce280aa4606a2b0db314c63b3cc53fb3edd0b54b2a3c2199b829e700b",
+      "model": "BM25-history-only;no-training"
+    },
+    "random-fq-dev": {
+      "count": 1372,
+      "metrics": {
+        "MRR": 0.1548574384502537,
+        "Recall@1": 0.04146877132180237,
+        "nDCG@1": 0.04146877132180237,
+        "Recall@3": 0.12440631396540654,
+        "nDCG@3": 0.08836703865367854
+      },
+      "data_sha256": "a828721ab1fa43ba8ef4e198401f2cf0cdb53d0ab45a175aea7fadb826058b1b",
+      "model": "uniform-random-exact-expectation;no-training"
+    },
+    "random-kd-dev": {
+      "count": 3767,
+      "metrics": {
+        "MRR": 0.29289682539683626,
+        "Recall@1": 0.10000000000000456,
+        "nDCG@1": 0.10000000000000456,
+        "Recall@3": 0.2999999999999788,
+        "nDCG@3": 0.21309297535716298
+      },
+      "data_sha256": "c41e313ce280aa4606a2b0db314c63b3cc53fb3edd0b54b2a3c2199b829e700b",
+      "model": "uniform-random-exact-expectation;no-training"
+    }
+  }
+}

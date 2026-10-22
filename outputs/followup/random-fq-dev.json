@@ -1,0 +1,12 @@
+{
+  "count": 1372,
+  "metrics": {
+    "MRR": 0.1548574384502537,
+    "Recall@1": 0.04146877132180237,
+    "nDCG@1": 0.04146877132180237,
+    "Recall@3": 0.12440631396540654,
+    "nDCG@3": 0.08836703865367854
+  },
+  "data_sha256": "a828721ab1fa43ba8ef4e198401f2cf0cdb53d0ab45a175aea7fadb826058b1b",
+  "model": "uniform-random-exact-expectation;no-training"
+}

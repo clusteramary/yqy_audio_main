@@ -1,0 +1,6 @@
+# Install a server-compatible PyTorch build first (CPU is sufficient for preparation).
+numpy==1.26.4
+transformers==4.44.2
+huggingface-hub==0.34.4
+safetensors==0.4.5
+pytest>=7,<9

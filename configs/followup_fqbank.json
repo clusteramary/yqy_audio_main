@@ -1,0 +1,6 @@
+{
+  "data": "data/processed/followup/fq-bank",
+  "cache": "data/features/followup/fq-bank",
+  "model": {"hidden": 128, "heads": 4, "variant": "history", "history_position": true},
+  "training": {"epochs": 30, "batch_size": 32, "learning_rate": 0.0003, "patience": 5, "knowledge_dropout": 0.0}
+}

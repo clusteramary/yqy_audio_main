@@ -1,3 +1,17 @@
 *.mp4 filter=lfs diff=lfs merge=lfs -text
 *.safetensors filter=lfs diff=lfs merge=lfs -text
 *.pth filter=lfs diff=lfs merge=lfs -text
+data/raw/followup/** -text
+data/raw/followup/**/*.json filter=lfs diff=lfs merge=lfs -text
+data/processed/followup/** -text
+data/processed/followup-v2-mixed/** -text
+data/processed/followup-v2-random/** -text
+data/processed/followup/**/*.jsonl filter=lfs diff=lfs merge=lfs -text
+data/processed/followup-v2-mixed/**/*.jsonl filter=lfs diff=lfs merge=lfs -text
+data/processed/followup-v2-random/**/*.jsonl filter=lfs diff=lfs merge=lfs -text
+models/pretrained/** -text
+models/pretrained/followup/bert-base-chinese/transport/* filter=lfs diff=lfs merge=lfs -text
+data/annotations/** -text
+outputs/confirmed-replay-2026-10-08/** -text
+outputs/followup/** -text
+outputs/research-review/** -text

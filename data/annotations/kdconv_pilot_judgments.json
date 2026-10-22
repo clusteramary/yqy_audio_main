@@ -1,0 +1,74 @@
+{
+  "travel:dev:0:3": [
+    [0,false,false,0,"mixed",true,"H2明确是798艺术中心；候选大兴区地址与K2冲突，整句前提不成立。"],
+    [2,false,true,0,"question",false,"仍询问同一景点的游玩时长；K8建议1小时，可以回答半天是否合适。"],
+    [1,false,null,0,"mixed",true,"电话问题清晰，但门牌与K2不同；可能涉及园区入口或地址别名，需核实，不能直接认定现实地址错误。"],
+    [2,false,true,0,"question",false,"H尚未说门票；K5可支持回应。"],
+    [1,false,true,0,"mixed",true,"周边景点问题可答，K3/K6支持；但H没有谈价格，‘好便宜’承接不足。"],
+    [0,false,false,0,"mixed",false,"候选朝阳门外地址与当前实体K2冲突；虽可纠错，不是可直接接受的完整候选。"],
+    [0,false,false,0,"mixed",false,"候选转入房山十渡地址，和H2/K2的798实体不一致。"],
+    [2,false,true,0,"question",false,"开放时间是尚未讨论的同景点事实，K7支持。"],
+    [2,false,true,0,"mixed",true,"1小时可由K8支持，但省略了游玩时长这一属性；开放时间问题清晰，K7支持。"],
+    [0,false,false,0,"mixed",false,"显式转到古北水镇且用含混‘景点’追问电话，当前798话题没有转场依据。"]
+  ],
+  "film:dev:45:2": [
+    [2,false,null,0,"mixed",true,"出生地承接H2并获K5/K6支持；年龄缺少时间锚点，K8记录已逝世，需区分享年或某年年龄。"],
+    [1,false,null,null,"statement",false,"属于影视话题但未建立与今敏的联系，整句是陈述，不能作为追问。"],
+    [0,false,false,0,"mixed",false,"H谈人物，没有厂或电影的先行实体；不能用误检索的K3/K4补足指代。"],
+    [0,false,false,0,"mixed",false,"没有已指明的影片，导演陈述和演员问题缺少当前话题依据。"],
+    [3,false,true,0,"question",true,"针对H2未解决的具体出生地继续追问；K5/K6可答。但受访者刚表示不记得，实用性需复核。"],
+    [0,false,false,0,"mixed",false,"H未谈电影发行公司或具体电影，无法确定‘这’。"],
+    [3,false,true,0,"question",true,"出生地在H2仍未获答案，故不是已答重复；但再次问同一位不记得的人是否有帮助需复核。"],
+    [0,false,false,0,"mixed",false,"H的今敏是个人，未引入提供影视投资服务的机构，‘他们’不明。"],
+    [0,false,false,0,"mixed",false,"‘成都的’与H2及K5/K6冲突；职业子问题可理解，但完整候选前提错误。"],
+    [2,false,true,0,"question",false,"今敏出生年份尚未回答，K1支持；同人物合理延续。"]
+  ],
+  "film:dev:12:2": [
+    [1,false,true,0,"question",true,"询问对方熟悉程度，有轻微衔接；‘他’与H2女性表述不一致，但通常仍可解析。"],
+    [1,false,null,null,"statement",true,"同人物外貌评价但身高无H/K证据；不是请求信息的追问，不推断身高真伪。"],
+    [0,false,null,0,"mixed",true,"‘小贤’没有先行指代，多语言前提也无证据；疑似别的话题，但不能仅凭缺知识判现实事实错误。"],
+    [0,false,false,0,"mixed",false,"未指明哪部作品，突然断言导演，缺少与当前人物的连接。"],
+    [3,false,true,0,"question",false,"承接H2国籍进一步问具体出生地，K4支持，H未回答。"],
+    [0,false,false,0,"mixed",false,"厂和电影均未在H出现，无法确定问哪部电影。"],
+    [0,false,false,0,"mixed",false,"影片没有先行实体；罗列另一组演员不能形成当前人物的自然追问。"],
+    [0,false,null,null,"statement",false,"‘这两个人’和‘这个电影’均无依据，而且只是陈述。"],
+    [0,false,false,0,"mixed",false,"没有影片作为制片人关系的主体，话题连接缺失。"],
+    [1,false,true,0,"mixed",true,"电影标题明确，可回答是否看过；但未说明与当前演员的联系，属于弱连接转场。"]
+  ],
+  "travel:dev:59:9": [
+    [0,true,false,0,"mixed",false,"票价120元与H8/K2冲突；开放时间也已由H7回答。"],
+    [1,true,true,0,"question",false,"地址可答，但H4已经明确给出，且H9正在问周边景点。"],
+    [0,false,false,0,"mixed",true,"票价16元与H8/K2冲突；‘考虑一下吧’是建议性反问，并非有效索取新信息。"],
+    [3,false,null,null,"statement",false,"直接回答H9且K4/K5支持，语义相关性高；但没有追问，answerable/depth不适用。"],
+    [1,true,true,0,"question",false,"H8给过具体收费，因此再次问是否收费属于已答重复。"],
+    [0,false,null,0,"mixed",true,"八达岭等地点与当前博物馆的周边描述明显不合；K未穷尽周边，保留核实，不把缺失直接当矛盾。"],
+    [1,true,true,0,"mixed",false,"游玩时长与H5一致，但开放时间H7已回答。"],
+    [0,true,false,0,"mixed",false,"开放时间和节假日规则与H7/K1冲突；电话也已在H6提供，询问是否需要属于重复提供。"],
+    [1,false,true,0,"mixed",true,"周边问题H9尚未获答，故不是已答重复；但机械重问且忽略H5已给游玩时长，衔接差。"],
+    [1,true,true,0,"question",false,"开放时段H7已回答，没有进一步澄清目的。"]
+  ],
+  "music:dev:93:18": [
+    [0,false,null,0,"mixed",true,"上初中的共同经历没有依据；发行对象不明确，2003年在H7指乐团成立，不能据此推专辑发行。"],
+    [1,true,true,0,"mixed",true,"H18刚给代表作品，再泛问作品通常重复；若明确要求补充其他作品可提高评分。"],
+    [1,false,true,0,"mixed",false,"许巍是明确新实体，可回答喜好，但没有从娃娃转向许巍的依据。"],
+    [1,true,null,0,"question",true,"H14给出生日期，H15/H16已讨论年龄；精确年龄缺对话时间，属于低价值重问。"],
+    [0,false,false,0,"mixed",false,"H18列了两首歌，省略的发行对象无法唯一确定，日期也没有证据。"],
+    [1,true,true,0,"question",false,"H17同类推荐请求刚由H18回答，无‘另外’等扩展要求。"],
+    [0,false,false,0,"mixed",false,"未明确是哪首歌；《小飞行》的归属无H/K支持，不能直接承接H18两首作品。"],
+    [2,false,true,0,"question",true,"按H11/H12明确的金智娟指代，出生地未答且K6支持；不过乐团‘娃娃’同名消歧需单独核实。"],
+    [2,false,true,0,"question",true,"‘还有’明确请求补充推荐，K1/K2有尚未列出的作品；‘他’疑似笔误及娃娃实体消歧需复核。"],
+    [1,false,null,0,"question",true,"制作人问题同音乐领域，但H18列两首歌，‘它’也可能指早先专辑，需澄清目标。"]
+  ],
+  "music:dev:121:9": [
+    [1,true,true,0,"mixed",false,"H8刚给制作人舒文，重复且未回答H9发行地区问题。"],
+    [1,false,null,0,"mixed",true,"H4已经说9首，但可理解为要其他歌名；‘这首歌’未曾指明，需改成明确曲名问题。"],
+    [0,false,false,0,"mixed",false,"H谈专辑不是单曲，发行日期还与H7冲突，MV对象不明。"],
+    [0,false,false,0,"mixed",false,"候选发行日期与H7冲突；H9同类地区问题尚未获答，故repeat为false。"],
+    [2,false,null,0,"mixed",true,"先答H9再问发行公司结构合理；但地区断言无可靠同实体K支持，不能确认整句前提。"],
+    [1,true,true,0,"question",false,"H7已提供发行日期，不应把检索到的其他专辑日期当成当前专辑。"],
+    [1,true,null,0,"mixed",true,"歌曲数H4已答；发行地区虽然出现在K8，但K1/K5提示‘专辑’实体混淆，地区断言需核实。"],
+    [1,true,true,0,"question",false,"H7已回答发行年份，无澄清或比较目的。"],
+    [1,true,true,0,"question",false,"H1已经给出英文专辑名，再问外文名属于重复。"],
+    [1,true,true,0,"question",false,"最自然指当前专辑，发行年份已由H7回答。"]
+  ]
+}

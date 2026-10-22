@@ -1,0 +1,32 @@
+{
+  "counts": {
+    "negative": 33903,
+    "seen_negative": 2736,
+    "positive": 3767,
+    "seen_positive": 390
+  },
+  "seen_rates": {
+    "positive": 0.10353066100345103,
+    "negative": 0.08070082293602336
+  },
+  "absolute_membership_gap": 0.022829838067427666,
+  "unseen_first_metrics": {
+    "MRR": 0.28547252455534944,
+    "Recall@1": 0.09423944783647464,
+    "nDCG@1": 0.09423944783647464,
+    "Recall@3": 0.2864348287762145,
+    "nDCG@3": 0.2030929704169692
+  },
+  "uses_history_or_knowledge": false,
+  "interpretation": "Diagnostic shortcut, not a trained model or proof of absence of other shortcuts.",
+  "inputs": {
+    "train": {
+      "path": "data\\processed\\followup-v2-random\\kdconv\\train.jsonl",
+      "sha256": "44a3d79f243881e64c1b96dbea3785abdd489e5c7a002673c81e4fa5805786de"
+    },
+    "dev": {
+      "path": "data\\processed\\followup-v2-random\\kdconv\\dev.jsonl",
+      "sha256": "a50565408b692bb4c0249786ecda2121073847030157584efecd98c0fa24f248"
+    }
+  }
+}

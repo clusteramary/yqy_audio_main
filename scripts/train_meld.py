@@ -19,7 +19,10 @@ def main():
     parser.add_argument("--feature-dir", type=Path)
     parser.add_argument("--split", choices=["dev", "test"], default="test")
     parser.add_argument("--forward", action="store_true", help="preflight only: run an untrained forward pass")
+    parser.add_argument("--quality-stress", action="store_true", help="evaluate only: additionally perturb quality metadata on clean cached embeddings")
     args = parser.parse_args()
+    if args.quality_stress and args.command != "evaluate":
+        parser.error("--quality-stress is only valid with evaluate")
     from interview_robot.meld_training import configure, preflight, train, evaluate_checkpoint, plan
     config = configure(args.config, args.variant, args.seed, args.device)
     if args.feature_dir:
@@ -40,7 +43,7 @@ def main():
         else:
             if not args.checkpoint:
                 parser.error("--checkpoint is required")
-            result = evaluate_checkpoint(args.checkpoint, args.output, args.split, args.device or "cpu", args.feature_dir)
+            result = evaluate_checkpoint(args.checkpoint, args.output, args.split, args.device or "cpu", args.feature_dir, args.quality_stress)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

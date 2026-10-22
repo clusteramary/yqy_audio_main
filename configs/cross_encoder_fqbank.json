@@ -1,0 +1,10 @@
+{
+  "data": "data/processed/followup/fq-bank",
+  "encoder": "models/pretrained/meld/distilbert-base-uncased",
+  "max_length": 512,
+  "question_tokens": 96,
+  "batch_size": 1,
+  "learning_rate": 0.00002,
+  "epochs": 10,
+  "patience": 3
+}

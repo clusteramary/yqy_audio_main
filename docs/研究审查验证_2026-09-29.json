@@ -1,0 +1,197 @@
+{
+  "date": "2026-09-29",
+  "formal_training": false,
+  "full_feature_extraction": false,
+  "test_metrics_used_for_development": false,
+  "hardware_experiment": false,
+  "tests": {
+    "command": "python -m pytest tests -q",
+    "passed": 63
+  },
+  "real_encoder_forward_checks": [
+    "english passed",
+    "chinese passed"
+  ],
+  "implementation_sha256": {
+    "interview_robot/followup_protocol.py": "c5ad082f72d8df086442b971539cab3ca375885f06e838405dd5e9fede1389f1",
+    "interview_robot/research_audit.py": "da2c56da389200f4097be73e83bb13280d4cc25b2b712f7190302a553bfd3e86",
+    "interview_robot/research_metrics.py": "2ac1f58294e9d91050c6fc3fe4e4c02a63c4e7c8a6ca20bc79e722372e60f4cf",
+    "interview_robot/followup_training.py": "9ed826871971c65e2380d523895a7f326f93bba64515a58d3c9338a1e8c007f0",
+    "interview_robot/meld_training.py": "e641372176f9596a678805a4ac22074c786eebae674137fab84b97f55be848d3",
+    "interview_robot/models/ranker.py": "f7bf58537e25e9e9cee4be2e4afc8a62522c4c69f400346f089dab247a4d8e0d"
+  },
+  "diagnostics": {
+    "bm25-v2-mixed-dev": {
+      "count": 3767,
+      "metrics": {
+        "MRR": 0.2233777246851309,
+        "Recall@1": 0.05548181576851606,
+        "nDCG@1": 0.05548181576851606,
+        "Recall@3": 0.14441199893814707,
+        "nDCG@3": 0.10589036046209707
+      },
+      "data_sha256": "6dcd60e54609b7b95a6ce9bd5b03d2dedd9e291179819612ff7628f62e404e62",
+      "model": "BM25-history-only;no-training"
+    },
+    "bm25-v2-random-dev": {
+      "count": 3767,
+      "metrics": {
+        "MRR": 0.40591182406950677,
+        "Recall@1": 0.2062649323068755,
+        "nDCG@1": 0.2062649323068755,
+        "Recall@3": 0.46827714361560924,
+        "nDCG@3": 0.3564221646450438
+      },
+      "data_sha256": "a50565408b692bb4c0249786ecda2121073847030157584efecd98c0fa24f248",
+      "model": "BM25-history-only;no-training"
+    },
+    "kdconv-v1-shortcut": {
+      "counts": {
+        "negative": 33903,
+        "seen_negative": 33903,
+        "positive": 3767,
+        "seen_positive": 390
+      },
+      "seen_rates": {
+        "positive": 0.10353066100345103,
+        "negative": 1.0
+      },
+      "absolute_membership_gap": 0.896469338996549,
+      "unseen_first_metrics": {
+        "MRR": 0.9269659027224734,
+        "Recall@1": 0.9078842580302628,
+        "nDCG@1": 0.9078842580302628,
+        "Recall@3": 0.9269976108308999,
+        "nDCG@3": 0.9187617017880839
+      },
+      "uses_history_or_knowledge": false,
+      "interpretation": "Diagnostic shortcut, not a trained model or proof of absence of other shortcuts.",
+      "inputs": {
+        "train": {
+          "path": "data\\processed\\followup\\kdconv\\train.jsonl",
+          "sha256": "ad7a7304bbf7273b1b602d9f9d3f631b2225291fd8bba720c339f5d2c90a7974"
+        },
+        "dev": {
+          "path": "data\\processed\\followup\\kdconv\\dev.jsonl",
+          "sha256": "c41e313ce280aa4606a2b0db314c63b3cc53fb3edd0b54b2a3c2199b829e700b"
+        }
+      }
+    },
+    "kdconv-v2-random-shortcut": {
+      "counts": {
+        "negative": 33903,
+        "seen_negative": 2736,
+        "positive": 3767,
+        "seen_positive": 390
+      },
+      "seen_rates": {
+        "positive": 0.10353066100345103,
+        "negative": 0.08070082293602336
+      },
+      "absolute_membership_gap": 0.022829838067427666,
+      "unseen_first_metrics": {
+        "MRR": 0.28547252455534944,
+        "Recall@1": 0.09423944783647464,
+        "nDCG@1": 0.09423944783647464,
+        "Recall@3": 0.2864348287762145,
+        "nDCG@3": 0.2030929704169692
+      },
+      "uses_history_or_knowledge": false,
+      "interpretation": "Diagnostic shortcut, not a trained model or proof of absence of other shortcuts.",
+      "inputs": {
+        "train": {
+          "path": "data\\processed\\followup-v2-random\\kdconv\\train.jsonl",
+          "sha256": "44a3d79f243881e64c1b96dbea3785abdd489e5c7a002673c81e4fa5805786de"
+        },
+        "dev": {
+          "path": "data\\processed\\followup-v2-random\\kdconv\\dev.jsonl",
+          "sha256": "a50565408b692bb4c0249786ecda2121073847030157584efecd98c0fa24f248"
+        }
+      }
+    },
+    "kdconv-v2-shortcut": {
+      "counts": {
+        "negative": 33903,
+        "seen_negative": 1852,
+        "positive": 3767,
+        "seen_positive": 390
+      },
+      "seen_rates": {
+        "positive": 0.10353066100345103,
+        "negative": 0.05462643423885792
+      },
+      "absolute_membership_gap": 0.048904226764593106,
+      "unseen_first_metrics": {
+        "MRR": 0.28481192140602823,
+        "Recall@1": 0.09848685956994956,
+        "nDCG@1": 0.09848685956994956,
+        "Recall@3": 0.2819219538093974,
+        "nDCG@3": 0.20264742547878398
+      },
+      "uses_history_or_knowledge": false,
+      "interpretation": "Diagnostic shortcut, not a trained model or proof of absence of other shortcuts.",
+      "inputs": {
+        "train": {
+          "path": "data\\processed\\followup-v2-mixed\\kdconv\\train.jsonl",
+          "sha256": "10827fd813e851819c5841ce795ed1f2d1bb98bf6f81139de34c9770d8e3f849"
+        },
+        "dev": {
+          "path": "data\\processed\\followup-v2-mixed\\kdconv\\dev.jsonl",
+          "sha256": "6dcd60e54609b7b95a6ce9bd5b03d2dedd9e291179819612ff7628f62e404e62"
+        }
+      }
+    }
+  },
+  "candidate_protocols": {
+    "followup-v2-mixed": {
+      "protocol": "followup-candidates-v2",
+      "hard_negatives": 4,
+      "negative_pool": "same split and domain; exclude entire source dialogue",
+      "task": "offline fixed-candidate reranking, NOT open retrieval",
+      "heldout_pool_usage": "candidate construction only; never training or knowledge retrieval",
+      "label_quality": "weak observed-next versus sampled; human audit still required",
+      "splits": {
+        "train": {
+          "rows": 29488,
+          "source_sha256": "ad7a7304bbf7273b1b602d9f9d3f631b2225291fd8bba720c339f5d2c90a7974",
+          "sha256": "10827fd813e851819c5841ce795ed1f2d1bb98bf6f81139de34c9770d8e3f849"
+        },
+        "dev": {
+          "rows": 3767,
+          "source_sha256": "c41e313ce280aa4606a2b0db314c63b3cc53fb3edd0b54b2a3c2199b829e700b",
+          "sha256": "6dcd60e54609b7b95a6ce9bd5b03d2dedd9e291179819612ff7628f62e404e62"
+        },
+        "test": {
+          "rows": 3818,
+          "source_sha256": "a9449b91e7276fe9416820bda8c9626471380b6be32bcf2625806f135ea071d0",
+          "sha256": "800caa2f97618deac9e34bddd853b1312b1c1bc3c3fdecfd3ffa8b30472a016d"
+        }
+      }
+    },
+    "followup-v2-random": {
+      "protocol": "followup-candidates-v2",
+      "hard_negatives": 0,
+      "negative_pool": "same split and domain; exclude entire source dialogue",
+      "task": "offline fixed-candidate reranking, NOT open retrieval",
+      "heldout_pool_usage": "candidate construction only; never training or knowledge retrieval",
+      "label_quality": "weak observed-next versus sampled; human audit still required",
+      "splits": {
+        "train": {
+          "rows": 29488,
+          "source_sha256": "ad7a7304bbf7273b1b602d9f9d3f631b2225291fd8bba720c339f5d2c90a7974",
+          "sha256": "44a3d79f243881e64c1b96dbea3785abdd489e5c7a002673c81e4fa5805786de"
+        },
+        "dev": {
+          "rows": 3767,
+          "source_sha256": "c41e313ce280aa4606a2b0db314c63b3cc53fb3edd0b54b2a3c2199b829e700b",
+          "sha256": "a50565408b692bb4c0249786ecda2121073847030157584efecd98c0fa24f248"
+        },
+        "test": {
+          "rows": 3818,
+          "source_sha256": "a9449b91e7276fe9416820bda8c9626471380b6be32bcf2625806f135ea071d0",
+          "sha256": "69f2aa5c45cd3792d2f72ebb1563207aecea7ef0d348d6244066adf86bf391dc"
+        }
+      }
+    }
+  }
+}
